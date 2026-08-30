@@ -27,18 +27,43 @@
     <NoWarn>$(NoWarn);AVLN3001</NoWarn>
   </PropertyGroup>
 
+  <!--
+    Single source of truth for the dependency versions. Used by the PackageReferences below
+    and stamped into assembly metadata for the About box, because an assembly's own version
+    is not its package version: ImageSharp 3.1.12 ships assembly version 3.0.0.0, and
+    Avalonia's public surface is spread across Avalonia.Base and friends rather than a
+    single "Avalonia" assembly. Reading either at run time reports something misleading.
+  -->
+  <PropertyGroup>
+    <AvaloniaVersion>11.3.20</AvaloniaVersion>
+    <ImageSharpVersion>3.1.12</ImageSharpVersion>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- Source artwork and the generator that produces these live in /artwork. -->
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
+  <!--
+    Stamp the build date into assembly metadata so the About box can show it without a
+    generated source file. Read back by BuildInfo.BuildDate. Evaluated at build time,
+    so an incremental build that recompiles nothing keeps the previous date - which is
+    correct, because the binary really is from that day.
+  -->
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.20" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.20" />
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.20" Condition="'$(Configuration)' == 'Debug'" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <AssemblyMetadata Include="BuildDate"
+                      Value="$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd'))" />
+    <AssemblyMetadata Include="AvaloniaVersion" Value="$(AvaloniaVersion)" />
+    <AssemblyMetadata Include="ImageSharpVersion" Value="$(ImageSharpVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="$(ImageSharpVersion)" />
   </ItemGroup>
 
 </Project>

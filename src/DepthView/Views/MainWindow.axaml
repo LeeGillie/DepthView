@@ -51,9 +51,14 @@
                      FontSize="11" Foreground="#79818D"
                      ToolTip.Tip="An 'imposter' is a file stored at 16 bits per sample that only carries 8 bits worth of distinct values." />
         </StackPanel>
-        <TextBlock Grid.Column="1" x:Name="TimingText" VerticalAlignment="Center"
-                   FontSize="11" Foreground="#5E6773"
-                   ToolTip.Tip="How long the last decode and analysis pass took." />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+          <TextBlock x:Name="TimingText" VerticalAlignment="Center"
+                     FontSize="11" Foreground="#5E6773"
+                     ToolTip.Tip="How long the last decode and analysis pass took." />
+          <Button x:Name="AboutButton" Content="About" Padding="10,5" FontSize="11"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="Version number, the platforms DepthView runs on, everyone who made it, and the licence terms." />
+        </StackPanel>
       </Grid>
     </Border>
 

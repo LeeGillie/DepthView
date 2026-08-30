@@ -30,6 +30,9 @@ public partial class MainWindow : Window
     private bool _busy;
     private ReliefWindow? _relief;
 
+    /// <summary>Only set on the --about screenshot path; the About button uses a dialog.</summary>
+    private AboutWindow? _about;
+
     private static readonly IBrush GoodBrush = new SolidColorBrush(Color.FromRgb(0x6F, 0xD0, 0x8C));
     private static readonly IBrush InfoBrush = new SolidColorBrush(Color.FromRgb(0x7F, 0xA6, 0xD8));
     private static readonly IBrush WarnBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xB0, 0x4B));
@@ -53,6 +56,7 @@ public partial class MainWindow : Window
         SaveButton.Click += async (_, _) => await SaveReportAsync();
         ReliefButton.Click += (_, _) => OpenRelief();
         ClearButton.Click += (_, _) => ClearAll();
+        AboutButton.Click += (_, _) => new AboutWindow().ShowDialog(this);
 
         PreviewMode.SelectionChanged += (_, _) => UpdatePreview();
         LogCheck.IsCheckedChanged += (_, _) => Histogram.LogScale = LogCheck.IsChecked == true;
@@ -68,6 +72,16 @@ public partial class MainWindow : Window
 
         Opened += async (_, _) =>
         {
+            if (Program.StartupAbout)
+            {
+                // Show, not ShowDialog: a modal loop would own the dispatcher and the
+                // screenshot timer below would never get a turn.
+                _about = new AboutWindow();
+                _about.Show(this);
+                if (Program.ScreenshotPath is not null) ScheduleScreenshot();
+                return;
+            }
+
             var start = Program.StartupFile;
             if (string.IsNullOrEmpty(start) || !File.Exists(start)) return;
             var bytes = await File.ReadAllBytesAsync(start);
@@ -86,7 +100,9 @@ public partial class MainWindow : Window
     {
         var timer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(Program.StartupRelief ? 4500 : 2200)
+            Interval = TimeSpan.FromMilliseconds(
+                Program.ScreenshotDelayMs
+                ?? (Program.StartupRelief ? 4500 : Program.StartupAbout ? 1400 : 2200))
         };
 
         timer.Tick += (_, _) =>
@@ -95,7 +111,9 @@ public partial class MainWindow : Window
             try
             {
                 Histogram.ClearHover();
-                Window target = Program.StartupRelief && _relief is not null ? _relief : this;
+                Window target =
+                    Program.StartupAbout && _about is not null ? _about :
+                    Program.StartupRelief && _relief is not null ? _relief : this;
                 var size = new PixelSize(Math.Max(1, (int)target.ClientSize.Width),
                                          Math.Max(1, (int)target.ClientSize.Height));
 

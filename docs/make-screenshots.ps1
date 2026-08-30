@@ -46,6 +46,10 @@ Capture @("$fix\true16.png",        '--screenshot', "$img\analysis-genuine.png")
 Capture @("$fix\relief_demo.png", '--orbit', '24', '42',
           '--screenshot', "$img\relief-preview.png") 14
 
+# The credit roll is moving, so pin the capture to a fixed delay: the same --delay always
+# lands on the same line of the roll, which keeps this image stable between runs.
+Capture @('--about', '--delay', '900', '--screenshot', "$img\about.png") 8
+
 Write-Host "Rendering relief art..." -ForegroundColor Cyan
 $demo = "$fix\relief_demo.png"
 $common = @('--exag', '1.6', '--size', '1100', '--material', 'Polished brass',

@@ -20,8 +20,17 @@ internal static class Program
     /// <summary>Open the relief preview straight away, alongside the analysis window.</summary>
     public static bool StartupRelief;
 
+    /// <summary>Open the About box straight away. Exists so its screenshot is reproducible too.</summary>
+    public static bool StartupAbout;
+
+    /// <summary>Open the About box showing the licence page rather than the credit roll.</summary>
+    public static bool StartupLicence;
+
     /// <summary>When set, capture the window to this PNG once it has settled, then exit.</summary>
     public static string? ScreenshotPath;
+
+    /// <summary>Overrides how long to wait before the capture. Useful for catching the credit roll mid-scroll.</summary>
+    public static int? ScreenshotDelayMs;
 
     /// <summary>Camera angle to open the relief preview at, when given on the command line.</summary>
     public static double? StartupYaw, StartupPitch;
@@ -32,7 +41,9 @@ internal static class Program
           DepthView                       open the window
           DepthView <image>               open the window with that image loaded
           DepthView <image> --relief      also open the 3D relief preview
-          DepthView <image> --screenshot <out.png> [--relief]
+          DepthView --about               open the About box: version, platforms, credits
+          DepthView --licence             open the About box on its licence page
+          DepthView <image> --screenshot <out.png> [--relief] [--delay <ms>]
                                           capture the window to a PNG and exit
                                           (used to keep the README images reproducible)
           DepthView --report <path...>    write a text analysis instead of opening a window
@@ -85,9 +96,16 @@ internal static class Program
 
         StartupFile = args.FirstOrDefault(a => !a.StartsWith('-') && File.Exists(a));
         StartupRelief = args.Any(a => a is "--relief" or "-3d");
+        StartupAbout = args.Any(a => a is "--about");
+        StartupLicence = args.Any(a => a is "--licence" or "--license");
+        if (StartupLicence) StartupAbout = true;
 
         int sh = Array.FindIndex(args, a => a == "--screenshot");
         if (sh >= 0 && sh + 1 < args.Length) ScreenshotPath = args[sh + 1];
+
+        int dl = Array.FindIndex(args, a => a == "--delay");
+        if (dl >= 0 && dl + 1 < args.Length && int.TryParse(args[dl + 1], out int ms) && ms > 0)
+            ScreenshotDelayMs = ms;
 
         // --orbit <yaw> <elevation> opens the preview at a given camera angle, and implies it.
         int ob = Array.FindIndex(args, a => a == "--orbit");

@@ -1,0 +1,135 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DepthView.Views.AboutWindow"
+        Title="About DepthView"
+        Icon="/Assets/depthview-icon-256.png"
+        Width="780" Height="748" MinWidth="640" MinHeight="540"
+        Background="#101215"
+        WindowStartupLocation="CenterOwner">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#7FA6D8" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="#8A929E" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="Foreground" Value="#E4E8EE" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.creditrole">
+      <Setter Property="Foreground" Value="#7FA6D8" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,18,0,6" />
+    </Style>
+    <Style Selector="TextBlock.creditname">
+      <Setter Property="Foreground" Value="#E4E8EE" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,6,0,0" />
+    </Style>
+    <Style Selector="TextBlock.creditnote">
+      <Setter Property="Foreground" Value="#79818D" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,2,0,0" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="#22262D" />
+      <Setter Property="Foreground" Value="#DDE3EA" />
+      <Setter Property="BorderBrush" Value="#333944" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="5" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#2E343D" />
+      <Setter Property="BorderBrush" Value="#46505E" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+    <!-- identity -->
+    <Border Grid.Row="0" Background="#171A1F" BorderBrush="#262B33" BorderThickness="0,0,0,1" Padding="20,16">
+      <Grid ColumnDefinitions="Auto,*">
+        <Image Grid.Column="0" Source="/Assets/depthview-icon-256.png"
+               Width="82" Height="82" Margin="0,0,18,0"
+               RenderOptions.BitmapInterpolationMode="HighQuality"
+               ToolTip.Tip="The DepthView mark: a depth ramp read as a height field, which is exactly what the program does with your files." />
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+          <TextBlock Text="DepthView" FontSize="26" FontWeight="SemiBold" Foreground="#EDF1F6" />
+          <TextBlock x:Name="VersionLine" FontSize="13" Foreground="#9AA3AF"
+                     ToolTip.Tip="The release version and the UTC date this binary was compiled." />
+          <TextBlock FontSize="11" Foreground="#79818D" TextWrapping="Wrap"
+                     Text="Reports what a depth map actually contains, not what its header claims."
+                     ToolTip.Tip="DepthView measures the pixels rather than trusting the file's declared bit depth." />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- platforms and build -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="20,16,20,4">
+
+      <StackPanel Grid.Column="0" Margin="0,0,14,0">
+        <TextBlock Classes="section" Text="RUNS ON"
+                   ToolTip.Tip="Every platform DepthView is published for. Each is a self-contained single file with nothing to install and no runtime to add." />
+        <StackPanel x:Name="PlatformList" Spacing="0"
+                    ToolTip.Tip="Releases carry one self-contained binary per runtime identifier listed here." />
+      </StackPanel>
+
+      <StackPanel Grid.Column="1" Margin="14,0,0,0">
+        <TextBlock Classes="section" Text="THIS BUILD"
+                   ToolTip.Tip="What is actually running right now. Copy this into a bug report and it answers most of the first round of questions." />
+        <Grid x:Name="BuildGrid" ColumnDefinitions="112,*"
+              ToolTip.Tip="Resolved at run time from the loaded assemblies, so it always describes the copy in front of you." />
+      </StackPanel>
+    </Grid>
+
+    <!-- credits -->
+    <Border Grid.Row="2" Margin="20,14,20,0" CornerRadius="6"
+            Background="#0C0E11" BorderBrush="#262B33" BorderThickness="1">
+      <Grid RowDefinitions="Auto,*">
+
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="14,10,10,6">
+          <TextBlock Grid.Column="0" x:Name="PanelTitle" Classes="section" Margin="0" Text="CREDITS"
+                     VerticalAlignment="Center"
+                     ToolTip.Tip="Everyone and everything this project was built on. The list scrolls by itself; hover it to pause, or scroll it yourself." />
+          <TextBlock Grid.Column="1" x:Name="CreditHint" VerticalAlignment="Center" Margin="12,0,0,0"
+                     FontSize="10" Foreground="#5E6773" Text="hover to pause" />
+          <Button Grid.Column="2" x:Name="ScrollToggle" Content="Pause" Width="78" Padding="8,4"
+                  FontSize="11"
+                  ToolTip.Tip="Stop or restart the automatic scroll. You can always scroll manually with the wheel." />
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" x:Name="CreditScroll"
+                      VerticalScrollBarVisibility="Auto"
+                      ToolTip.Tip="Scrolls on its own and loops back to the top. Moving the pointer over it pauses the roll so you can read.">
+          <StackPanel x:Name="CreditBody" Margin="20,4,20,26" Spacing="0" />
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <!-- actions -->
+    <Border Grid.Row="3" Background="#0D0F12" BorderBrush="#262B33" BorderThickness="0,1,0,0" Padding="16,10">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+        <Button Grid.Column="0" x:Name="CopyBuildButton" Content="Copy build info" Margin="0,0,8,0"
+                ToolTip.Tip="Copy the version, runtime and host line to the clipboard, ready to paste into an issue." />
+        <Button Grid.Column="1" x:Name="LicenceButton" Content="Licence"
+                ToolTip.Tip="Show the MIT licence terms and the licences of every dependency that ships inside this binary." />
+        <TextBlock Grid.Column="2" x:Name="CopyFeedback" VerticalAlignment="Center" Margin="12,0,0,0"
+                   FontSize="11" Foreground="#6FA97F" />
+        <Button Grid.Column="3" x:Name="CloseButton" Content="Close" Width="92" IsDefault="True"
+                ToolTip.Tip="Close this window. Escape does the same." />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

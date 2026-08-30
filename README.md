@@ -281,6 +281,22 @@ once — **evenly spaced teeth there are the fastest visual tell for an imposter
 
 Every UI element has a tooltip explaining what it means.
 
+### About
+
+**About** in the header reports the version and the UTC build date, every platform
+this release is published for, and what is actually running right now — runtime,
+host OS, architecture, and whether this copy is a published single-file binary or a
+build from source. **Copy build info** puts that one line on the clipboard, which
+answers most of the first round of questions on any bug report.
+
+Below that is a credit roll that scrolls by itself and loops; hover it to pause, or
+scroll it yourself. **Licence** turns the same panel into the MIT terms and the
+licence of every component that ships inside the binary.
+
+<p align="center">
+  <img src="docs/images/about.png" alt="The About box: version, supported platforms, live build details and the credit roll" width="620">
+</p>
+
 ---
 
 ## Command line
@@ -291,6 +307,8 @@ opening a window.
 ```
 DepthView                            open the window
 DepthView <image>                    open the window with that image loaded
+DepthView --about                    version, supported platforms, credits
+DepthView --licence                  the About box, opened on its licence page
 DepthView --report <image>           full text report (also written beside the image)
 DepthView --report <folder>          every image in the folder
 DepthView --report <folder> --summary --out results.txt
@@ -385,8 +403,11 @@ DepthView.slnx
 src/DepthView/
   Program.cs              entry point, CLI report mode
   App.axaml               application shell
+  BuildInfo.cs            version, build date, host and platform strings for the About box
   Views/MainWindow        UI, input handling, preview rendering
   Views/ReliefWindow      lit 3D relief preview
+  Views/AboutWindow       version, supported platforms, scrolling credits, licence
+  Views/Credits.cs        the credit roll contents, as data rather than markup
   Controls/               HistogramControl - hover readout, wheel zoom, comb strip
   Imaging/                PngDecoder, PnmDecoder, PfmDecoder, TiffSniffer, ImageLoader
   Analysis/               DepthAnalyzer, AnalysisResult, ReportWriter

@@ -18,9 +18,12 @@ public static class DepthAnalyzer
     /// and essentially no real depth map fills it - so measuring a file against the container
     /// means warning about almost every genuine 16-bit map ever made. What matters is whether
     /// the file carries more gradation than the job can use, and a slicing job only ever
-    /// resolves as many depth steps as it has passes: WeCreat quote 256 layers for the Lumos
-    /// Ultra, LightBurn pass counts run from tens to low hundreds, and the depth budget in
-    /// TODO item 1.2 works out around 110 usable steps for a 1.1mm brass pocket at 10um.
+    /// resolves as many depth steps as it has passes. WeCreat's published figure of 256 depth
+    /// layers for the Lumos Ultra is, per their support team, an 8-bit software representation
+    /// rather than a controller limit - which makes it a statement about what the toolchain
+    /// carries, not what the machine can do, and so exactly the ceiling that matters here.
+    /// LightBurn pass counts run from tens to low hundreds, and the depth budget in TODO item
+    /// 1.2 works out around 110 usable steps for a 1.1mm brass pocket at 10um.
     ///
     /// 1,024 is four times the highest of those figures, so a file clearing it has margin
     /// even against a process far finer than anything on the market. Below it, a thin map in

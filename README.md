@@ -60,6 +60,12 @@ WeCreat's own product page for the Lumos Ultra says its relief engraving "maps y
 into **256 depth layers**." That single number reframes the whole question, and it cuts both
 ways depending on which software you drive the machine with.
 
+> **What that number actually is.** WeCreat's support team have confirmed that the 256-layer
+> figure is an **8-bit software representation, not a controller limit** — it describes what
+> the toolchain carries, not what the machine is capable of. That is a useful correction: it
+> means the ceiling moves when the software does, which is exactly what makes the LightBurn
+> path below worth taking, and exactly why a file's real bit depth is worth knowing.
+
 **Through MakeIt** — 256 layers is the ceiling. A 16-bit depth map is over-spec for that path,
 so "is my file really 16-bit?" is the wrong question. The right one is *do my 256 levels land
 well* — are they evenly distributed, do they reach both ends of the range, is the shadow

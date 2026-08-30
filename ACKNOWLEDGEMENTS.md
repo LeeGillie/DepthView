@@ -31,6 +31,13 @@ findings exist specifically because LightBurn's own documentation is honest abou
 **The WeCreat Lumos Ultra community** — for working out in public what a 256-layer relief
 actually needs from its source image, well before any tool was checking.
 
+**WeCreat support** — for engaging seriously with detailed technical reports and correcting
+two published Lumos Ultra specifications as a result: the UV spot size, and the fact that the
+256-depth-layer figure is an 8-bit software representation rather than a controller limit.
+That second correction is load-bearing here — it is part of the reasoning behind the level
+threshold in `DepthAnalyzer`. A vendor who answers numbered questions properly and amends
+their own documentation is rarer than it should be.
+
 ## The build
 
 DepthView was written by **Lee Gillie** and **Claude** (Anthropic) working together. Lee

@@ -134,16 +134,51 @@ Tier 2 (orbit, tilt, zoom, pan with real geometry) are both **built**. Deferred:
 
 ---
 
-## 5. Housekeeping
+## 5. Blocking a public release
+
+Nothing here is a missing feature. These are the things a stranger arriving at a public
+repository would find absent, ordered by how much each one costs the project's credibility.
+
+- **Never built or run on macOS or Linux.** The README and the About box both name three
+  platforms; only Windows has ever executed a line of this code. Architecturally it should
+  be fine — Avalonia, net8.0, a software renderer, no P/Invoke on the analysis path — but
+  "should" is not "does", and being wrong about this on a tool whose entire pitch is *do not
+  trust what the header claims* would be an unusually bad look. **A GitHub Actions matrix
+  build across ubuntu, macos and windows settles it without owning a Mac, and is perhaps an
+  hour's work.**
+- **No published binaries.** `publish.ps1` makes all seven, and none of them are on a
+  Releases page. Until they are, installation is "install the .NET SDK and a compiler",
+  which is a developer's repository rather than a tool.
+- **Unsigned binaries.** Windows SmartScreen will warn, and macOS Gatekeeper will quarantine
+  a downloaded unsigned binary outright. Code signing costs money and an Apple developer
+  account; the cheap mitigation is a README section telling people exactly what they will
+  see and how to get past it. Do at least the cheap one before publishing binaries.
+- **No macOS `.app` bundle.** `publish.ps1` emits a bare Mach-O executable, so on macOS
+  there is no icon, no Finder double-click, and no bundle identifier. A `.app` is a
+  directory with an `Info.plist`, an `.icns` and the binary — scriptable, but not free.
+- **No Linux desktop integration.** No `.desktop` entry and no icon theme install, so the
+  program has no menu entry and no icon in a launcher.
+- **No automated test project.** The fixtures are verified by hand against NumPy and the
+  results were exact, but that verification lives in a conversation rather than in the
+  repository. Wrapping the existing fixtures in a test runner is mostly mechanical and pays
+  for itself the first time a decoder is touched.
+- **No CI.** Nothing checks that the build is clean on push. Solved by the same workflow
+  file as the platform question above.
+- No `CONTRIBUTING.md`, issue templates, or `CHANGELOG.md`. Cheap, and only worth doing if
+  contributions are actually wanted.
+- No versioning policy or git tags. The version lives in one place in the csproj and is
+  reported by the About box; nothing yet ties it to a tag.
+
+## 6. Housekeeping
 
 - Avalonia 11.3 marks `DataFormats` and `IClipboard.GetDataAsync` obsolete in favour of the
   `DataTransfer` API arriving in 12.x. Currently suppressed with a scoped
   `#pragma warning disable CS0618` and a comment. Revisit when moving to Avalonia 12.
-- No automated test project. The fixtures in `tests/` are verified by hand against NumPy;
-  worth wrapping in a real test runner so regressions are caught on build.
-- Icon is done. Still outstanding for a release: a splash or About box, a version stamp
-  visible in the UI, and a macOS `.icns` / Linux `.desktop` entry so the icon shows there too
-  (the `.ico` only covers Windows).
+- Icon and About box are done. The About box carries the version, the build date, the
+  supported platforms, the live runtime and host, the credit roll and the licence. The
+  platform list in `BuildInfo.Platforms` is duplicated knowledge: it must be changed in the
+  same commit as any RID change in `publish.ps1` / `publish.sh`, or the program starts
+  advertising builds that do not exist. It already did that once, briefly.
 - Licensing is settled and needs no further thought. DepthView is MIT and is not going to
   become a paid tool, and the Six Labors terms grant Apache 2.0 rights to open-source
   consumers regardless of revenue, so the ImageSharp position cannot change. Dependency

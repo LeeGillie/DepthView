@@ -34,15 +34,17 @@ public static class BuildInfo
     public static string ImageLibrary { get; } = Named("SixLabors.ImageSharp", Metadata("ImageSharpVersion"));
 
     /// <summary>
-    /// Platforms this build is published for. These are the seven runtime identifiers in
-    /// publish.ps1 / publish.sh; keep the two in step. Tuple is (name, detail).
+    /// Platforms this build is published for. These are exactly the seven runtime
+    /// identifiers in publish.ps1 and publish.sh, and nothing else: an About box that
+    /// names a target the publish scripts do not build is a promise the project cannot
+    /// keep. If you add or drop a RID there, change it here in the same commit.
+    /// Tuple is (name, detail).
     /// </summary>
     public static readonly (string Name, string Detail)[] Platforms =
     {
-        ("Windows 10, 11 and Server",   "x64 and Arm64 - win-x64, win-arm64"),
+        ("Windows 10, 11 and Server",   "x64, x86 and Arm64 - win-x64, win-x86, win-arm64"),
         ("macOS 12 Monterey or newer",  "Intel and Apple silicon - osx-x64, osx-arm64"),
         ("Linux, glibc distributions",  "Ubuntu, Fedora, Debian, Mint - linux-x64, linux-arm64"),
-        ("Linux, musl distributions",   "Alpine and friends - linux-musl-x64"),
     };
 
     /// <summary>

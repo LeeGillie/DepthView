@@ -577,6 +577,12 @@ change to it, since a tag is easy to push and awkward to retract once people hav
 it up cold — the LightBurn slicing and calibration services, the orbiting 3D view, colour-map
 decoding, and the remaining format work.
 
+## Acknowledgements
+
+[ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md) credits the people whose work shaped DepthView
+without being a dependency — including the makers of the real depth maps it was tested
+against, which are not redistributed here.
+
 ## Licence
 
 DepthView is **MIT** licensed — see [LICENSE](LICENSE).

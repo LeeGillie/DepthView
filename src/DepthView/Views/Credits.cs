@@ -77,6 +77,12 @@ public static class Credits
 
         new("WITH THANKS TO", new CreditEntry[]
         {
+            new("Victor Wolansky",
+                "For the Dolly Parton memorial coin relief, made and shared freely with the "
+              + "engraving community. It was one of the real depth maps DepthView was tested "
+              + "against, and real work made by someone who was not trying to produce a test "
+              + "case is worth more to a tool like this than anything written to order. "
+              + "The file itself is his and is not distributed here."),
             new("LightBurn Software",
                 "For 3D Sliced Image mode, and for documentation candid enough to say where its "
               + "depth control ends. DepthView is built to answer the questions that leaves open."),

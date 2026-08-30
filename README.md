@@ -329,9 +329,14 @@ plain PNG, which cross-checks the Adam7 and Netpbm paths against the baseline.
 it up cold — the LightBurn slicing and calibration services, the orbiting 3D view, colour-map
 decoding, and the remaining format work.
 
-## Licence note
+## Licence
 
-Uses [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) for the
-non-critical formats, under the Six Labors Split License — free for open source,
-personal use, and organisations under the revenue threshold. The decoders that
-matter for depth work have no third-party dependency.
+DepthView is **MIT** licensed — see [LICENSE](LICENSE).
+
+Dependency licences are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Almost
+everything is MIT. The one worth knowing about is
+[SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp), which uses the Six Labors
+Split License: that grants plain Apache 2.0 terms to software licensed under an open source
+or source-available licence, which DepthView is. It is used only for TIFF, JPEG, BMP, WebP,
+GIF, TGA and QOI, plus PNG encoding on the `--render` path — the bit-exact decoders that
+matter for depth work are DepthView's own and carry no third-party dependency.

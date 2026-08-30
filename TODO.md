@@ -111,14 +111,23 @@ Tier 2 (orbit, tilt, zoom, pan with real geometry) are both **built**. Deferred:
 
 ## 3. Analysis
 
-### 3.0 Recalibrate the sparse-occupancy warning  *(open question, raised by real files)*
+### 3.0 ~~Recalibrate the sparse-occupancy warning~~  **Done 2026-08-30**
+
+Fixed by `AmpleLevels` in `DepthAnalyzer`, which takes option 2-and-a-half below: a file with
+at least 1,024 distinct levels **and** a level step of 1 is reported as genuine rather than
+sparse, with the occupancy figure kept as an INFO finding. The two files now read *"Genuine
+16-bit data, carrying about 13 bits"*. Sample 04 stays a warning because its step is 64.
+
+Option 1 remains the better answer whenever item 1.1 exists — judging the levels against an
+actual pass count is more honest than any fixed threshold. The record of why, kept because
+the threshold will look arbitrary to whoever reads it next:
 
 Two of Lee's own 4096x4096 depth maps — genuine 16-bit, level step 1, no ladder, no
-replication — come back **WARN**, verdict *"Sparse: about 13 bits of real detail"*, on
+replication — came back **WARN**, verdict *"Sparse: about 13 bits of real detail"*, on
 7,814 and 6,839 distinct levels (about 12% and 10% occupancy).
 
-The statement is true and the arithmetic is right. The question is whether **WARN** is the
-correct severity, and the argument that it is not:
+The statement was true and the arithmetic was right. The question was whether **WARN** was the
+correct severity, and the argument that it was not:
 
 - 7,814 smooth levels is roughly 30x what an 8-bit map carries.
 - No laser process will consume it. At the pass counts LightBurn actually runs — tens to a
@@ -139,6 +148,14 @@ Options, roughly in order of preference:
 Worth settling before strangers run it on their own good files. Option 1 is the honest one
 and it wants item 1.1 (pass-count simulator) to exist first; option 2 is the ten-minute
 version that stops the false alarm now.
+
+**One thing to watch.** This whole episode came from pointing the tool at real work rather
+than at fixtures. Every fixture in `tests/` was written to have a known answer, which means
+none of them could ever have caught a mis-tuned severity — a fixture cannot tell you that a
+correct measurement is being reported with the wrong emphasis. Only somebody's actual files
+can. That is an argument for taking the platform-test reports seriously when they arrive,
+and for asking testers what DepthView said about their own maps rather than only whether it
+ran.
 
 ### 3.1 Everything else
 

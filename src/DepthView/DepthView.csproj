@@ -19,6 +19,12 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <DebugType>embedded</DebugType>
+    <!--
+      AVLN3001: ReliefWindow.axaml is not reachable via the runtime XAML loader because
+      ReliefWindow has no public parameterless constructor. That is deliberate - the window
+      is only ever constructed in code with an image and a caption, never loaded by name.
+    -->
+    <NoWarn>$(NoWarn);AVLN3001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

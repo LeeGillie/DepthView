@@ -4,8 +4,11 @@
 # (--render), so documentation images are reproducible from a command line rather than
 # hand-grabbed and left to go quietly stale as the UI changes.
 #
-# Run the fixture generator first if tests\fixtures is empty:
+# Run BOTH generators first if tests\fixtures is empty. They produce different things:
+# make_fixtures.py writes the analysis test images, make_textures.py writes relief_demo.png,
+# which is the map the relief screenshots use.
 #   python tests\make_fixtures.py
+#   python tests\make_textures.py
 #
 #   powershell -ExecutionPolicy Bypass -File docs\make-screenshots.ps1
 
@@ -21,7 +24,11 @@ $fix = Join-Path $root 'tests\fixtures'
 
 if (-not (Test-Path $exe)) { throw "Build DepthView first - not found at $exe" }
 if (-not (Test-Path (Join-Path $fix 'imposter_x257.png'))) {
-    throw "Test fixtures missing. Run: python tests\make_fixtures.py"
+    throw "Analysis fixtures missing. Run: python tests\make_fixtures.py"
+}
+if (-not (Test-Path (Join-Path $fix 'relief_demo.png'))) {
+    throw "relief_demo.png missing. It comes from a different generator than the analysis " +
+          "fixtures. Run: python tests\make_textures.py"
 }
 New-Item -ItemType Directory -Force -Path $img | Out-Null
 

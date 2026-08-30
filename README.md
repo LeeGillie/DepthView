@@ -451,6 +451,19 @@ python tests/make_fixtures.py
 DepthView --report tests/fixtures --summary
 ```
 
+Both scripts need `numpy`. A second generator, `tests/make_textures.py`, writes the
+sample material textures into `tests/textures/` **and** the demo relief
+`tests/fixtures/relief_demo.png` used by the `--render` examples and by
+`docs/make-screenshots.ps1`. Run it too if you want the rendering side:
+
+```
+python tests/make_textures.py
+DepthView --render tests/fixtures/relief_demo.png --material brass --out preview.png
+```
+
+Neither script's output is committed — `tests/fixtures/` and `tests/textures/` are
+in `.gitignore`, so a fresh clone starts with both empty.
+
 Unique-level counts, non-grey pixel counts and non-grey colour counts have been
 verified to match NumPy computed on the source arrays, exactly, for every fixture.
 The interlaced and PGM copies of the same data produce identical numbers to the

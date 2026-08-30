@@ -11,6 +11,28 @@ public static class DepthAnalyzer
     /// <summary>Distinct-colour counting stops here to keep memory bounded on photographs.</summary>
     private const int ColorCap = 1_000_000;
 
+    /// <summary>
+    /// Distinct grey levels above which "the container is not full" stops being a criticism.
+    ///
+    /// Occupancy on its own is the wrong yardstick. A 16-bit container holds 65,536 levels,
+    /// and essentially no real depth map fills it - so measuring a file against the container
+    /// means warning about almost every genuine 16-bit map ever made. What matters is whether
+    /// the file carries more gradation than the job can use, and a slicing job only ever
+    /// resolves as many depth steps as it has passes: WeCreat quote 256 layers for the Lumos
+    /// Ultra, LightBurn pass counts run from tens to low hundreds, and the depth budget in
+    /// TODO item 1.2 works out around 110 usable steps for a 1.1mm brass pocket at 10um.
+    ///
+    /// 1,024 is four times the highest of those figures, so a file clearing it has margin
+    /// even against a process far finer than anything on the market. Below it, a thin map in
+    /// a large container is worth flagging.
+    ///
+    /// This threshold never applies on its own: the level step must also be 1. An evenly
+    /// spaced ladder is a quantisation signature no matter how many rungs it has, and that
+    /// is what keeps samples/04-quantised-1024.png (1,014 levels, step 64) a warning while
+    /// a genuine 7,814-level map is not.
+    /// </summary>
+    private const int AmpleLevels = 1024;
+
     public static AnalysisResult Analyze(ImageData img, ImageMetadata meta)
     {
         var sw = Stopwatch.StartNew();
@@ -375,6 +397,26 @@ public static class DepthAnalyzer
                 $"({r.Occupancy * 100:F3}% occupancy), but they do not follow a clean x257 or x256 pattern. " +
                 "Likely 8-bit source data that was rescaled or filtered on the way in.";
             r.VerdictSeverity = Severity.Warn;
+        }
+        else if (unique > 0 && r.EffectiveBits < r.BitDepth - 1 && unique < container / 4
+                 && unique >= AmpleLevels && r.LevelStep <= 1)
+        {
+            // Plenty of gradation, evenly spread, no quantisation signature. The container
+            // is not full, and that is not a fault: see AmpleLevels for why.
+            r.Verdict = $"Genuine {r.BitDepth}-bit data, carrying about {r.EffectiveBits} bits";
+            r.VerdictDetail =
+                $"{unique:N0} distinct grey levels in a {r.BitDepth}-bit container " +
+                $"({r.Occupancy * 100:F2}% occupancy), spanning {r.MinLevel:N0} to {r.MaxLevel:N0}, " +
+                $"with a level step of 1 and no byte-replication or uniform-ladder signature. " +
+                $"The container could hold more, but no engraving pass count will consume this much.";
+            r.VerdictSeverity = Severity.Good;
+
+            f.Add(new Finding(Severity.Info, "Levels do not fill the container",
+                $"{unique:N0} of a possible {container:N0} levels are used ({r.Occupancy * 100:F2}%). " +
+                "That is worth knowing but is not a defect: the levels are evenly spread with a step " +
+                "of 1, which is what genuine capture looks like, and a slicing job only ever resolves " +
+                "as many depth steps as it has passes. This becomes a real constraint only if you " +
+                "need more distinct depths than there are levels here."));
         }
         else if (unique > 0 && r.EffectiveBits < r.BitDepth - 1 && unique < container / 4)
         {

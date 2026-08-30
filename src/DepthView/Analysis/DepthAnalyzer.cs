@@ -414,9 +414,11 @@ public static class DepthAnalyzer
 
         if (r.IsGrayscaleStoredAsColor)
             f.Add(new Finding(Severity.Info, "Grey data stored as RGB",
-                $"Every pixel is neutral, but the file stores {r.Channels} channels. Saving as single-channel " +
-                $"greyscale would cut the file to roughly a {1.0 / r.Channels * 100:F0}% of its channel count " +
-                "with no loss."));
+                $"Every pixel is neutral, but the file stores {r.Channels} channels, so the same value is " +
+                $"repeated {r.Channels} times per pixel. Re-saving as single-channel greyscale would carry " +
+                $"the same information in about {1.0 / r.Channels * 100:F0}% of the data, losing nothing. " +
+                "It matters beyond tidiness: LightBurn treats a 24-bit image as 8-bit, so an RGB wrapper " +
+                "can also throw away depth precision that the file appears to have."));
 
         if (r.MaxLevel < r.MaxValue || r.MinLevel > 0)
         {

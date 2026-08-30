@@ -1,0 +1,148 @@
+# Publishes the seven self-contained binaries and attaches them to a GitHub Release.
+#
+# Triggered by pushing a version tag:
+#
+#     git tag -a v1.0.0 -m "DepthView 1.0.0"
+#     git push origin v1.0.0
+#
+# Or run manually from the Actions tab with dry_run left on, which builds and uploads
+# everything as workflow artefacts WITHOUT creating a release. Use that to prove the
+# matrix works before spending a tag on it - a tag is cheap to delete and awkward to
+# delete after people have fetched it.
+#
+# All seven targets cross-compile from one Linux runner, which is what publish.sh already
+# does locally. Building the macOS binaries on a macOS runner would only matter for code
+# signing and notarisation, and neither is set up (see TODO). Until it is, a macOS user
+# has to clear the quarantine attribute by hand and the README says so.
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and upload artefacts without creating a release'
+        type: boolean
+        default: true
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  publish:
+    name: ${{ matrix.rid }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid:
+          - win-x64
+          - win-x86
+          - win-arm64
+          - linux-x64
+          - linux-arm64
+          - osx-x64
+          - osx-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish ${{ matrix.rid }}
+        run: |
+          dotnet publish src/DepthView/DepthView.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=none \
+            -o out/${{ matrix.rid }} \
+            --nologo -v quiet
+
+      # One flat, unambiguous filename per platform. A user downloading three of these
+      # into the same folder must not end up with DepthView, DepthView(1), DepthView(2).
+      - name: Name the binary after its platform
+        id: name
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          case "$version" in
+            refs/*|main|"") version="dev" ;;
+          esac
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
+            src="out/${{ matrix.rid }}/DepthView.exe"
+            dst="DepthView-${version}-${{ matrix.rid }}.exe"
+          else
+            src="out/${{ matrix.rid }}/DepthView"
+            dst="DepthView-${version}-${{ matrix.rid }}"
+          fi
+          test -f "$src" || { echo "::error::publish produced no binary at $src"; ls -R out; exit 1; }
+          mkdir -p dist
+          cp "$src" "dist/$dst"
+          chmod +x "dist/$dst"
+          echo "file=$dst" >> "$GITHUB_OUTPUT"
+          ls -lh "dist/$dst" | awk '{print "  " $NF, $5}'
+
+      # A single file that runs on a machine with no .NET installed is the whole delivery
+      # promise. If it cannot answer --help it is not a delivery, and the linux-x64 job is
+      # the only one of the seven that can check that here.
+      - name: Smoke test the Linux binary
+        if: matrix.rid == 'linux-x64'
+        run: |
+          ./dist/${{ steps.name.outputs.file }} --help | head -5
+          python -m pip install --quiet numpy
+          python tests/make_fixtures.py
+          set +e
+          ./dist/${{ steps.name.outputs.file }} --report tests/fixtures --summary
+          code=$?
+          set -e
+          [ "$code" -eq 1 ] || { echo "::error::expected exit 1, got $code"; exit 1; }
+          python tests/check_report.py tests/fixtures/depthview-report.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DepthView-${{ matrix.rid }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Create the release
+    needs: publish
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: staged
+          merge-multiple: true
+
+      # Unsigned binaries make checksums worth more than usual: they are the only way a
+      # user can tell a genuine download from a tampered one, since there is no signature
+      # for the OS to check.
+      - name: Checksums
+        run: |
+          cd staged
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" staged/* \
+            --title "DepthView ${GITHUB_REF_NAME#v}" \
+            --notes-file .github/RELEASE_TEMPLATE.md \
+            --generate-notes \
+            --verify-tag

@@ -111,6 +111,37 @@ Tier 2 (orbit, tilt, zoom, pan with real geometry) are both **built**. Deferred:
 
 ## 3. Analysis
 
+### 3.0 Recalibrate the sparse-occupancy warning  *(open question, raised by real files)*
+
+Two of Lee's own 4096x4096 depth maps — genuine 16-bit, level step 1, no ladder, no
+replication — come back **WARN**, verdict *"Sparse: about 13 bits of real detail"*, on
+7,814 and 6,839 distinct levels (about 12% and 10% occupancy).
+
+The statement is true and the arithmetic is right. The question is whether **WARN** is the
+correct severity, and the argument that it is not:
+
+- 7,814 smooth levels is roughly 30x what an 8-bit map carries.
+- No laser process will consume it. At the pass counts LightBurn actually runs — tens to a
+  few hundred — everything above about 256 levels is already surplus, and item 1.2 works out
+  that even a 1.1mm brass pocket at 10µm steps tops out near 110 usable levels.
+- A tool whose headline skill is separating real depth from fake depth should not raise a
+  warning against files that are unambiguously real. If good work trips the alarm, people
+  learn to ignore the alarm, and then it fails on the day it matters.
+
+Options, roughly in order of preference:
+
+1. Judge occupancy against **what the job can use**, not against the container. Sparse only
+   means something relative to a pass count; without one, 7,814 levels is simply plenty.
+2. Drop it to **INFO** and keep the wording, so it informs without accusing.
+3. Keep WARN but raise the threshold well below 10% occupancy, which is really aimed at a
+   map carrying a few hundred levels in a 16-bit container.
+
+Worth settling before strangers run it on their own good files. Option 1 is the honest one
+and it wants item 1.1 (pass-count simulator) to exist first; option 2 is the ten-minute
+version that stops the false alarm now.
+
+### 3.1 Everything else
+
 - Per-channel histograms are computed but not plotted — the histogram control only draws
   the grey one. Worth a channel selector for colour-contaminated maps.
 - Detect turbo/viridis/magma colour-encoded depth maps and offer to decode them back to
@@ -179,14 +210,21 @@ repository would find absent, ordered by how much each one costs the project's c
   program from outside rather than reaching individual classes — good enough that a decoder
   regression cannot land silently, and worth upgrading to xUnit if unit-level coverage of
   `PngDecoder` and `DepthAnalyzer` is ever wanted.
-- **CI Actions are pinned to versions that run on the deprecated Node 20.** Every run
-  currently raises a deprecation annotation for `actions/checkout@v4`, `setup-dotnet@v4`,
-  `setup-python@v5` and `upload-artifact@v4`. Harmless today, noisy on a public repo, and
-  will eventually stop working. Bump when the current majors are confirmed.
-- No `CONTRIBUTING.md`, issue templates, or `CHANGELOG.md`. Cheap, and only worth doing if
-  contributions are actually wanted.
+- ~~**CI Actions on the deprecated Node 20.**~~ **Done.** checkout v4→v7, setup-dotnet v4→v6,
+  setup-python v5→v7, upload-artifact v4→v7, download-artifact v4→v8. All three platforms
+  green afterwards and the deprecation annotations are gone.
+- ~~**No issue templates.**~~ **Done.** `.github/ISSUE_TEMPLATE/` has a bug report and a
+  platform-test report, both asking first for the About box's *Copy build info* line. The
+  platform-test form covers exactly what CI cannot: file dialog, drag and drop, clipboard
+  paste. It asks explicitly for "everything worked" reports, because a tester who finds no
+  problem usually says nothing, and silence is indistinguishable from nobody having tried.
+- Still no `CONTRIBUTING.md` or `CHANGELOG.md`. Only worth writing if contributions arrive;
+  the release notes carry the changelog's job for now.
 - No versioning policy or git tags. The version lives in one place in the csproj and is
   reported by the About box; nothing yet ties it to a tag.
+- **The acknowledgements link may point inside a private Facebook group.** If so it 404s for
+  everyone outside the group and publishes a pointer into a private space. Check before going
+  public; a name without a link is fine.
 
 ## 6. Housekeeping
 
@@ -198,6 +236,11 @@ repository would find absent, ordered by how much each one costs the project's c
   platform list in `BuildInfo.Platforms` is duplicated knowledge: it must be changed in the
   same commit as any RID change in `publish.ps1` / `publish.sh`, or the program starts
   advertising builds that do not exist. It already did that once, briefly.
+- `samples/` is an allow-list in `.gitignore`, not a deny-list: everything there is ignored
+  except the ten generated files named explicitly. It is the natural place to drop somebody
+  else's artwork to try it on, and `git add -A` would otherwise publish it under this
+  project's MIT licence. Adding a real sample means adding its name deliberately, after
+  checking the rights.
 - Licensing is settled and needs no further thought. DepthView is MIT and is not going to
   become a paid tool, and the Six Labors terms grant Apache 2.0 rights to open-source
   consumers regardless of revenue, so the ImageSharp position cannot change. Dependency

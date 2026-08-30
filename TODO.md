@@ -139,16 +139,19 @@ Tier 2 (orbit, tilt, zoom, pan with real geometry) are both **built**. Deferred:
 Nothing here is a missing feature. These are the things a stranger arriving at a public
 repository would find absent, ordered by how much each one costs the project's credibility.
 
-- **Never built or run on macOS or Linux.** The README and the About box both name three
-  platforms; only Windows has ever executed a line of this code. Architecturally it should
-  be fine — Avalonia, net8.0, a software renderer, no P/Invoke on the analysis path — but
-  "should" is not "does", and being wrong about this on a tool whose entire pitch is *do not
-  trust what the header claims* would be an unusually bad look. **A GitHub Actions matrix
-  build across ubuntu, macos and windows settles it without owning a Mac, and is perhaps an
-  hour's work.**
+- ~~**Never built or run on macOS or Linux.**~~ **Settled 2026-08-30.** The CI matrix builds
+  clean on ubuntu-latest, macos-latest (arm64) and windows-latest, and all three produce
+  byte-for-byte identical analysis numbers across the twelve fixtures. The software relief
+  renderer produces a correct lit render on all three. What remains untested on macOS and
+  Linux is the **GUI itself** — CI runners have no display, so the window, the file dialog,
+  drag-and-drop and clipboard paste have still only ever run on Windows. That is a much
+  narrower claim than before, and the honest way to close it is one person opening the
+  binary on each platform.
 - **No published binaries.** `publish.ps1` makes all seven, and none of them are on a
   Releases page. Until they are, installation is "install the .NET SDK and a compiler",
-  which is a developer's repository rather than a tool.
+  which is a developer's repository rather than a tool. This is now the largest single gap.
+  A release workflow triggered on a `v*` tag, running the same publish matrix and attaching
+  the artefacts, is the natural next piece of CI.
 - **Unsigned binaries.** Windows SmartScreen will warn, and macOS Gatekeeper will quarantine
   a downloaded unsigned binary outright. Code signing costs money and an Apple developer
   account; the cheap mitigation is a README section telling people exactly what they will
@@ -158,12 +161,17 @@ repository would find absent, ordered by how much each one costs the project's c
   directory with an `Info.plist`, an `.icns` and the binary — scriptable, but not free.
 - **No Linux desktop integration.** No `.desktop` entry and no icon theme install, so the
   program has no menu entry and no icon in a launcher.
-- **No automated test project.** The fixtures are verified by hand against NumPy and the
-  results were exact, but that verification lives in a conversation rather than in the
-  repository. Wrapping the existing fixtures in a test runner is mostly mechanical and pays
-  for itself the first time a decoder is touched.
-- **No CI.** Nothing checks that the build is clean on push. Solved by the same workflow
-  file as the platform question above.
+- ~~**No CI.**~~ **Done.** `.github/workflows/build.yml`.
+- ~~**No automated test project.**~~ **Mostly done.** `tests/check_report.py` asserts every
+  fixture's known-correct answer and cross-checks the three encodings of the same data, and
+  CI runs it on all three platforms. It is not a `dotnet test` project, so it exercises the
+  program from outside rather than reaching individual classes — good enough that a decoder
+  regression cannot land silently, and worth upgrading to xUnit if unit-level coverage of
+  `PngDecoder` and `DepthAnalyzer` is ever wanted.
+- **CI Actions are pinned to versions that run on the deprecated Node 20.** Every run
+  currently raises a deprecation annotation for `actions/checkout@v4`, `setup-dotnet@v4`,
+  `setup-python@v5` and `upload-artifact@v4`. Harmless today, noisy on a public repo, and
+  will eventually stop working. Bump when the current majors are confirmed.
 - No `CONTRIBUTING.md`, issue templates, or `CHANGELOG.md`. Cheap, and only worth doing if
   contributions are actually wanted.
 - No versioning policy or git tags. The version lives in one place in the csproj and is

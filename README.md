@@ -2,6 +2,9 @@
 
 ![DepthView](artwork/banner/depthview-banner-1280x640.png)
 
+[![build](https://github.com/LeeGillie/DepthView/actions/workflows/build.yml/badge.svg)](https://github.com/LeeGillie/DepthView/actions/workflows/build.yml)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 A depth-map candidate inspector. Feed it an image and it tells you what the file
 *claims* to be, what its pixels *actually* contain, and whether those two things
 agree.
@@ -177,6 +180,34 @@ with the .NET runtime inside it.
 * **Windows** — double-click `DepthView.exe`
 * **macOS** — `chmod +x DepthView && ./DepthView`
 * **Linux** — `chmod +x DepthView && ./DepthView`
+
+### Try it in sixty seconds
+
+`samples/` holds eight depth maps, committed to the repository so there is nothing to
+generate. They are **the same coin-style relief encoded eight different ways** — genuine
+16-bit, two byte-widening imposters, a 10-bit ladder, grey stored as RGB, honest 8-bit,
+wasted headroom, and colour contamination.
+
+Drop them on DepthView in order. The picture is identical every time. The verdict is not.
+
+```
+DepthView --report samples --summary
+```
+
+```
+OK      900x900   16bit  45,664 levels  step 1              0 non-grey  01-genuine-16bit.png
+FAIL    900x900   16bit     255 levels  step 257            0 non-grey  02-imposter-x257.png
+FAIL    900x900   16bit     255 levels  step 256            0 non-grey  03-imposter-high-byte.png
+WARN    900x900   16bit   1,014 levels  step 64             0 non-grey  04-quantised-1024.png
+OK      900x900    8bit     255 levels  step 1              0 non-grey  05-grey-stored-as-rgb.png
+OK      900x900    8bit     255 levels  step 1              0 non-grey  06-honest-8bit.png
+OK      900x900   16bit  17,463 levels  step 1              0 non-grey  07-wasted-headroom.png
+OK      900x900    8bit     255 levels  step 1            897 non-grey  08-colour-contaminated.png
+```
+
+Rows 1, 2 and 6 are the argument in three lines: the imposter declares everything the
+genuine file declares, and carries exactly what the honest 8-bit file carries.
+[`samples/README.md`](samples/README.md) walks through what each one is for.
 
 ### Loading an image
 
@@ -423,11 +454,18 @@ artwork/
 docs/
   make-screenshots.ps1    regenerates every image the README uses
   images/                 the generated screenshots and relief renders
+samples/
+  make_samples.py         generates the eight sample encodings from one height field
+  01..08-*.png            the samples themselves - committed, unlike the fixtures
+  README.md               what each sample demonstrates, and a five-minute tour
 tests/
   make_fixtures.py        generates test images with known-correct answers
   make_textures.py        generates sample material textures and a demo relief
+  check_report.py         asserts the report says exactly what it should
   fixtures/               the generated images
   textures/               the generated material textures
+.github/workflows/
+  build.yml               the three-platform build and headless smoke test
 ```
 
 The screenshots in this README are captured by the application itself. `--screenshot` renders
@@ -483,12 +521,37 @@ DepthView --render tests/fixtures/relief_demo.png --material brass --out preview
 ```
 
 Neither script's output is committed — `tests/fixtures/` and `tests/textures/` are
-in `.gitignore`, so a fresh clone starts with both empty.
+in `.gitignore`, so a fresh clone starts with both empty. (`samples/` is the opposite:
+committed, and there to be opened rather than asserted against.)
 
-Unique-level counts, non-grey pixel counts and non-grey colour counts have been
-verified to match NumPy computed on the source arrays, exactly, for every fixture.
-The interlaced and PGM copies of the same data produce identical numbers to the
-plain PNG, which cross-checks the Adam7 and Netpbm paths against the baseline.
+`tests/check_report.py` turns that report into a pass or fail. It pins every fixture's
+known-correct verdict, bit depth, unique level count, level step and non-grey pixel count,
+and separately asserts that the same pixel data stored as plain PNG, interlaced PNG and PGM
+analyses *identically* — which is what would catch the Adam7 or Netpbm path drifting away
+from the baseline.
+
+```
+DepthView --report tests/fixtures --summary
+python tests/check_report.py tests/fixtures/depthview-report.txt
+```
+
+## Continuous integration
+
+[![build](https://github.com/LeeGillie/DepthView/actions/workflows/build.yml/badge.svg)](https://github.com/LeeGillie/DepthView/actions/workflows/build.yml)
+
+Every push builds on **ubuntu-latest, macos-latest and windows-latest** with warnings
+treated as errors, generates the fixtures, runs the analysis and the assertion script, and
+renders a relief headlessly. `fail-fast` is off, so one platform breaking never hides the
+state of the other two.
+
+This exists because DepthView is developed on Windows and claims three platforms. Until the
+matrix ran, that claim rested on Avalonia's reputation rather than on evidence. It now rests
+on the fact that the macOS arm64 runner and the Linux x64 runner produce **byte-for-byte the
+same analysis numbers as Windows x64** for all twelve fixtures, and that the software relief
+renderer produces a correct lit render on all three.
+
+The GUI is not exercised — CI runners have no display. `--report` and `--render` both return
+before Avalonia is initialised, so those two are genuinely headless and are what gets checked.
 
 ## Roadmap
 

@@ -144,11 +144,13 @@ Tier 2 (orbit, tilt, zoom, pan with real geometry) are both **built**. Deferred:
 - Icon is done. Still outstanding for a release: a splash or About box, a version stamp
   visible in the UI, and a macOS `.icns` / Linux `.desktop` entry so the icon shows there too
   (the `.ico` only covers Windows).
-- Licensing is settled: MIT, with dependency terms in `THIRD-PARTY-NOTICES.md`. If DepthView
-  ever ships closed-source from an entity at or above 1M USD annual gross revenue, the
-  ImageSharp position changes and would need a commercial licence — or the dependency could
-  be dropped. PNG encoding is an hour's work given the decoder already exists, BMP is
-  trivial, JPEG and TGA could come from the public-domain StbImageSharp; TIFF and WebP are
-  the only genuinely awkward parts.
+- Licensing is settled and needs no further thought. DepthView is MIT and is not going to
+  become a paid tool, and the Six Labors terms grant Apache 2.0 rights to open-source
+  consumers regardless of revenue, so the ImageSharp position cannot change. Dependency
+  terms are recorded in `THIRD-PARTY-NOTICES.md`.
+- Dropping the ImageSharp dependency is optional and would be about binary size and having
+  one less third-party component, not about licensing. PNG encoding is an hour's work given
+  the decoder already exists, BMP is trivial, and JPEG and TGA could come from the
+  public-domain StbImageSharp; TIFF and WebP are the only genuinely awkward parts.
 - The published binary is ~44 MB because it is self-contained. Trimming or ReadyToRun
   could cut that, at some risk to Avalonia's reflection-based XAML loading.

@@ -70,6 +70,18 @@ public partial class MainWindow : Window
 
         ShowIntroDetails();
 
+        // Set before the window is shown, and deliberately allowed below MinWidth/MinHeight
+        // so a layout can be inspected at sizes the window would normally refuse.
+        if (Program.WindowWidth is int fw && Program.WindowHeight is int fh)
+        {
+            MinWidth = Math.Min(MinWidth, fw);
+            MinHeight = Math.Min(MinHeight, fh);
+            Width = fw;
+            Height = fh;
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Position = new PixelPoint(40, 40);
+        }
+
         Opened += async (_, _) =>
         {
             if (Program.StartupAbout)

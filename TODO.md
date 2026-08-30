@@ -143,10 +143,14 @@ repository would find absent, ordered by how much each one costs the project's c
   clean on ubuntu-latest, macos-latest (arm64) and windows-latest, and all three produce
   byte-for-byte identical analysis numbers across the twelve fixtures. The software relief
   renderer produces a correct lit render on all three. What remains untested on macOS and
-  Linux is the **GUI itself** — CI runners have no display, so the window, the file dialog,
-  drag-and-drop and clipboard paste have still only ever run on Windows. That is a much
-  narrower claim than before, and the honest way to close it is one person opening the
-  binary on each platform.
+  Linux was the **GUI itself**. That is now covered too: CI opens the real window on all
+  three platforms — under Xvfb on Linux, natively on macOS and Windows — loads a sample,
+  captures the window and uploads the PNG, so what the program actually looks like on each
+  platform is inspectable rather than assumed. It immediately found a layout fault nobody
+  could have seen on a large monitor (see below). What is *still* unexercised anywhere but
+  Windows is the parts a screenshot cannot reach: the **native file dialog**, **drag and
+  drop**, and **clipboard paste**, all of which are platform-specific and none of which a
+  headless runner can drive. One person opening the binary and using it closes that.
 - **No published binaries — but the machinery is now built and proven.**
   `.github/workflows/release.yml` publishes all seven self-contained binaries, names them
   per platform, checksums them and attaches them to a Release, and a dry run has been

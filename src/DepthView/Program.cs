@@ -32,6 +32,14 @@ internal static class Program
     /// <summary>Overrides how long to wait before the capture. Useful for catching the credit roll mid-scroll.</summary>
     public static int? ScreenshotDelayMs;
 
+    /// <summary>
+    /// Forces the main window to open at this size. Exists because layout faults only appear
+    /// at sizes the developer's monitor never produces: the buttons and the verdict card were
+    /// once clipped off the bottom on a 1024x768 screen and nobody could have seen it on a
+    /// 4K display. Being able to say "show me the window at 900x560" makes that testable.
+    /// </summary>
+    public static int? WindowWidth, WindowHeight;
+
     /// <summary>Camera angle to open the relief preview at, when given on the command line.</summary>
     public static double? StartupYaw, StartupPitch;
 
@@ -46,6 +54,8 @@ internal static class Program
           DepthView <image> --screenshot <out.png> [--relief] [--delay <ms>]
                                           capture the window to a PNG and exit
                                           (used to keep the README images reproducible)
+          DepthView --window <w> <h>      open the window at this size, to check the
+                                          layout at screen sizes you do not own
           DepthView --report <path...>    write a text analysis instead of opening a window
           DepthView --report <dir>        analyse every image in a folder
 
@@ -106,6 +116,15 @@ internal static class Program
         int dl = Array.FindIndex(args, a => a == "--delay");
         if (dl >= 0 && dl + 1 < args.Length && int.TryParse(args[dl + 1], out int ms) && ms > 0)
             ScreenshotDelayMs = ms;
+
+        int wn = Array.FindIndex(args, a => a == "--window");
+        if (wn >= 0 && wn + 2 < args.Length
+            && int.TryParse(args[wn + 1], out int ww) && ww > 200
+            && int.TryParse(args[wn + 2], out int wh) && wh > 200)
+        {
+            WindowWidth = ww;
+            WindowHeight = wh;
+        }
 
         // --orbit <yaw> <elevation> opens the preview at a given camera angle, and implies it.
         int ob = Array.FindIndex(args, a => a == "--orbit");

@@ -280,7 +280,17 @@ public class HistogramControl : Control
         double w = Math.Max(t1.Width, Math.Max(t2.Width, t3.Width)) + 18;
         double h = t1.Height + t2.Height + t3.Height + 14;
         double bx = _hoverPt.X + 16;
-        double by = Math.Clamp(_hoverPt.Y - h - 10, plot.Y + 2, plot.Bottom - h - 2);
+
+        // The readout is about 55px tall, and on a short window the plot can be shorter than
+        // that. Clamping blindly then asks Math.Clamp for a range whose minimum is above its
+        // maximum, which throws inside the render pass and takes the whole program down. When
+        // the box will not fit, pin it to the top of the plot and let it overflow instead:
+        // a readout hanging over the axis is worth more than a crash.
+        double topLimit = plot.Y + 2;
+        double bottomLimit = plot.Bottom - h - 2;
+        double by = bottomLimit > topLimit
+            ? Math.Clamp(_hoverPt.Y - h - 10, topLimit, bottomLimit)
+            : topLimit;
         if (bx + w > plot.Right) bx = _hoverPt.X - w - 16;
         if (bx < plot.X) bx = plot.X + 2;
 

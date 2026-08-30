@@ -133,6 +133,18 @@ jobs:
             --screenshot about-${{ matrix.os }}.png
           test -s "about-${{ matrix.os }}.png"
 
+      # The window at its own minimum size, which is where the layout breaks first. A
+      # 1024x768 CI runner is what found the buttons and the verdict card being pushed off
+      # the bottom, and nothing on a developer's monitor can reproduce that. Capturing the
+      # minimum on every push means the next person to change this layout sees the damage.
+      - name: Capture the window at its minimum size (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a --server-args="-screen 0 1600x1100x24" \
+            "${{ steps.exe.outputs.path }}" samples/02-imposter-x257.png \
+            --window 1024 660 --screenshot minsize-${{ matrix.os }}.png
+          test -s "minsize-${{ matrix.os }}.png"
+
       - name: Upload artefacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -143,5 +155,6 @@ jobs:
             samples-ci.txt
             gui-*.png
             about-*.png
+            minsize-*.png
             tests/fixtures/depthview-report.txt
           if-no-files-found: warn

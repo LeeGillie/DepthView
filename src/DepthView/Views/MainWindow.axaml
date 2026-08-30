@@ -4,7 +4,7 @@
         x:Class="DepthView.Views.MainWindow"
         Title="DepthView - depth map inspector"
         Icon="/Assets/depthview-icon-256.png"
-        Width="1320" Height="980" MinWidth="960" MinHeight="700"
+        Width="1320" Height="980" MinWidth="900" MinHeight="660"
         Background="#101215"
         WindowStartupLocation="CenterScreen">
 
@@ -39,7 +39,18 @@
     </Style>
   </Window.Styles>
 
-  <Grid RowDefinitions="Auto,*,252,Auto">
+  <!-- Both the body and the histogram give way as the window shortens, in a 3:1 ratio, and
+       the histogram stops at 170px because below that it is a smear rather than a plot. It
+       is also capped at 252 so it never grows to dominate a tall window. On a 1024x768
+       screen this hands roughly 70 extra pixels back to the body, which is the difference
+       between seeing the verdict card and having to scroll for it. -->
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="3*" MinHeight="300" />
+      <RowDefinition Height="*" MinHeight="170" MaxHeight="252" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
 
     <!-- header -->
     <Border Grid.Row="0" Background="#171A1F" BorderBrush="#262B33" BorderThickness="0,0,0,1" Padding="16,10">
@@ -62,15 +73,35 @@
       </Grid>
     </Border>
 
-    <!-- body -->
-    <Grid Grid.Row="1" ColumnDefinitions="392,*">
+    <!-- body
 
-      <!-- left: input + preview -->
+         ClipToBounds because a window forced below its minimum (a 1280x720 screen with a
+         taskbar, or the window size override on the command line) leaves this row short of
+         what its content wants, and without clipping the overflow paints straight over the
+         header instead of being cut off. -->
+    <Grid Grid.Row="1" ColumnDefinitions="392,*" ClipToBounds="True">
+
+      <!-- left: input + preview
+
+           The drop zone is the elastic element here, and everything below it keeps its
+           natural height. That ordering matters: on a 1024x768 screen the window opens at
+           its minimum height, and when the drop zone was a fixed 300px the buttons and the
+           verdict card were pushed clean off the bottom with no way to reach them. Found by
+           opening the real window on a CI runner with a small display, which is the only
+           reason anyone would have seen it - it cannot happen on a large monitor.
+
+           Giving the thumbnail the slack is the right way round: it is a preview, so it
+           reads fine smaller and benefits from extra room when there is any, whereas the
+           verdict is the one thing that must never need scrolling to find. -->
       <Border Grid.Column="0" Background="#14171B" BorderBrush="#262B33" BorderThickness="0,0,1,0" Padding="14">
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
+        <Grid RowDefinitions="*,Auto,Auto,Auto,Auto">
 
+          <!-- MinHeight 120, not 150: at the window's own minimum height the row can only
+               offer about 124px, and a Border whose MinHeight exceeds its row does not
+               shrink - it overflows onto whatever is beneath it. The floor has to be below
+               what the smallest supported window can actually give. -->
           <Border Grid.Row="0" x:Name="DropZone"
-                  Height="300" CornerRadius="8"
+                  MinHeight="120" CornerRadius="8"
                   Background="#0C0E11" BorderBrush="#3A424E" BorderThickness="2"
                   Cursor="Hand"
                   ToolTip.Tip="Drop an image file here, click to browse, or press Ctrl+V to paste. Dropping or browsing reads the original file bytes, which is the only way to measure true bit depth.">
@@ -141,7 +172,8 @@
     </Grid>
 
     <!-- histogram -->
-    <Border Grid.Row="2" Background="#14171B" BorderBrush="#262B33" BorderThickness="0,1,0,0" Padding="12,8">
+    <Border Grid.Row="2"
+            Background="#14171B" BorderBrush="#262B33" BorderThickness="0,1,0,0" Padding="12,8">
       <Grid RowDefinitions="Auto,*">
         <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,*" Margin="0,0,0,8">
           <TextBlock Grid.Column="0" Text="Grey-level histogram" FontSize="12" FontWeight="SemiBold"

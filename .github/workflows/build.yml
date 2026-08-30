@@ -94,6 +94,45 @@ jobs:
           "${{ steps.exe.outputs.path }}" --report samples --summary --out samples-ci.txt
           echo "samples exit code: $?"
 
+      # Everything above this point runs before Avalonia is initialised, so none of it
+      # says whether the actual program starts. These steps open the real window, load a
+      # real image, let the analysis and the histogram settle, capture the window to a PNG
+      # and exit. The PNG is uploaded, so a human can look at what the window really looked
+      # like on a platform none of us owns - fonts, layout, the lot.
+      #
+      # Linux needs a display; Xvfb provides one. libfontconfig1 and libx11 are what
+      # Avalonia's Skia backend actually reaches for, and a missing font package is the
+      # classic way a cross-platform UI turns out to render nothing but boxes.
+      - name: Install a virtual display and font stack (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libfontconfig1 libx11-6 libice6 libsm6 fonts-dejavu-core
+
+      - name: Open the real window (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a --server-args="-screen 0 1600x1100x24" \
+            "${{ steps.exe.outputs.path }}" samples/01-genuine-16bit.png \
+            --screenshot gui-${{ matrix.os }}.png
+          test -s "gui-${{ matrix.os }}.png"
+
+      - name: Open the real window (macOS and Windows)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          "${{ steps.exe.outputs.path }}" samples/01-genuine-16bit.png \
+            --screenshot "gui-${{ matrix.os }}.png"
+          test -s "gui-${{ matrix.os }}.png"
+
+      - name: Open the About box (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a --server-args="-screen 0 1600x1100x24" \
+            "${{ steps.exe.outputs.path }}" --about --delay 900 \
+            --screenshot about-${{ matrix.os }}.png
+          test -s "about-${{ matrix.os }}.png"
+
       - name: Upload artefacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -102,5 +141,7 @@ jobs:
           path: |
             relief-ci.png
             samples-ci.txt
+            gui-*.png
+            about-*.png
             tests/fixtures/depthview-report.txt
           if-no-files-found: warn

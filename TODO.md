@@ -147,15 +147,22 @@ repository would find absent, ordered by how much each one costs the project's c
   drag-and-drop and clipboard paste have still only ever run on Windows. That is a much
   narrower claim than before, and the honest way to close it is one person opening the
   binary on each platform.
-- **No published binaries.** `publish.ps1` makes all seven, and none of them are on a
-  Releases page. Until they are, installation is "install the .NET SDK and a compiler",
-  which is a developer's repository rather than a tool. This is now the largest single gap.
-  A release workflow triggered on a `v*` tag, running the same publish matrix and attaching
-  the artefacts, is the natural next piece of CI.
-- **Unsigned binaries.** Windows SmartScreen will warn, and macOS Gatekeeper will quarantine
-  a downloaded unsigned binary outright. Code signing costs money and an Apple developer
-  account; the cheap mitigation is a README section telling people exactly what they will
-  see and how to get past it. Do at least the cheap one before publishing binaries.
+- **No published binaries — but the machinery is now built and proven.**
+  `.github/workflows/release.yml` publishes all seven self-contained binaries, names them
+  per platform, checksums them and attaches them to a Release, and a dry run has been
+  exercised end to end: seven green jobs in about 45 seconds, 36 to 41 MB each. All that
+  remains is deciding to tag one, which is a judgement call rather than work:
+
+      git tag -a v1.0.0 -m "DepthView 1.0.0"
+      git push origin v1.0.0
+
+  The workflow can also be run manually with `dry_run` on, which builds and uploads without
+  creating a release. Do that after any change to it.
+- ~~**Unsigned binaries.**~~ **Mitigated, not solved.** `.github/RELEASE_TEMPLATE.md` tells
+  users exactly what SmartScreen and Gatekeeper will say and how to get past it, including
+  the `xattr -d com.apple.quarantine` line, and ships SHA256SUMS.txt so a download can be
+  verified in the absence of a signature. Actually signing still costs money and an Apple
+  developer account, and is the only real fix.
 - **No macOS `.app` bundle.** `publish.ps1` emits a bare Mach-O executable, so on macOS
   there is no icon, no Finder double-click, and no bundle identifier. A `.app` is a
   directory with an `Info.plist`, an `.icns` and the binary — scriptable, but not free.

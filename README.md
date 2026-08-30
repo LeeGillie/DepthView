@@ -553,6 +553,24 @@ renderer produces a correct lit render on all three.
 The GUI is not exercised — CI runners have no display. `--report` and `--render` both return
 before Avalonia is initialised, so those two are genuinely headless and are what gets checked.
 
+### Releases
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which publishes all seven
+self-contained binaries, names each one after its platform, generates `SHA256SUMS.txt` and
+attaches the lot to a GitHub Release. The `linux-x64` binary is smoke-tested first: it has
+to answer `--help`, analyse the fixtures and pass the assertion script before anything is
+published, because a single file that will not run on a machine without .NET is not a
+delivery.
+
+```
+git tag -a v1.0.0 -m "DepthView 1.0.0"
+git push origin v1.0.0
+```
+
+The workflow can also be run from the Actions tab with `dry_run` left on, which builds and
+uploads everything as workflow artefacts without creating a release — worth doing after any
+change to it, since a tag is easy to push and awkward to retract once people have fetched it.
+
 ## Roadmap
 
 `TODO.md` carries everything discussed and consciously deferred, with enough context to pick

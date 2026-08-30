@@ -10,9 +10,119 @@ Built for one specific frustration: a 16-bit PNG that only carries 8 bits of rea
 depth information. DepthView calls those **imposters** and names the exact
 mechanism behind each one.
 
+![Analysis of an imposter file](docs/images/analysis-imposter.png)
+
+*A file that declares 16 bits per sample and contains 256 distinct levels. The evenly spaced
+teeth across the whole histogram are the giveaway — every level lands on a multiple of 257,
+because an 8-bit map was saved as 16-bit by copying each byte twice.*
+
+---
+
+## Why this exists
+
+Depth maps lie, and nothing in the normal toolchain tells you.
+
+An image viewer shows you a smooth grey ramp. Photoshop reports "16 bits/channel." Your laser
+software accepts the file without comment. All of them are reading the *header*. None of them
+count what is actually in the pixels — and a 16-bit file carrying 8 bits of real data looks
+identical to a genuine one until it is on the workpiece and the relief comes out terraced.
+
+DepthView answers the question the header can't: **how much depth information is really in
+this file, and what will it look like when a laser turns it into layers?**
+
+---
+
+## If you use LightBurn
+
+LightBurn 2.1's [3D Sliced Image mode](https://docs.lightburnsoftware.com/2.1/Guides/3DSlicedImage/)
+is a genuinely good way to cut relief on a galvo. It also accepts your depth map without
+judgement, and that is where DepthView earns its place.
+
+| What LightBurn does | What it doesn't tell you | What DepthView adds |
+|---|---|---|
+| Accepts 8-bit **and** 16-bit greyscale | Whether your 16-bit file *contains* 16 bits | Names the imposter and its mechanism, before you burn a blank |
+| Treats a 24-bit image as 8-bit — its docs say a 24-bit depth map "is actually three 8-bit channels" | That your greyscale map was saved as RGB and just lost its precision | Flags *grey data stored as RGB* as its own finding |
+| **Number of Passes** is the slice count: darkest gets every pass, white gets none | What that pass count will look like as physical steps | Quantise-to-steps preview — slide the count and watch for the terrace threshold |
+| Slices whatever range the image occupies | That a map spanning 267–63,271 wastes passes at both ends doing nothing | Reports unused headroom above and below, in levels |
+| Its own docs admit 3D Slice "does not offer precise control over the engraving's depth" | — | Turns level count into an honest ceiling on how many passes are worth running |
+
+The short version: LightBurn decides *how* to cut. DepthView tells you whether the file you
+are about to hand it is worth cutting at that resolution.
+
+---
+
+## If you run a WeCreat Lumos Ultra
+
+WeCreat's own product page for the Lumos Ultra says its relief engraving "maps your design
+into **256 depth layers**." That single number reframes the whole question, and it cuts both
+ways depending on which software you drive the machine with.
+
+**Through MakeIt** — 256 layers is the ceiling. A 16-bit depth map is over-spec for that path,
+so "is my file really 16-bit?" is the wrong question. The right one is *do my 256 levels land
+well* — are they evenly distributed, do they reach both ends of the range, is the shadow
+detail clipped? DepthView reports exactly that: level occupancy, range utilisation, endpoint
+counts, and how much of the depth budget goes unused.
+
+**Through LightBurn** — the Lumos Ultra is listed as supporting both MakeIt and LightBurn, and
+LightBurn's 3D Slice mode is galvo-only, which a MOPA Lumos Ultra is. Here 16-bit genuinely
+buys you something, pass counts can go well past 256, and an imposter file quietly costs you
+everything you switched software to gain. This is precisely the case DepthView was built for.
+
+Either way, the practical workflow is the same. AI and relief generators (Sculptok and
+friends) emit 16-bit PNGs by default whether or not the content justifies it. Point DepthView
+at the folder:
+
+```
+DepthView --report ./depthmaps --summary
+```
+
+```
+OK    16bit  56,299 levels  step 1     coin-front.png
+FAIL  16bit     256 levels  step 257   coin-back.png
+FAIL  16bit   1,024 levels  step 64    logo-relief.png
+```
+
+Exit code 1 when anything is flagged, so it drops into a batch script. Screen the folder
+before you spend brass.
+
+---
+
+## What you can't easily get elsewhere
+
+Some of these numbers exist in general-purpose tools if you go looking. ImageMagick will count
+unique colours; GIMP will draw a 16-bit histogram. What none of them do is interpret any of it
+*as a depth map bound for a laser*.
+
+- **Bit-exact 16-bit reading, guaranteed.** Windows WIC, macOS CoreGraphics, GTK and browser
+  canvas all quietly hand back an 8-bit buffer for a 16-bit PNG. A viewer showing you a
+  "16-bit" image has usually already destroyed the evidence. DepthView decodes PNG, PGM/PPM/PBM
+  and PFM itself, byte by byte, and flags any format where it cannot make that promise.
+- **The mechanism, not just the symptom.** "256 unique colours" is a number. "Every level is
+  v × 257, so an 8-bit map was byte-replicated into 16 bits" tells you what happened and where
+  to go fix it. DepthView separates ×257 replication, ×256 shifting, uniform quantisation
+  ladders, and merely sparse data.
+- **Catches 10-bit and 12-bit hiding in 16-bit too.** The check is the GCD of the gaps between
+  used levels, not a hardcoded 256 test, so a 1,024-level map on a step of 64 is caught the
+  same way.
+- **Colour contamination in a "greyscale" map.** Counts pixels where R, G and B are not all
+  equal, and how many distinct non-grey colours occur. A handful means JPEG chroma damage;
+  thousands means somebody handed you a turbo-colourmapped preview instead of a depth map.
+- **Terracing you can see before you cut it.** The relief preview quantises to your pass count
+  and renders the staircase in 3D, on brass or steel or wood.
+- **Endpoints in laser terms.** Pure white is zero passes and bare surface; pure black is full
+  depth. Both counts are reported, and when a map reaches neither, DepthView names the
+  lightest and darkest levels that *do* occur and how many levels are wasted at each end.
+- **Built to be run in bulk.** Full text reports, one-line summaries, folder scanning and
+  meaningful exit codes, from an executable with nothing to install.
+
 ---
 
 ## What it reports
+
+![Analysis of a genuine 16-bit map](docs/images/analysis-genuine.png)
+
+*The same panel on a genuine 16-bit depth map: 56,299 distinct levels, a step of 1, and a
+histogram with no comb in it. This is what you want to see.*
 
 **Container** (from the file header)
 format, colour model, declared bit depth, channels, palette size, alpha,
@@ -95,6 +205,21 @@ Three ways, all equivalent:
 
 A raw grey ramp tells you almost nothing about how a relief will actually look. The
 **3D preview** button opens a lit render of the height field:
+
+![3D relief preview](docs/images/relief-preview.png)
+
+The single most useful control is **Quantise to steps**. Set it to your pass count and you are
+looking at the terracing you will actually get, not a smooth idealisation of it:
+
+| Continuous height field | Quantised to 16 layers |
+|---|---|
+| ![Continuous relief](docs/images/relief-continuous.png) | ![Terraced relief](docs/images/relief-terraced.png) |
+
+Same depth map, same material, same light. The right-hand image is what 16 passes produces.
+Slide the count until the contour lines disappear and you have found the pass count that
+particular map actually needs — without burning a blank to find out.
+
+The rest of the preview:
 
 * **Material presets** — polished and brushed brass, stainless, copper, black anodised
   aluminium, slate, cherrywood, maple, oak, and a neutral plaster for judging pure shape.
@@ -274,12 +399,20 @@ artwork/
   depthview-icon-*.png    16 to 1024 px
   depthview.ico           multi-resolution, 16 to 256
   banner/                 hero renders and the finished banners
+docs/
+  make-screenshots.ps1    regenerates every image the README uses
+  images/                 the generated screenshots and relief renders
 tests/
   make_fixtures.py        generates test images with known-correct answers
   make_textures.py        generates sample material textures and a demo relief
   fixtures/               the generated images
   textures/               the generated material textures
 ```
+
+The screenshots in this README are captured by the application itself. `--screenshot` renders
+the live window to a PNG once the analysis has settled and then exits, and `--render` produces
+the relief art headlessly, so `docs/make-screenshots.ps1` rebuilds all of it in one command
+rather than leaving hand-grabbed images to go stale as the UI moves.
 
 ## Artwork
 

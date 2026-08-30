@@ -1,0 +1,51 @@
+name: Bug report
+description: Something went wrong, or DepthView reported something you believe is incorrect.
+labels: ["bug"]
+body:
+  - type: input
+    id: build
+    attributes:
+      label: Build info
+      description: Open **About** and press **Copy build info**, then paste the line here.
+      placeholder: "DepthView 1.0.0 (2026-08-30) - .NET 8.0.x on ... - self-contained single file"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce it
+      description: >
+        If it involves a specific image, the most useful thing you can send is the output of
+        `DepthView --report <that file>` - it describes the file completely without you having
+        to share artwork you may not want to share.
+      placeholder: |
+        1. Opened ...
+        2. Clicked ...
+        3. Saw ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: report
+    attributes:
+      label: The analysis report, if the problem is about what DepthView said
+      description: Use **Copy report** in the program, or `DepthView --report <file>`.
+      render: text
+
+  - type: markdown
+    attributes:
+      value: |
+        **If you think DepthView misread a file**, that is the most valuable kind of report
+        this project can get, and the one worth being most careful about. Where possible, say
+        what you believe the file really is and how you know - what wrote it, what another
+        tool says about it. DepthView's whole claim is that it counts what is in the pixels
+        rather than trusting the header, so a case where it gets that wrong matters more
+        than anything else here.

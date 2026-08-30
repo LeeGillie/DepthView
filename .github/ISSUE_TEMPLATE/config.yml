@@ -1,0 +1,7 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions, ideas, and "is my depth map any good?"
+    url: https://github.com/LeeGillie/DepthView/discussions
+    about: >
+      Not sure it is a bug? Ask here. Questions about what a finding means, whether a file
+      is worth engraving, or how to get more depth out of a map are all welcome.

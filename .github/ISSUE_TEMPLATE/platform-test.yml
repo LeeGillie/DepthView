@@ -1,0 +1,86 @@
+name: Platform test report
+description: You ran DepthView on a Mac or a Linux machine. Tell us what happened - good or bad.
+title: "[platform] "
+labels: ["platform-test"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Thank you.** DepthView is developed on Windows. Automated builds prove it compiles
+        and analyses identically on macOS and Linux, but three things cannot be tested without
+        a real person at a real machine: the **file dialog**, **drag and drop**, and
+        **clipboard paste**. Those are exactly what this form is for.
+
+        A report saying "everything worked, nothing to add" is genuinely useful. Please send it.
+
+  - type: input
+    id: build
+    attributes:
+      label: Build info
+      description: >
+        Open **About** in DepthView and press **Copy build info**, then paste it here.
+        That one line carries the version, the runtime, your OS and architecture, and
+        whether you ran a release binary or built from source.
+      placeholder: "DepthView 1.0.0 (2026-08-30) - .NET 8.0.x on ... - self-contained single file"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: What are you on?
+      options:
+        - macOS, Apple silicon (M1 or later)
+        - macOS, Intel
+        - Linux, x64
+        - Linux, ARM (Raspberry Pi or similar)
+        - Windows
+        - Something else - described below
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: What worked?
+      description: Tick what you managed to do. Leave unticked anything that failed or that you did not try - the notes box below is where you say which.
+      options:
+        - label: The program started and the window appeared
+        - label: The whole window fits my screen - I can see the buttons and the verdict card without scrolling
+        - label: Text renders properly (no boxes, no missing glyphs, nothing overlapping)
+        - label: "**Browse...** opened a file picker and loaded the image I chose"
+        - label: "**Drag and drop** a file onto the left panel worked"
+        - label: "**Ctrl+V / Cmd+V** paste worked"
+        - label: The grey-level histogram drew, and hovering it showed a readout
+        - label: "**3D preview** opened and I could orbit, zoom and pan it"
+        - label: "**Save report...** wrote a file where I asked it to"
+        - label: The About box opened and the credits scrolled
+
+  - type: textarea
+    id: samples
+    attributes:
+      label: What did the samples say?
+      description: >
+        From the folder you downloaded, run `DepthView --report samples --summary`
+        (on macOS/Linux you may need `chmod +x DepthView` first) and paste the output.
+        It should flag 02 and 03 as FAIL and 04 as WARN. If your numbers differ from the
+        table in samples/README.md, that is a real find.
+      render: text
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything that went wrong, looked wrong, or felt wrong
+      description: >
+        Screenshots are worth a great deal here - especially of anything clipped, misaligned
+        or unreadable, since nobody working on this can see your screen. Rough impressions
+        are welcome too.
+    validations:
+      required: false
+
+  - type: input
+    id: screen
+    attributes:
+      label: Screen size, if you know it
+      description: Layout faults show up on small or scaled displays first. "13-inch MacBook Air" is a fine answer.
+      placeholder: "1440 x 900, or 4K at 200% scaling"

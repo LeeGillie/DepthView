@@ -48,9 +48,9 @@ jobs:
           - osx-arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
@@ -106,7 +106,7 @@ jobs:
           [ "$code" -eq 1 ] || { echo "::error::expected exit 1, got $code"; exit 1; }
           python tests/check_report.py tests/fixtures/depthview-report.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: DepthView-${{ matrix.rid }}
           path: dist/*
@@ -121,9 +121,9 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: staged
           merge-multiple: true

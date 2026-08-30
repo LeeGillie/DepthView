@@ -34,12 +34,20 @@ EXPECTED = {
     "imposter_ladder10bit.png": ("FAIL", 16,   1024, 64,     0),
     "imposter_shift256.png":    ("FAIL", 16,    256, 256,    0),
     "imposter_x257.png":        ("FAIL", 16,    256, 257,    0),
-    "relief_demo.png":          ("OK",   16,  55195, 1,      0),
     "true12.pgm":               ("OK",   12,   3844, 1,      0),
     "true16.pgm":               ("OK",   16,  56299, 1,      0),
     "true16.png":               ("OK",   16,  56299, 1,      0),
     "true16_interlaced.png":    ("OK",   16,  56299, 1,      0),
     "true8.png":                ("OK",    8,    256, 1,      0),
+}
+
+# Checked when present, not required. relief_demo.png lands in tests/fixtures but is
+# written by make_textures.py, not make_fixtures.py, so a caller that only needs the
+# analysis fixtures should not be forced to run the texture generator as well. Demanding
+# it here is the same cross-script coupling that once made a fresh clone fail to follow
+# its own README.
+OPTIONAL = {
+    "relief_demo.png":          ("OK",   16,  55195, 1,      0),
 }
 
 # The same pixel data written three ways. If these ever disagree, the Adam7 or Netpbm
@@ -69,11 +77,10 @@ def main(path):
             seen[name] = (verdict, int(depth), num(levels), int(step), num(nongrey))
 
     problems = []
+    checked = 0
+    skipped = []
 
-    for name, expected in sorted(EXPECTED.items()):
-        if name not in seen:
-            problems.append(f"{name}: missing from the report")
-            continue
+    def compare(name, expected):
         actual = seen[name]
         if actual != expected:
             problems.append(
@@ -84,8 +91,25 @@ def main(path):
                 f"levels={actual[2]:,} step={actual[3]} non-grey={actual[4]:,}"
             )
 
+    for name, expected in sorted(EXPECTED.items()):
+        if name not in seen:
+            problems.append(
+                f"{name}: missing from the report. Run: python tests/make_fixtures.py"
+            )
+            continue
+        compare(name, expected)
+        checked += 1
+
+    for name, expected in sorted(OPTIONAL.items()):
+        if name not in seen:
+            skipped.append(name)
+            continue
+        compare(name, expected)
+        checked += 1
+
+    known = set(EXPECTED) | set(OPTIONAL)
     for name in seen:
-        if name not in EXPECTED:
+        if name not in known:
             problems.append(
                 f"{name}: in the report but not in EXPECTED. If this is a new fixture, "
                 f"add its known-correct answer here."
@@ -107,7 +131,10 @@ def main(path):
             print("  " + problem)
         return 1
 
-    print(f"All {len(EXPECTED)} fixtures classified exactly as expected.")
+    print(f"All {checked} fixtures classified exactly as expected.")
+    if skipped:
+        print(f"Not present, so not checked: {', '.join(skipped)} "
+              f"(run tests/make_textures.py to include it).")
     print(f"Cross-check passed: {', '.join(present)} agree on every measured value.")
     return 0
 

@@ -20,12 +20,21 @@ internal static class Program
     /// <summary>Open the relief preview straight away, alongside the analysis window.</summary>
     public static bool StartupRelief;
 
+    /// <summary>When set, capture the window to this PNG once it has settled, then exit.</summary>
+    public static string? ScreenshotPath;
+
+    /// <summary>Camera angle to open the relief preview at, when given on the command line.</summary>
+    public static double? StartupYaw, StartupPitch;
+
     private const string Help = """
         DepthView - depth map candidate inspector
 
           DepthView                       open the window
           DepthView <image>               open the window with that image loaded
           DepthView <image> --relief      also open the 3D relief preview
+          DepthView <image> --screenshot <out.png> [--relief]
+                                          capture the window to a PNG and exit
+                                          (used to keep the README images reproducible)
           DepthView --report <path...>    write a text analysis instead of opening a window
           DepthView --report <dir>        analyse every image in a folder
 
@@ -76,6 +85,22 @@ internal static class Program
 
         StartupFile = args.FirstOrDefault(a => !a.StartsWith('-') && File.Exists(a));
         StartupRelief = args.Any(a => a is "--relief" or "-3d");
+
+        int sh = Array.FindIndex(args, a => a == "--screenshot");
+        if (sh >= 0 && sh + 1 < args.Length) ScreenshotPath = args[sh + 1];
+
+        // --orbit <yaw> <elevation> opens the preview at a given camera angle, and implies it.
+        int ob = Array.FindIndex(args, a => a == "--orbit");
+        if (ob >= 0 && ob + 2 < args.Length
+            && double.TryParse(args[ob + 1], System.Globalization.NumberStyles.Float,
+                               System.Globalization.CultureInfo.InvariantCulture, out double oy)
+            && double.TryParse(args[ob + 2], System.Globalization.NumberStyles.Float,
+                               System.Globalization.CultureInfo.InvariantCulture, out double op))
+        {
+            StartupYaw = oy;
+            StartupPitch = op;
+            StartupRelief = true;
+        }
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
     }

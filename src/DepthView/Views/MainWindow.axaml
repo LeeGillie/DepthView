@@ -4,7 +4,7 @@
         x:Class="DepthView.Views.MainWindow"
         Title="DepthView - depth map inspector"
         Icon="/Assets/depthview-icon-256.png"
-        Width="1280" Height="880" MinWidth="960" MinHeight="640"
+        Width="1320" Height="980" MinWidth="960" MinHeight="700"
         Background="#101215"
         WindowStartupLocation="CenterScreen">
 
@@ -39,7 +39,7 @@
     </Style>
   </Window.Styles>
 
-  <Grid RowDefinitions="Auto,*,270,Auto">
+  <Grid RowDefinitions="Auto,*,252,Auto">
 
     <!-- header -->
     <Border Grid.Row="0" Background="#171A1F" BorderBrush="#262B33" BorderThickness="0,0,0,1" Padding="16,10">

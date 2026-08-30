@@ -101,6 +101,18 @@ public class HistogramControl : Control
         Invalidate();
     }
 
+    /// <summary>
+    /// Drops any hover readout. Without this a captured screenshot can be left showing a
+    /// tooltip for wherever the pointer happened to be sitting when the window opened.
+    /// </summary>
+    public void ClearHover()
+    {
+        if (_hoverCol == -1) return;
+        _hoverCol = -1;
+        HoverTextChanged?.Invoke(this, null);
+        InvalidateVisual();
+    }
+
     public void SetRange(int lo, int hi)
     {
         if (_hist is null) return;

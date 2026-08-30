@@ -126,6 +126,16 @@ public partial class ReliefWindow : Window
         Opened += (_, _) =>
         {
             if (MaterialLibrary.LoadError is { } err) TextureError.Text = err;
+
+            if (Program.StartupYaw is { } y0 && Program.StartupPitch is { } p0)
+            {
+                _syncing = true;
+                YawSlider.Value = Math.Clamp(y0, YawSlider.Minimum, YawSlider.Maximum);
+                PitchSlider.Value = Math.Clamp(p0, PitchSlider.Minimum, PitchSlider.Maximum);
+                OrbitCheck.IsChecked = true;
+                _syncing = false;
+            }
+
             SyncFromMaterial();
             Change();
         };

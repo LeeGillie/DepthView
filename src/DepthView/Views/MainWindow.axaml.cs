@@ -8,12 +8,14 @@ using System.Text;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using DepthView.Analysis;
 using DepthView.Imaging;
 
@@ -71,7 +73,48 @@ public partial class MainWindow : Window
             var bytes = await File.ReadAllBytesAsync(start);
             await LoadBytesAsync(bytes, Path.GetFileName(start), start, "opened from the command line");
             if (Program.StartupRelief) OpenRelief();
+            if (Program.ScreenshotPath is not null) ScheduleScreenshot();
         };
+    }
+
+    /// <summary>
+    /// Captures the real window to a PNG and exits, so documentation screenshots are
+    /// reproducible from a command line rather than hand-grabbed and gradually going stale.
+    /// The delay lets the analysis, the histogram and the relief render all settle first.
+    /// </summary>
+    private void ScheduleScreenshot()
+    {
+        var timer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(Program.StartupRelief ? 4500 : 2200)
+        };
+
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            try
+            {
+                Histogram.ClearHover();
+                Window target = Program.StartupRelief && _relief is not null ? _relief : this;
+                var size = new PixelSize(Math.Max(1, (int)target.ClientSize.Width),
+                                         Math.Max(1, (int)target.ClientSize.Height));
+
+                using var rtb = new RenderTargetBitmap(size, new Vector(96, 96));
+                rtb.Render(target);
+                using var fs = File.Create(Program.ScreenshotPath!);
+                rtb.Save(fs);
+                Console.WriteLine($"screenshot {size.Width}x{size.Height} -> {Program.ScreenshotPath}");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Screenshot failed: " + ex.Message);
+            }
+
+            (Application.Current?.ApplicationLifetime
+                as IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+        };
+
+        timer.Start();
     }
 
     // ------------------------------------------------------------------ input

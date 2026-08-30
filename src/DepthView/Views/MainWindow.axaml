@@ -1,0 +1,169 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="using:DepthView.Controls"
+        x:Class="DepthView.Views.MainWindow"
+        Title="DepthView - depth map inspector"
+        Icon="/Assets/depthview-icon-256.png"
+        Width="1280" Height="880" MinWidth="960" MinHeight="640"
+        Background="#101215"
+        WindowStartupLocation="CenterScreen">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#7FA6D8" />
+      <Setter Property="Margin" Value="0,16,0,7" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="#8A929E" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="Foreground" Value="#E4E8EE" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Background" Value="#22262D" />
+      <Setter Property="Foreground" Value="#DDE3EA" />
+      <Setter Property="BorderBrush" Value="#333944" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="5" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#2E343D" />
+      <Setter Property="BorderBrush" Value="#46505E" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*,270,Auto">
+
+    <!-- header -->
+    <Border Grid.Row="0" Background="#171A1F" BorderBrush="#262B33" BorderThickness="0,0,0,1" Padding="16,10">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="2">
+          <TextBlock Text="DepthView" FontSize="17" FontWeight="SemiBold" Foreground="#EDF1F6"
+                     ToolTip.Tip="DepthView inspects candidate depth maps: what the file claims to be, what its pixels actually contain, and whether the two agree." />
+          <TextBlock Text="Depth map candidate inspector - bit depth, grey levels, and imposter detection"
+                     FontSize="11" Foreground="#79818D"
+                     ToolTip.Tip="An 'imposter' is a file stored at 16 bits per sample that only carries 8 bits worth of distinct values." />
+        </StackPanel>
+        <TextBlock Grid.Column="1" x:Name="TimingText" VerticalAlignment="Center"
+                   FontSize="11" Foreground="#5E6773"
+                   ToolTip.Tip="How long the last decode and analysis pass took." />
+      </Grid>
+    </Border>
+
+    <!-- body -->
+    <Grid Grid.Row="1" ColumnDefinitions="392,*">
+
+      <!-- left: input + preview -->
+      <Border Grid.Column="0" Background="#14171B" BorderBrush="#262B33" BorderThickness="0,0,1,0" Padding="14">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
+
+          <Border Grid.Row="0" x:Name="DropZone"
+                  Height="300" CornerRadius="8"
+                  Background="#0C0E11" BorderBrush="#3A424E" BorderThickness="2"
+                  Cursor="Hand"
+                  ToolTip.Tip="Drop an image file here, click to browse, or press Ctrl+V to paste. Dropping or browsing reads the original file bytes, which is the only way to measure true bit depth.">
+            <Grid>
+              <Image x:Name="Thumb" Stretch="Uniform" Margin="6"
+                     RenderOptions.BitmapInterpolationMode="HighQuality" />
+              <StackPanel x:Name="DropHint" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+                <TextBlock Text="Drop an image here" FontSize="15" Foreground="#98A2AF" HorizontalAlignment="Center" />
+                <TextBlock Text="click to browse  -  Ctrl+V to paste" FontSize="11" Foreground="#5E6773" HorizontalAlignment="Center" />
+                <TextBlock Text="PNG - TIFF - JPEG - BMP - WebP - PGM/PPM - PFM"
+                           FontSize="10" Foreground="#49515C" HorizontalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <Grid Grid.Row="1" ColumnDefinitions="Auto,*" Margin="0,10,0,0">
+            <TextBlock Grid.Column="0" Classes="label" Text="Preview" VerticalAlignment="Center" Margin="0,0,8,0"
+                       ToolTip.Tip="Changes how the thumbnail above is rendered. The analysis never changes - only the picture does." />
+            <ComboBox Grid.Column="1" x:Name="PreviewMode" HorizontalAlignment="Stretch" SelectedIndex="0"
+                      ToolTip.Tip="Raw: samples scaled straight to screen.&#x0a;Auto-stretch: min..max mapped to full black..white, so shallow depth ranges become visible.&#x0a;Low byte: shows only the bottom 8 bits of each 16-bit sample - a genuine 16-bit map shows detail here, an imposter shows flat black.&#x0a;Colour mask: greyscale pixels dimmed, non-grey pixels flagged red.">
+              <ComboBoxItem Content="Raw values" />
+              <ComboBoxItem Content="Auto-stretch (min..max)" />
+              <ComboBoxItem Content="Low byte only (16-bit test)" />
+              <ComboBoxItem Content="Colour mask (non-grey in red)" />
+            </ComboBox>
+          </Grid>
+
+          <WrapPanel Grid.Row="2" Margin="0,10,0,0" ItemWidth="118" ItemHeight="36">
+            <Button x:Name="BrowseButton" Content="Browse..." Width="112"
+                    ToolTip.Tip="Open a file picker. Reading from disk preserves the file's exact bytes, including full 16-bit samples." />
+            <Button x:Name="PasteButton" Content="Paste" Width="112"
+                    ToolTip.Tip="Paste from the clipboard. If the clipboard holds a file reference the original file is read; if it holds a raw bitmap it is almost certainly already reduced to 8 bits and DepthView will warn you." />
+            <Button x:Name="ReloadButton" Content="Reload" Width="112" IsEnabled="False"
+                    ToolTip.Tip="Re-read the current file from disk and re-run the analysis." />
+            <Button x:Name="CopyButton" Content="Copy report" Width="112" IsEnabled="False"
+                    ToolTip.Tip="Copy the full analysis as plain text to the clipboard." />
+            <Button x:Name="SaveButton" Content="Save report..." Width="112" IsEnabled="False"
+                    ToolTip.Tip="Write the full analysis to a .txt file next to wherever you choose." />
+            <Button x:Name="ReliefButton" Content="3D preview" Width="112" IsEnabled="False"
+                    ToolTip.Tip="Open a lit relief preview of this depth map, with material presets, movable lighting and an optional slice-terracing preview. Software rendered, so it works over remote desktop." />
+            <Button x:Name="ClearButton" Content="Clear" Width="112" IsEnabled="False"
+                    ToolTip.Tip="Unload the current image and reset the view." />
+          </WrapPanel>
+
+          <Border Grid.Row="3" x:Name="VerdictCard" Margin="0,14,0,0" Padding="12,10"
+                  CornerRadius="6" Background="#1A1E24" BorderBrush="#2E353F" BorderThickness="1"
+                  IsVisible="False"
+                  ToolTip.Tip="The headline conclusion. Read the Findings list on the right for the reasoning behind it.">
+            <StackPanel Spacing="5">
+              <TextBlock x:Name="VerdictTitle" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+              <TextBlock x:Name="VerdictBody" FontSize="11" Foreground="#9AA3AF" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <TextBlock Grid.Row="4" x:Name="ErrorText" Margin="0,12,0,0" FontSize="11"
+                     Foreground="#E8837A" TextWrapping="Wrap" VerticalAlignment="Top"
+                     ToolTip.Tip="Decode or analysis errors appear here." />
+        </Grid>
+      </Border>
+
+      <!-- right: analysis -->
+      <!-- Margin lives on the StackPanel, not as ScrollViewer Padding: padding is not
+           included in the scroll extent, which clips the last rows off the bottom. -->
+      <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
+                    ToolTip.Tip="Everything DepthView measured about this file. Hover any row for an explanation of what it means.">
+        <StackPanel x:Name="DetailsPanel" Spacing="0" Margin="18,6,14,28" />
+      </ScrollViewer>
+    </Grid>
+
+    <!-- histogram -->
+    <Border Grid.Row="2" Background="#14171B" BorderBrush="#262B33" BorderThickness="0,1,0,0" Padding="12,8">
+      <Grid RowDefinitions="Auto,*">
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,*" Margin="0,0,0,8">
+          <TextBlock Grid.Column="0" Text="Grey-level histogram" FontSize="12" FontWeight="SemiBold"
+                     Foreground="#7FA6D8" VerticalAlignment="Center" Margin="0,0,16,0"
+                     ToolTip.Tip="One bar per grey level, counting only pixels where R = G = B. Hover anywhere on the plot for the exact level and pixel count under the cursor." />
+          <CheckBox Grid.Column="1" x:Name="LogCheck" Content="Log scale" IsChecked="True"
+                    Foreground="#B7BEC8" FontSize="12" Margin="0,0,14,0"
+                    ToolTip.Tip="Log scaling makes sparse levels visible next to a dominant background peak. Turn it off to compare true pixel counts." />
+          <Button Grid.Column="2" x:Name="ZoomUsedButton" Content="Zoom to used range" IsEnabled="False" Margin="0,0,8,0"
+                  ToolTip.Tip="Zoom the horizontal axis to the min..max levels that actually occur." />
+          <Button Grid.Column="3" x:Name="ResetZoomButton" Content="Reset zoom" IsEnabled="False"
+                  ToolTip.Tip="Show the full level range again. Right-clicking the plot does the same thing." />
+          <TextBlock Grid.Column="4" x:Name="RangeText" HorizontalAlignment="Right" VerticalAlignment="Center"
+                     FontSize="11" Foreground="#6B7480"
+                     ToolTip.Tip="The level range currently displayed. Scroll the mouse wheel over the plot to zoom in on a region." />
+        </Grid>
+
+        <ctl:HistogramControl Grid.Row="1" x:Name="Histogram"
+                              ToolTip.Tip="Hover for exact per-level counts. Mouse wheel zooms, right-click resets. The green strip under the plot lights up every level that occurs at least once - evenly spaced teeth there are the signature of an imposter file." />
+      </Grid>
+    </Border>
+
+    <!-- status -->
+    <Border Grid.Row="3" Background="#0D0F12" BorderBrush="#262B33" BorderThickness="0,1,0,0" Padding="14,6">
+      <TextBlock x:Name="StatusText" FontSize="11" Foreground="#79818D"
+                 Text="Ready. Drop an image on the panel at left, click it to browse, or press Ctrl+V."
+                 ToolTip.Tip="Live readout of whatever the pointer is over in the histogram." />
+    </Border>
+  </Grid>
+</Window>

@@ -1,0 +1,40 @@
+# Normalise line endings in the repo, so a project developed on Windows but built on
+# macOS and Linux does not churn every line the first time someone else touches it.
+* text=auto
+
+*.cs        text diff=csharp
+*.csproj    text
+*.axaml     text
+*.manifest  text
+*.md        text
+*.py        text
+*.json      text
+*.xml       text
+*.yml       text
+*.gitignore text
+
+# Tools that care about their own line endings.
+*.sln       text eol=crlf
+*.ps1       text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+*.sh        text eol=lf
+
+# Never touched.
+*.png       binary
+*.ico       binary
+*.icns      binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.tif       binary
+*.tiff      binary
+*.pgm       binary
+*.ppm       binary
+*.pbm       binary
+*.pfm       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.otf       binary

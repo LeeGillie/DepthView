@@ -1,0 +1,191 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DepthView.Views.ReliefWindow"
+        Title="DepthView - relief preview"
+        Icon="/Assets/depthview-icon-256.png"
+        Width="1180" Height="820" MinWidth="720" MinHeight="520"
+        Background="#101215"
+        WindowStartupLocation="CenterOwner">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#7FA6D8" />
+      <Setter Property="Margin" Value="0,14,0,6" />
+    </Style>
+    <Style Selector="TextBlock.cap">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#8A929E" />
+      <Setter Property="Margin" Value="0,6,0,1" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="Background" Value="#22262D" />
+      <Setter Property="Foreground" Value="#DDE3EA" />
+      <Setter Property="BorderBrush" Value="#333944" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="5" />
+    </Style>
+  </Window.Styles>
+
+  <Grid ColumnDefinitions="*,296" RowDefinitions="*,Auto">
+
+    <Border Grid.Row="0" Grid.Column="0" x:Name="PreviewHost" Background="#0A0C0E" ClipToBounds="True">
+      <Image x:Name="Preview" Stretch="Fill"
+             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+             ToolTip.Tip="Drag with the left button to move the light. Mouse wheel zooms. Drag with the right button to pan. This is a shading preview of the height field, not a process simulation." />
+    </Border>
+
+    <Border Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
+            Background="#14171B" BorderBrush="#262B33" BorderThickness="1,0,0,0">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="14,10,12,24">
+
+          <TextBlock Classes="section" Text="Material"
+                     ToolTip.Tip="Changes only the surface model, never the height data. Metals tint their specular highlight and have almost no diffuse; wood is the reverse." />
+          <ComboBox x:Name="MaterialCombo" HorizontalAlignment="Stretch" SelectedIndex="0"
+                    ToolTip.Tip="Each preset carries a separate finish for the untouched field and for the engraved floor. Brass frosts and darkens as it deepens; black anodising and slate come out brighter than the surface around them." />
+
+          <TextBlock Classes="section" Text="Surface texture"
+                     ToolTip.Tip="Real surfaces have texture, and it belongs to the untouched field: the laser destroys it in the engraved floor. Both maps fade with depth by the survival amount below." />
+
+          <TextBlock Classes="cap" Text="Colour image" />
+          <Grid ColumnDefinitions="*,Auto">
+            <Button Grid.Column="0" x:Name="LoadAlbedoButton" Content="Load..." HorizontalAlignment="Stretch"
+                    ToolTip.Tip="A photograph of the material's surface: oak grain, slate, leather. Supplies the colour of the field. Any format DepthView reads will do." />
+            <Button Grid.Column="1" x:Name="ClearAlbedoButton" Content="Clear" Margin="6,0,0,0"
+                    ToolTip.Tip="Remove the colour texture and fall back to this material's flat colour." />
+          </Grid>
+          <TextBlock x:Name="AlbedoLabel" Classes="cap" Text="none" TextWrapping="Wrap" />
+
+          <TextBlock Classes="cap" Text="Surface relief image" />
+          <Grid ColumnDefinitions="*,Auto">
+            <Button Grid.Column="0" x:Name="LoadMicroButton" Content="Load..." HorizontalAlignment="Stretch"
+                    ToolTip.Tip="An image read as a fine height field that tilts the surface underneath the relief. This, not colour, is what makes a brushed finish look brushed or a hammered one look hammered. Light areas read as high." />
+            <Button Grid.Column="1" x:Name="ClearMicroButton" Content="Clear" Margin="6,0,0,0"
+                    ToolTip.Tip="Remove the surface relief texture." />
+          </Grid>
+          <TextBlock x:Name="MicroLabel" Classes="cap" Text="none" TextWrapping="Wrap" />
+
+          <TextBlock Classes="cap" Text="Generated texture" Margin="0,8,0,1" />
+          <ComboBox x:Name="GeneratedCombo" HorizontalAlignment="Stretch" SelectedIndex="0"
+                    ToolTip.Tip="Built-in textures, so a material looks like itself without hunting for photographs. They only fill slots you have not loaded an image into, so a file you point at always wins. Wood and stone take their colour from the material, which is why maple, oak and cherry come out different. Use the rotation below to set the grain or brush direction.">
+            <ComboBoxItem Content="None" />
+            <ComboBoxItem Content="Brushed metal" />
+            <ComboBoxItem Content="Wood grain" />
+            <ComboBoxItem Content="Speckled stone" />
+          </ComboBox>
+
+          <TextBlock Classes="cap" x:Name="TexScaleLabel" Text="Texture scale" />
+          <Slider x:Name="TexScaleSlider" Minimum="0.1" Maximum="8" Value="1"
+                  ToolTip.Tip="How many times the texture repeats across the width of the workpiece. 1 fits a single copy over the whole piece, which is usually what you want for a photograph of the actual board. Large values will alias." />
+
+          <TextBlock Classes="cap" x:Name="TexRotLabel" Text="Texture rotation" />
+          <Slider x:Name="TexRotSlider" Minimum="0" Maximum="180" Value="0"
+                  ToolTip.Tip="Rotates both textures. For wood this sets the grain direction; for brushed metal it sets the brush direction." />
+
+          <TextBlock Classes="cap" x:Name="AlbStrengthLabel" Text="Colour strength" />
+          <Slider x:Name="AlbStrengthSlider" Minimum="0" Maximum="1" Value="1"
+                  ToolTip.Tip="0 keeps this material's flat colour, 1 uses the texture's own colour, in between blends the two. On metals the texture also tints the specular highlight, or a brass photograph would barely show." />
+
+          <TextBlock Classes="cap" x:Name="MicroStrengthLabel" Text="Surface relief strength" />
+          <Slider x:Name="MicroStrengthSlider" Minimum="0" Maximum="3" Value="0"
+                  ToolTip.Tip="How strongly the surface relief image tilts the normal. Subtle is convincing; too much looks like crumpled foil. Watch it as you sweep the light direction." />
+
+          <TextBlock Classes="cap" x:Name="SurvivalLabel" Text="Texture survives engraving" />
+          <Slider x:Name="SurvivalSlider" Minimum="0" Maximum="1" Value="0.25"
+                  ToolTip.Tip="How much of the texture is left in the engraved floor. Wood grain is mostly destroyed by charring, and a brushed finish is replaced entirely by a frosted one, so low values are realistic." />
+
+          <TextBlock x:Name="TextureError" Classes="cap" Foreground="#E8837A" TextWrapping="Wrap" />
+
+          <WrapPanel Margin="0,8,0,0">
+            <Button x:Name="SaveMaterialsButton" Content="Save materials" Width="126" Margin="0,0,6,6"
+                    ToolTip.Tip="Write the whole material list, including texture paths and these settings, to materials.json next to the executable. It is loaded automatically next time, so a texture you point at once stays pointed at." />
+            <Button x:Name="ResetMaterialsButton" Content="Reset materials" Width="126" Margin="0,0,6,6"
+                    ToolTip.Tip="Discard edits and return to the built-in material definitions. Does not delete materials.json until you save again." />
+          </WrapPanel>
+
+          <TextBlock Classes="section" Text="Lighting"
+                     ToolTip.Tip="Raking light across a relief is how you judge form. Sweep the azimuth to check that shapes read from every direction." />
+
+          <TextBlock Classes="cap" x:Name="AzLabel" Text="Light direction" />
+          <Slider x:Name="AzSlider" Minimum="0" Maximum="360" Value="315"
+                  ToolTip.Tip="Compass bearing of the light: 0 is from the top of the image, increasing clockwise. Dragging on the preview does the same thing." />
+
+          <TextBlock Classes="cap" x:Name="ElLabel" Text="Light elevation" />
+          <Slider x:Name="ElSlider" Minimum="5" Maximum="85" Value="42"
+                  ToolTip.Tip="Height of the light above the surface. Low angles exaggerate shallow detail; high angles flatten it out." />
+
+          <TextBlock Classes="cap" x:Name="AoLabel" Text="Ambient occlusion" />
+          <Slider x:Name="AoSlider" Minimum="0" Maximum="3" Value="1"
+                  ToolTip.Tip="Darkens pockets and crevices using the height field itself. This is what makes relief read as depth rather than as a grey gradient. Set it to zero to see pure directional shading." />
+
+          <TextBlock Classes="section" Text="Height"
+                     ToolTip.Tip="Laser relief is very shallow, so an honest render looks almost flat. Exaggerate to judge form, then drop back to check the real thing." />
+
+          <TextBlock Classes="cap" x:Name="ExagLabel" Text="Vertical exaggeration" />
+          <Slider x:Name="ExagSlider" Minimum="0.05" Maximum="12" Value="1.0"
+                  ToolTip.Tip="Multiplies the surface slope. 1.0 is already boosted relative to true scale, because 1.1 mm of depth on a 25 mm coin is a 4 percent aspect ratio and would be nearly invisible." />
+
+          <CheckBox x:Name="InvertCheck" Content="Invert height" Margin="0,8,0,0"
+                    Foreground="#B7BEC8" FontSize="12"
+                    ToolTip.Tip="By default white is the untouched surface and black is deepest, matching LightBurn. Tick this if your map uses the opposite convention." />
+
+          <TextBlock Classes="section" Text="Slice preview"
+                     ToolTip.Tip="Quantises the height field to a fixed number of steps, which is what a layered engraving actually produces. Use it to find terracing before you burn a blank." />
+
+          <CheckBox x:Name="SliceCheck" Content="Quantise to steps"
+                    Foreground="#B7BEC8" FontSize="12"
+                    ToolTip.Tip="Off shows the continuous height field. On shows the staircase you get when the depth is built from a finite number of layers." />
+
+          <TextBlock Classes="cap" x:Name="SliceLabel" Text="Steps" />
+          <Slider x:Name="SliceSlider" Minimum="2" Maximum="256" Value="48" IsEnabled="False"
+                  ToolTip.Tip="Number of depth steps. In a layered engraving this is the pass count: the darkest pixels get every pass, pure white gets none. Watch for the point where visible contour lines appear." />
+
+          <TextBlock Classes="section" Text="Camera"
+                     ToolTip.Tip="Drag with the left button to orbit, the right button to pan, and the wheel to zoom. Hold Shift and drag to move the light instead of the camera." />
+
+          <CheckBox x:Name="OrbitCheck" Content="3D view" IsChecked="True"
+                    Foreground="#B7BEC8" FontSize="12"
+                    ToolTip.Tip="On, the surface is built as geometry and you can orbit around it. Off gives a straight-down view rendered per pixel, which is slightly crisper and faster - better for judging fine detail, worse for judging form." />
+
+          <TextBlock Classes="cap" x:Name="YawLabel" Text="Orbit" />
+          <Slider x:Name="YawSlider" Minimum="-180" Maximum="180" Value="0"
+                  ToolTip.Tip="Rotates the camera around the piece. The light stays fixed to the workpiece, so orbiting shows you how the relief reads from different sides under the same lighting." />
+
+          <TextBlock Classes="cap" x:Name="PitchLabel" Text="Camera elevation" />
+          <Slider x:Name="PitchSlider" Minimum="8" Maximum="90" Value="62"
+                  ToolTip.Tip="90 looks straight down. Low angles are how you judge whether a relief actually stands up - a shallow engraving that looks fine from above can disappear at a grazing view." />
+
+          <WrapPanel Margin="0,8,0,0">
+            <Button x:Name="TopViewButton" Content="Top view" Width="126" Margin="0,0,6,6"
+                    ToolTip.Tip="Snap back to a straight-down, pixel-exact view and turn 3D off." />
+            <Button x:Name="ResetViewButton" Content="Reset view" Width="126" Margin="0,0,6,6"
+                    ToolTip.Tip="Return zoom, pan and camera angle to their defaults. Middle-clicking the preview does the same." />
+            <Button x:Name="SaveButton" Content="Save PNG..." Width="126" Margin="0,0,6,6"
+                    ToolTip.Tip="Write the current render to a PNG at the size shown." />
+          </WrapPanel>
+
+          <Border Background="#171A1F" BorderBrush="#262B33" BorderThickness="1"
+                  CornerRadius="5" Padding="10,8" Margin="0,10,0,0"
+                  ToolTip.Tip="What this preview can and cannot tell you.">
+            <StackPanel Spacing="4">
+              <TextBlock Text="This is a preview, not a simulation" FontSize="11"
+                         FontWeight="SemiBold" Foreground="#E8B04B" TextWrapping="Wrap" />
+              <TextBlock FontSize="11" Foreground="#8A929E" TextWrapping="Wrap"
+                         Text="It shows form, banding and how the light will catch the relief. It does not predict slag, heat accumulation, edge rounding from beam width, or how pulse settings change the surface finish." />
+            </StackPanel>
+          </Border>
+
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <Border Grid.Row="1" Grid.Column="0" Background="#0D0F12"
+            BorderBrush="#262B33" BorderThickness="0,1,0,0" Padding="12,6">
+      <TextBlock x:Name="StatusText" FontSize="11" Foreground="#79818D"
+                 ToolTip.Tip="Render size, timing and current view state." />
+    </Border>
+  </Grid>
+</Window>

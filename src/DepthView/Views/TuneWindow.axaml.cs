@@ -201,7 +201,8 @@ public partial class TuneWindow : Window
     /// blank. The artwork visibly occupying less of the tuned frame is not a drawing artefact;
     /// it is exactly what happens to the coin.
     /// </summary>
-    private WriteableBitmap ToBitmap(ushort[] grey, int w, int h)
+    private WriteableBitmap ToBitmap(ushort[] grey, int w, int h,
+                                     double blankRadius = 0, double rimInner = 0)
     {
         var buf = new byte[(long)w * h * 4];
         for (long i = 0; i < grey.Length; i++)
@@ -209,6 +210,22 @@ public partial class TuneWindow : Window
             byte v = (byte)Math.Clamp((long)grey[i] * 255 / Math.Max(1, _maxValue), 0, 255);
             long d = i * 4;
             buf[d] = v; buf[d + 1] = v; buf[d + 2] = v; buf[d + 3] = 255;
+        }
+
+        // Two rings, drawn in colour on a greyscale preview so they cannot be mistaken for
+        // data - nothing in a depth map is ever cyan.
+        //
+        // They mark the boundary the file itself cannot express. Past the rim the map is all
+        // one value, so the edge of the blank is white on white and invisible, which makes the
+        // untouched rim and the corners of the square look like the same thing. They are not:
+        // the rim is part of the coin and is deliberately left uncut, while the corners are
+        // not on the coin at all. Same pixel value, different reasons, and worth being able
+        // to see the difference before sending the job.
+        if (blankRadius > 0)
+        {
+            Ring(buf, w, h, blankRadius, 0x38, 0xC8, 0xFF);   // cyan: the edge of the blank
+            if (rimInner > 0 && rimInner < blankRadius)
+                Ring(buf, w, h, rimInner, 0xF0, 0xB4, 0x5C);  // amber: where engraving stops
         }
 
         var bmp = new WriteableBitmap(new PixelSize(w, h), new Vector(96, 96),
@@ -220,6 +237,52 @@ public partial class TuneWindow : Window
                 Marshal.Copy(buf, y * rowBytes, fb.Address + y * fb.RowBytes, rowBytes);
         }
         return bmp;
+    }
+
+    /// <summary>
+    /// A one-pixel circle drawn straight into the BGRA buffer. Scanned per row rather than
+    /// stepped round the circumference, so it stays continuous at any radius instead of
+    /// leaving gaps where a parametric walk would skip pixels.
+    /// </summary>
+    private static void Ring(byte[] buf, int w, int h, double radius, byte r, byte g, byte b)
+    {
+        double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0;
+        int lo = Math.Max(0, (int)(cy - radius) - 1), hi = Math.Min(h - 1, (int)(cy + radius) + 1);
+
+        for (int y = lo; y <= hi; y++)
+        {
+            double dy = y - cy;
+            double inside = radius * radius - dy * dy;
+            if (inside < 0) continue;
+            double dx = Math.Sqrt(inside);
+
+            foreach (double x in new[] { cx - dx, cx + dx })
+            {
+                int px = (int)Math.Round(x);
+                if (px < 0 || px >= w) continue;
+                long d = ((long)y * w + px) * 4;
+                buf[d] = b; buf[d + 1] = g; buf[d + 2] = r;
+            }
+        }
+
+        // The same again scanned by column, which fills the near-horizontal parts of the
+        // circle where one row can span many pixels.
+        int clo = Math.Max(0, (int)(cx - radius) - 1), chi = Math.Min(w - 1, (int)(cx + radius) + 1);
+        for (int x = clo; x <= chi; x++)
+        {
+            double dx = x - cx;
+            double inside = radius * radius - dx * dx;
+            if (inside < 0) continue;
+            double dy = Math.Sqrt(inside);
+
+            foreach (double y in new[] { cy - dy, cy + dy })
+            {
+                int py = (int)Math.Round(y);
+                if (py < 0 || py >= h) continue;
+                long d = ((long)py * w + x) * 4;
+                buf[d] = b; buf[d + 1] = g; buf[d + 2] = r;
+            }
+        }
     }
 
     // ------------------------------------------------------------------ settings plumbing
@@ -347,7 +410,12 @@ public partial class TuneWindow : Window
 
         var tuned = DepthTuner.Apply(_previewGrey, _pw, _ph, _maxValue, preview, out var rep);
         _rimReport = rep;
-        TunedImage.Source = ToBitmap(tuned, rep.OutWidth, rep.OutHeight);
+
+        // Apply resolves the rim geometry against whatever canvas it ended up with, so these
+        // come back from the options rather than being worked out again here. The blank spans
+        // the short side of the output, fitted or not.
+        double blankRadius = full.AddRim ? Math.Min(rep.OutWidth, rep.OutHeight) / 2.0 : 0;
+        TunedImage.Source = ToBitmap(tuned, rep.OutWidth, rep.OutHeight, blankRadius, preview.RimRadius);
 
         _tunedHist = TuneJob.MapHistogram(_source.GreyHistogram, _maxValue, full,
                                           out long flattened, out long lifted);
@@ -362,7 +430,11 @@ public partial class TuneWindow : Window
 
         TunedCaption.Text = $"{tUnique:N0} levels, {tMin:N0} to {tMax:N0}, "
                           + $"{useAfter * 100:F0}% of the range"
-                          + (full.OutputBitDepth == 8 ? "   (written as 8-bit)" : "");
+                          + (full.OutputBitDepth == 8 ? "   (written as 8-bit)" : "")
+                          + (full.AddRim
+                              ? "\nCyan: edge of the blank, everything outside it is off the coin. "
+                              + "Amber: where engraving stops. Neither is in the file."
+                              : "");
 
         ResultText.Text = string.Join(Environment.NewLine, new[]
         {

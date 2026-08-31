@@ -603,6 +603,20 @@ internal static class Program
                                         ? ", hard step at the rim (no ramp)"
                                         : $", ramp {rampMm:F2} mm = {rampMm * ppmm:F0} px"));
 
+                    // Two different things share one pixel value in the output, and it is
+                    // worth saying so: the rim is part of the coin and is deliberately left
+                    // uncut, while the corners are not on the coin at all. Both are white
+                    // because white is the only way a depth map can say "no passes here", and
+                    // that is the correct instruction for both - but they are not the same
+                    // thing, and a reader looking at a white square should know which is which.
+                    double blankPx = Math.Min(rep.OutWidth, rep.OutHeight) / 2.0;
+                    double cornerArea = 1 - Math.PI / 4;
+                    Console.WriteLine($"                  white beyond r={o.RimRadius:F0} px covers both the"
+                                    + $" {rw:F2} mm rim ring and the");
+                    Console.WriteLine($"                  corners outside the blank (r>{blankPx:F0} px,"
+                                    + $" {cornerArea * 100:F0}% of the square). Both get zero");
+                    Console.WriteLine("                  passes, which is right for both, but only the rim is on the coin.");
+
                     // A ramp narrower than the beam is the worst of both: the spot smears the
                     // transition to its own width regardless, so the ramp achieves nothing the
                     // optics were not going to do anyway.

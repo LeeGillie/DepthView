@@ -204,6 +204,47 @@ compression, filtering, interlacing, gamma, sBIT, ICC profile, resolution.
 | Range utilisation | How much of the container's range is used at all. |
 | Histogram gaps | A regular comb of gaps is the visual form of the level step. |
 
+**Depths per pass count** — what the level structure is actually worth once a slicer has had it
+
+| Measurement | Reading it |
+|---|---|
+| Depths | Distinct engraved levels you get at that pass count, limited by the passes you run and by the gradation in the file, whichever runs out first. |
+| Wasted | Passes that repeat a depth already cut. |
+| After reclaiming headroom | What the same pass count would give if the occupied range were stretched to fill the container. The Tune dialog does this. |
+| **Band spread** | How many of the file's levels fall into each pass, narrowest to widest. See below — this is a separate cost from the depth count, and it is where thin precision shows even when the depth count looks fine. |
+
+#### Band spread, and why 16 bits matter below 256 passes
+
+A slicer cuts the level range into equal bands, one per pass. Levels are integers, so
+unless the pass count divides the range exactly, some bands hold more levels than others.
+Every pass still removes the same material — but on a smooth gradient the *terraces* come
+out at uneven widths, in whatever ratio the arithmetic lands on.
+
+At 200 passes, a 256-level map splits into 144 bands one level wide and 56 two levels wide:
+a **2:1 spread**. A 65,536-level map splits into 327s and 328s: **0.3%**. Same absolute
+error of one level, wildly different relative error.
+
+Across every pass count from 2 to 256, only **eight** leave 8-bit precision evenly divided —
+exactly the powers of two — while **127 of 255** produce a 2:1 spread. Nothing in that range
+troubles a genuine 16-bit map at all; the worst case is 1.004.
+
+So this is not a "more than 256 passes" concern. Unless you land on a power of two, thin
+precision gives you irregular terrace spacing at almost any pass count, while the depth count
+looks perfectly healthy.
+
+It is measured against the ladder the file actually carries, not the container it declares,
+which is the point here — an imposter inherits the 8-bit behaviour while looking 16-bit in
+every file dialog:
+
+```
+genuine 16-bit                         8-bit ladder in a 16-bit container
+passes  depths  wasted  band spread    passes  depths  wasted  band spread
+   200     199       1  327..328 x1.00    200     199       1  1..2 x2.00
+```
+
+Identical depth counts. Raised by Nathaniel Klumb on the LightBurn forum; see
+[ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md).
+
 ### Imposter classes detected
 
 | Verdict | Signature |

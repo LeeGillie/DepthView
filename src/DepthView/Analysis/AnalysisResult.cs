@@ -115,6 +115,60 @@ public sealed class AnalysisResult
     public int SlicesLostToHeadroom(int passes) =>
         Math.Max(0, SlicesAtRemapped(passes) - SlicesAt(passes).Distinct);
 
+    /// <summary>
+    /// How evenly the file's precision divides into engraved bands, at a given pass count.
+    /// Null when the map has fewer levels than passes, because then the limit is how many
+    /// depths exist at all, which <see cref="SlicesAt"/> already reports.
+    ///
+    /// This is a second, independent cost of low precision, and it is not the same question as
+    /// how many depths you get. A slicer cuts the level range into equal bands; the levels are
+    /// integers, so the bands cannot all hold the same number of them unless the pass count
+    /// divides the range exactly. With 256 levels and 200 passes, 144 bands hold one level and
+    /// 56 hold two - so on a smooth gradient the terraces come out in an irregular 1:2 pattern,
+    /// even though all 200 depths are present and every pass removes the same material. With
+    /// 65,536 levels and the same 200 passes the bands hold 327 or 328, a spread of 0.3%.
+    ///
+    /// Across every pass count from 2 to 256, only eight leave 8-bit precision evenly divided -
+    /// the powers of two - while half of them produce a 2:1 spread. Nothing in that range
+    /// troubles a genuine 16-bit map at all.
+    ///
+    /// Raised by Nathaniel Klumb on the LightBurn forum, against the reading that 16 bits only
+    /// matter beyond 256 passes. His arithmetic reproduces exactly, and it is measured here
+    /// against the ladder the file actually carries rather than the container it declares -
+    /// which is the point for this program, because an imposter inherits the 8-bit behaviour
+    /// while looking 16-bit in every file dialog.
+    /// </summary>
+    public (int Min, int Max, double Ratio)? BandSpreadAt(int passes)
+    {
+        if (passes <= 1 || UsedLevels.Length == 0) return null;
+
+        // The rungs of the ladder, not the histogram: this is a question about the precision
+        // the file carries, not about how the artwork happens to distribute across it.
+        int step = Math.Max(1, LevelStep);
+        int span = MaxLevel - MinLevel + 1;
+        int rungs = (span + step - 1) / step;
+        if (rungs < passes) return null;
+
+        var counts = new int[passes];
+        for (int k = 0; k < rungs; k++)
+        {
+            long v = (long)k * step;
+            int q = (int)Math.Min(passes - 1, v * passes / span);
+            counts[q]++;
+        }
+
+        int min = int.MaxValue, max = 0;
+        foreach (int c in counts)
+        {
+            if (c == 0) continue;
+            if (c < min) min = c;
+            if (c > max) max = c;
+        }
+
+        if (min == int.MaxValue) return null;
+        return (min, max, (double)max / min);
+    }
+
     private static int DistinctAfterReduction(int[] used, int maxValue, int levels,
                                               int minLevel, int maxLevel, bool remap)
     {

@@ -121,16 +121,33 @@ public static class ReportWriter
         if (r.UsedLevels.Length > 1)
         {
             sb.AppendLine("DEPTHS PER PASS COUNT");
-            sb.AppendLine("  passes    depths   wasted   after reclaiming headroom");
-            foreach (int passes in new[] { 64, 128, 256, 512, 1024 })
+            sb.AppendLine("  passes    depths   wasted   headroom   band spread");
+
+            // 200 is in the list deliberately. It is not a round number, and that is the point:
+            // the awkward pass counts are where thin precision shows up, and every table that
+            // lists only powers of two hides the effect completely.
+            foreach (int passes in new[] { 64, 100, 128, 200, 256, 512, 1024 })
             {
                 var (distinct, wasted) = r.SlicesAt(passes);
                 int remapped = r.SlicesAtRemapped(passes);
-                sb.AppendLine($"  {passes,6}  {distinct,8:N0} {wasted,8:N0}   {remapped,8:N0}");
+                string spread = r.BandSpreadAt(passes) is { } b
+                    ? $"{b.Min:N0}..{b.Max:N0} x{b.Ratio:F2}"
+                    : "-";
+                sb.AppendLine($"  {passes,6}  {distinct,8:N0} {wasted,8:N0}   {remapped,8:N0}   {spread}");
             }
+
             sb.AppendLine("  'depths' is how many distinct engraved levels you actually get:");
             sb.AppendLine("  limited by the passes you run and by the gradation in the file,");
             sb.AppendLine("  whichever runs out first. 'wasted' passes repeat a depth already cut.");
+            sb.AppendLine();
+            sb.AppendLine("  'band spread' is how many of the file's levels fall into each pass,");
+            sb.AppendLine("  narrowest to widest. A slicer cuts the range into equal bands, but");
+            sb.AppendLine("  levels are integers, so unless the pass count divides the range");
+            sb.AppendLine("  exactly some bands hold more levels than others. x1.00 is even;");
+            sb.AppendLine("  x2.00 means some terraces come out twice as wide as their");
+            sb.AppendLine("  neighbours on a smooth gradient, even though every pass cuts the");
+            sb.AppendLine("  same depth. This is a separate cost from the depth count, and it");
+            sb.AppendLine("  is where thin precision shows even when the depth count looks fine.");
             sb.AppendLine();
         }
 

@@ -476,6 +476,31 @@ public static class DepthAnalyzer
                   : " The range is already well used; remapping would gain nothing.")
               + " The full pass-count table is in the report: how many passes are worth running"
               + " depends on the depth you want and how much gradation the file really holds."));
+
+            // The other half of what precision buys, and the half that is easy to miss because
+            // the depth count can look perfectly healthy while this is bad.
+            //
+            // A slicer cuts the level range into equal bands. Levels are integers, so unless
+            // the pass count divides the range exactly, some bands hold more levels than
+            // others - and on a smooth gradient that lands as terraces of uneven width, even
+            // though every pass removes the same material. 200 is the example rather than 256
+            // precisely because it is not a power of two: with 256 levels only the powers of
+            // two divide evenly, so most real pass counts leave an 8-bit map with some bands
+            // twice as wide as their neighbours, while a genuine 16-bit map stays inside half
+            // a percent everywhere in that range.
+            //
+            // Raised by Nathaniel Klumb on the LightBurn forum, and checked before it went in.
+            if (r.BandSpreadAt(200) is { } band && band.Ratio >= 1.5)
+                f.Add(new Finding(band.Ratio >= 2 ? Severity.Warn : Severity.Info,
+                    "Uneven slice bands at awkward pass counts",
+                    $"At 200 passes the levels in this file divide into bands of {band.Min:N0} to "
+                  + $"{band.Max:N0} levels - a {band.Ratio:F2}x spread. Every pass still cuts the same "
+                  + "depth, but on a smooth gradient the terraces come out at uneven widths in that "
+                  + "ratio. It happens because a slicer splits the range evenly while levels are "
+                  + "integers, so only pass counts that divide the range exactly come out clean. With "
+                  + $"{r.UniqueGreyLevels:N0} levels to work with that is a short list; a map carrying "
+                  + "the full 16 bits stays within a fraction of a percent at any pass count. Pick a "
+                  + "pass count that divides the range, or use a map with finer gradation."));
         }
 
         if (r.IsGrayscaleStoredAsColor)

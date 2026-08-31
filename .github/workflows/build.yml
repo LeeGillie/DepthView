@@ -133,6 +133,38 @@ jobs:
             --screenshot about-${{ matrix.os }}.png
           test -s "about-${{ matrix.os }}.png"
 
+      # The tuning dialog, opened with a rim configured so the whole of it is exercised:
+      # the two previews, the level strip, the rim geometry and the live figures. A dialog
+      # nobody can click on a CI runner is still a dialog that can be constructed, laid out
+      # and captured, and that is where its bugs are.
+      - name: Open the tuning dialog (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a --server-args="-screen 0 1600x1100x24" \
+            "${{ steps.exe.outputs.path }}" samples/07-wasted-headroom.png \
+            --tune-ui --blank 40 --rim-mm 0.9 \
+            --screenshot tune-${{ matrix.os }}.png
+          test -s "tune-${{ matrix.os }}.png"
+
+      - name: Open the tuning dialog (macOS and Windows)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          "${{ steps.exe.outputs.path }}" samples/07-wasted-headroom.png \
+            --tune-ui --blank 40 --rim-mm 0.9 \
+            --screenshot "tune-${{ matrix.os }}.png"
+          test -s "tune-${{ matrix.os }}.png"
+
+      # The tuning dialog at the smallest window it allows, for the same reason as below.
+      - name: Capture the tuning dialog at its minimum size (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a --server-args="-screen 0 1600x1100x24" \
+            "${{ steps.exe.outputs.path }}" samples/07-wasted-headroom.png \
+            --tune-ui --blank 40 --rim-mm 0.9 --window 1024 660 \
+            --screenshot tune-minsize-${{ matrix.os }}.png
+          test -s "tune-minsize-${{ matrix.os }}.png"
+
       # The window at its own minimum size, which is where the layout breaks first. A
       # 1024x768 CI runner is what found the buttons and the verdict card being pushed off
       # the bottom, and nothing on a developer's monitor can reproduce that. Capturing the
@@ -155,6 +187,7 @@ jobs:
             samples-ci.txt
             gui-*.png
             about-*.png
+            tune-*.png
             minsize-*.png
             tests/fixtures/depthview-report.txt
           if-no-files-found: warn

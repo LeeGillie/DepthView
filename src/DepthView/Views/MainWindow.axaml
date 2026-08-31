@@ -142,6 +142,8 @@
                     ToolTip.Tip="Write the full analysis to a .txt file next to wherever you choose." />
             <Button x:Name="ReliefButton" Content="3D preview" Width="112" IsEnabled="False"
                     ToolTip.Tip="Open a lit relief preview of this depth map, with material presets, movable lighting and an optional slice-terracing preview. Software rendered, so it works over remote desktop." />
+            <Button x:Name="TuneButton" Content="Tune..." Width="112" IsEnabled="False"
+                    ToolTip.Tip="Open the tuning dialog: set the black and white points against the histogram, add an untouched rim for a coin blank, preview the slicing, and write a corrected copy. The original file is never modified." />
             <Button x:Name="ClearButton" Content="Clear" Width="112" IsEnabled="False"
                     ToolTip.Tip="Unload the current image and reset the view." />
           </WrapPanel>

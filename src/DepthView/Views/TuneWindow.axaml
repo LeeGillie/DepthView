@@ -1,0 +1,267 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="using:DepthView.Controls"
+        x:Class="DepthView.Views.TuneWindow"
+        Title="Tune depth map"
+        Icon="/Assets/depthview-icon-256.png"
+        Width="1300" Height="900" MinWidth="1000" MinHeight="640"
+        Background="#101215"
+        WindowStartupLocation="CenterOwner">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#7FA6D8" />
+      <Setter Property="Margin" Value="0,16,0,7" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="#8A929E" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.note">
+      <Setter Property="Foreground" Value="#6B7480" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,3,0,0" />
+    </Style>
+    <Style Selector="TextBlock.pane">
+      <Setter Property="Foreground" Value="#9AA3AF" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="CheckBox">
+      <Setter Property="Foreground" Value="#B7BEC8" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Margin" Value="0,5,0,0" />
+    </Style>
+    <Style Selector="NumericUpDown">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Background" Value="#0C0E11" />
+      <Setter Property="Foreground" Value="#E4E8EE" />
+      <Setter Property="BorderBrush" Value="#333944" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="Padding" Value="11,6" />
+      <Setter Property="Background" Value="#22262D" />
+      <Setter Property="Foreground" Value="#DDE3EA" />
+      <Setter Property="BorderBrush" Value="#333944" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#2E343D" />
+      <Setter Property="BorderBrush" Value="#46505E" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#2A5E8C" />
+      <Setter Property="BorderBrush" Value="#3E7CB4" />
+      <Setter Property="Foreground" Value="#EDF3FA" />
+      <Setter Property="Padding" Value="15,7" />
+    </Style>
+  </Window.Styles>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" MinHeight="220" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <!-- header -->
+    <Border Grid.Row="0" Background="#171A1F" BorderBrush="#262B33" BorderThickness="0,0,0,1" Padding="16,10">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="2">
+          <TextBlock Text="Tune depth map" FontSize="16" FontWeight="SemiBold" Foreground="#EDF1F6" />
+          <TextBlock x:Name="SubtitleText" FontSize="11" Foreground="#79818D"
+                     Text="Black is deepest, white is untouched. Nothing is written until you save, and the original file is never modified." />
+        </StackPanel>
+        <TextBlock Grid.Column="1" x:Name="SourceText" VerticalAlignment="Center"
+                   FontSize="11" Foreground="#5E6773" />
+      </Grid>
+    </Border>
+
+    <!-- previews and controls -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,376" ClipToBounds="True">
+
+      <Grid Grid.Column="0" ColumnDefinitions="*,*">
+
+        <Border Grid.Column="0" Margin="14,12,7,8" Padding="9"
+                Background="#0C0E11" BorderBrush="#2A303A" BorderThickness="1" CornerRadius="8">
+          <Grid RowDefinitions="Auto,*,Auto">
+            <TextBlock Grid.Row="0" Classes="pane" Text="Original" />
+            <Image Grid.Row="1" x:Name="OriginalImage" Stretch="Uniform" Margin="0,7"
+                   RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <TextBlock Grid.Row="2" x:Name="OriginalCaption" Classes="note" />
+          </Grid>
+        </Border>
+
+        <Border Grid.Column="1" Margin="7,12,14,8" Padding="9"
+                Background="#0C0E11" BorderBrush="#2A303A" BorderThickness="1" CornerRadius="8">
+          <Grid RowDefinitions="Auto,*,Auto">
+            <TextBlock Grid.Row="0" Classes="pane" Text="Tuned" Foreground="#8BD49C" />
+            <Image Grid.Row="1" x:Name="TunedImage" Stretch="Uniform" Margin="0,7"
+                   RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <TextBlock Grid.Row="2" x:Name="TunedCaption" Classes="note" />
+          </Grid>
+        </Border>
+      </Grid>
+
+      <!-- controls. The scroller holds the settings and the results card stays pinned
+           beneath it, because the numbers are the reason to touch any of the settings
+           and scrolling them out of sight would defeat the point of a live dialog. -->
+      <Border Grid.Column="1" Background="#14171B" BorderBrush="#262B33" BorderThickness="1,0,0,0">
+        <Grid RowDefinitions="*,Auto">
+
+          <!-- AllowAutoHide off: the settings are taller than a 900px window on purpose, and an
+               overlay scrollbar that only appears once you are already scrolling is no use to
+               someone who does not yet know there is anything below the fold. -->
+          <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Visible"
+                        ScrollViewer.AllowAutoHide="False">
+            <StackPanel Margin="14,4,18,14">
+
+              <TextBlock Classes="section" Text="LEVELS" Margin="0,8,0,7" />
+              <TextBlock Classes="note"
+                         Text="At or below black becomes one uniform full depth; at or above white is left untouched. Drag the markers on the histogram below." />
+
+              <Grid ColumnDefinitions="86,*" Margin="0,9,0,0">
+                <TextBlock Grid.Column="0" Classes="label" Text="Black point" />
+                <NumericUpDown Grid.Column="1" x:Name="BlackBox" Minimum="0" Increment="1" FormatString="0" />
+              </Grid>
+              <Grid ColumnDefinitions="86,*" Margin="0,6,0,0">
+                <TextBlock Grid.Column="0" Classes="label" Text="White point" />
+                <NumericUpDown Grid.Column="1" x:Name="WhiteBox" Minimum="0" Increment="1" FormatString="0" />
+              </Grid>
+
+              <CheckBox x:Name="StretchCheck" IsChecked="True"
+                        Content="Stretch what is left across the full range" />
+              <CheckBox x:Name="InvertCheck"
+                        Content="Invert (for art authored white-deepest)" />
+
+              <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,9,0,0">
+                <Button x:Name="SuggestButton" Content="Suggest"
+                        ToolTip.Tip="Place the points at the 0.1 and 99.9 percentiles. Percentiles rather than the true minimum and maximum, because one stray pixel at an extreme is enough to make a stretch do nothing at all." />
+                <Button x:Name="FullRangeButton" Content="Full range"
+                        ToolTip.Tip="Put the points back at 0 and the container maximum, which changes nothing." />
+                <Button x:Name="UsedRangeButton" Content="Used range"
+                        ToolTip.Tip="Place the points at the darkest and lightest levels that actually occur." />
+              </StackPanel>
+
+              <TextBlock Classes="section" Text="RIM" />
+              <CheckBox x:Name="RimCheck"
+                        Content="Leave an untouched rim at the edge" />
+              <TextBlock Classes="note"
+                         Text="For a coin blank with a raised rim. In millimetres, because that is how a rim is known: with calipers." />
+
+              <Grid ColumnDefinitions="112,*" Margin="0,9,0,0">
+                <TextBlock Grid.Column="0" Classes="label" Text="Blank diameter" />
+                <NumericUpDown Grid.Column="1" x:Name="BlankBox" Minimum="1" Maximum="500"
+                               Increment="1" FormatString="0.0" Value="40" />
+              </Grid>
+              <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
+                <TextBlock Grid.Column="0" Classes="label" Text="Rim width mm" />
+                <NumericUpDown Grid.Column="1" x:Name="RimBox" Minimum="0" Maximum="50"
+                               Increment="0.1" FormatString="0.00" Value="1.00" />
+              </Grid>
+              <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
+                <TextBlock Grid.Column="0" Classes="label" Text="Ramp mm" />
+                <NumericUpDown Grid.Column="1" x:Name="RampBox" Minimum="0" Maximum="20"
+                               Increment="0.05" FormatString="0.00" Value="0.00"
+                               ToolTip.Tip="Zero is a hard step, which is what a blank's own rim looks like. A ramp narrower than the beam spot achieves nothing the optics were not going to do anyway." />
+              </Grid>
+              <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
+                <TextBlock Grid.Column="0" Classes="label" Text="Spot size um" />
+                <NumericUpDown Grid.Column="1" x:Name="SpotBox" Minimum="1" Maximum="500"
+                               Increment="1" FormatString="0" Value="7"
+                               ToolTip.Tip="Beam spot diameter, used to check whether the map's resolution and the ramp width are asking for detail the machine can actually place." />
+              </Grid>
+
+              <TextBlock x:Name="RimNote" Classes="note" Margin="0,8,0,0" />
+
+              <TextBlock Classes="section" Text="SLICING" />
+              <CheckBox x:Name="SliceCheck"
+                        Content="Quantise the map to the pass count" />
+              <CheckBox x:Name="DitherCheck"
+                        Content="Dither the slice boundaries"
+                        ToolTip.Tip="A slicer thresholds hard, so on a smooth dome every boundary lands as a visible contour ring. Scattering them turns each ring into a stippled transition." />
+              <TextBlock Classes="section" Text="OUTPUT" />
+              <Grid ColumnDefinitions="112,*">
+                <TextBlock Grid.Column="0" Classes="label" Text="Bit depth" />
+                <ComboBox Grid.Column="1" x:Name="BitBox" HorizontalAlignment="Stretch" SelectedIndex="0">
+                  <ComboBoxItem Content="16 bit" />
+                  <ComboBoxItem Content="8 bit" />
+                </ComboBox>
+              </Grid>
+              <CheckBox x:Name="MaskCheck"
+                        Content="Also write the rim as a separate mask"
+                        ToolTip.Tip="A two-tone image of the engraved area, for running the field on separate laser settings." />
+              <!-- Off by default, and that is the point. Ticking it makes the file assert a
+                   real-world size, and a file that claims 40 mm because a box happened to say
+                   40 is worse than a file that claims nothing: an importer will believe it. -->
+              <CheckBox x:Name="DpiCheck"
+                        Content="Stamp the blank diameter as the file's true size"
+                        ToolTip.Tip="Writes the resolution implied by the blank diameter as a pHYs chunk, so the map imports at true size instead of being scaled by hand. Only tick this if the blank diameter above is the size this map is actually meant to be engraved at." />
+            </StackPanel>
+          </ScrollViewer>
+
+          <Border Grid.Row="1" Background="#1A1E24" BorderBrush="#2E353F" BorderThickness="0,1,0,0"
+                  Padding="14,10">
+            <!-- The pass count lives here rather than up in the settings, because it is the
+                 parameter every number beside it is quoted against. Putting the question and
+                 its answer in the same box is the difference between a reading and a guess. -->
+            <StackPanel Spacing="5">
+              <Grid ColumnDefinitions="*,Auto,124">
+                <TextBlock Grid.Column="0" Text="WHAT THIS BUYS YOU" VerticalAlignment="Center"
+                           FontSize="11" FontWeight="SemiBold" Foreground="#7FA6D8" />
+                <TextBlock Grid.Column="1" Text="at" Classes="label" Margin="0,0,6,0" />
+                <NumericUpDown Grid.Column="2" x:Name="PassBox" Minimum="2" Maximum="65535"
+                               Increment="16" FormatString="0" Value="256" FontSize="11"
+                               ToolTip.Tip="The number of passes you intend to run, which every figure below is quoted against. It is a parameter rather than an assumption because every toolchain has its own ceiling and those change between versions." />
+              </Grid>
+              <!-- Monospaced so the before and after figures line up into columns. They are
+                   meant to be read as a pair per row, and a proportional font makes that a
+                   hunt rather than a glance. -->
+              <TextBlock x:Name="ResultText" FontSize="11" Foreground="#C7CED8"
+                         FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+                         TextWrapping="Wrap" LineHeight="16" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- level strip -->
+    <Border Grid.Row="2" Background="#14171B" BorderBrush="#262B33" BorderThickness="0,1,0,0"
+            Padding="14,8">
+      <Grid RowDefinitions="Auto,Auto">
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*" Margin="0,0,0,6">
+          <TextBlock Grid.Column="0" Text="Source histogram" FontSize="12" FontWeight="SemiBold"
+                     Foreground="#7FA6D8" VerticalAlignment="Center" Margin="0,0,16,0" />
+          <CheckBox Grid.Column="1" x:Name="StripLogCheck" Content="Log scale" IsChecked="True"
+                    Margin="0,0,14,0" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="2" x:Name="StripHint" HorizontalAlignment="Right"
+                     VerticalAlignment="Center" FontSize="11" Foreground="#6B7480"
+                     Text="Drag the red and amber markers. Shaded ends are the pixels about to be absorbed." />
+        </Grid>
+        <ctl:LevelStripControl Grid.Row="1" x:Name="Strip" Height="112" />
+      </Grid>
+    </Border>
+
+    <!-- footer -->
+    <Border Grid.Row="3" Background="#0D0F12" BorderBrush="#262B33" BorderThickness="0,1,0,0" Padding="14,8">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" x:Name="StatusText" FontSize="11" Foreground="#79818D"
+                   VerticalAlignment="Center" TextWrapping="Wrap" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="9">
+          <Button x:Name="ResetButton" Content="Reset" />
+          <Button x:Name="SaveButton" Classes="primary" Content="Save tuned PNG..." />
+          <Button x:Name="CloseButton" Content="Close" />
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

@@ -21,6 +21,18 @@ internal static class Program
     /// <summary>Open the relief preview straight away, alongside the analysis window.</summary>
     public static bool StartupRelief;
 
+    /// <summary>Opens the tuning dialog with the window, so its layout can be screenshotted too.</summary>
+    public static bool StartupTune;
+
+    /// <summary>
+    /// Rim geometry and pass count to open the tuning dialog already set to, from the same
+    /// flags --tune uses. Two reasons this is worth having: a starting point can be scripted
+    /// for a blank you cut often, and the rim case becomes screenshottable, which is how the
+    /// layout of a dialog gets checked on screens nobody here owns.
+    /// </summary>
+    public static double? StartupBlankMm, StartupRimMm, StartupRampMm;
+    public static int? StartupPasses;
+
     /// <summary>Open the About box straight away. Exists so its screenshot is reproducible too.</summary>
     public static bool StartupAbout;
 
@@ -50,6 +62,9 @@ internal static class Program
           DepthView                       open the window
           DepthView <image>               open the window with that image loaded
           DepthView <image> --relief      also open the 3D relief preview
+          DepthView <image> --tune-ui     also open the tuning dialog, optionally already set
+                                          up: --blank <mm> --rim-mm <mm> --ramp-mm <mm>
+                                          --passes <n>
           DepthView --about               open the About box: version, platforms, credits
           DepthView --licence             open the About box on its licence page
           DepthView <image> --screenshot <out.png> [--relief] [--delay <ms>]
@@ -120,6 +135,22 @@ internal static class Program
           Black and white default to the 0.1 and 99.9 percentiles, because one stray pixel
           at an extreme is enough to make a min/max stretch do nothing.
 
+        Calibration coupon (engrave it once per machine and material, then measure it)
+          DepthView --calibrate [options]
+            --blank <mm>        diameter of the blank the coupon is drawn for (default 40)
+            --rim-mm <mm>       rim width to leave untouched at the edge (default 1.0)
+            --size <px>         output width and height in pixels (default 4096)
+            --steps <n>         steps in the depth wedge, 4 to 64 (default 16)
+            --machine <name>    stamped into the file and the worksheet
+            --material <name>   likewise, so a drawer of coupons stays identifiable
+            --out <file>        output PNG (default depthview-calibration[-machine-material].png)
+          Writes the coupon plus a worksheet to fill in at the bench. The coupon carries a
+          depth wedge, a set of ramps at known wall angles, and a comb of shrinking gaps,
+          so measuring one piece tells you the depth your settings actually reach, the
+          steepest wall the machine will hold, and the finest detail its spot can resolve.
+          The field is left uncut on purpose: the original surface is the datum you measure
+          depths against.
+
         Exit codes: 0 all clean, 1 at least one file flagged as an imposter, 2 a file failed to load.
         """;
 
@@ -147,6 +178,14 @@ internal static class Program
 
         StartupFile = args.FirstOrDefault(a => !a.StartsWith('-') && File.Exists(a));
         StartupRelief = args.Any(a => a is "--relief" or "-3d");
+        StartupTune = args.Any(a => a is "--tune-ui");
+        if (StartupTune)
+        {
+            StartupBlankMm = Flag(args, "--blank");
+            StartupRimMm = Flag(args, "--rim-mm");
+            StartupRampMm = Flag(args, "--ramp-mm");
+            StartupPasses = Flag(args, "--passes") is double p && p >= 2 ? (int)p : null;
+        }
         StartupAbout = args.Any(a => a is "--about");
         StartupLicence = args.Any(a => a is "--licence" or "--license");
         if (StartupLicence) StartupAbout = true;
@@ -181,6 +220,16 @@ internal static class Program
         }
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
+    }
+
+    /// <summary>Value of a "--flag &lt;number&gt;" pair, or null when it is not there.</summary>
+    private static double? Flag(string[] args, string name)
+    {
+        int i = Array.IndexOf(args, name);
+        return i >= 0 && i + 1 < args.Length
+            && double.TryParse(args[i + 1], System.Globalization.NumberStyles.Float,
+                               System.Globalization.CultureInfo.InvariantCulture, out double v)
+            ? v : null;
     }
 
     // Referenced by the Avalonia previewer in Visual Studio and Rider.
@@ -471,37 +520,18 @@ internal static class Program
                                          maxValue, o, out var rep);
 
             outPath ??= Path.ChangeExtension(input, null) + "-tuned.png";
-            var notes = new List<(string, string)>
-            {
-                ("Software", $"DepthView {BuildInfo.Version}"),
-                ("Source", Path.GetFileName(input)),
-                ("Comment", $"black={o.BlackPoint} white={o.WhitePoint} stretch={o.Stretch} " +
-                            $"rim={(o.AddRim ? $"r{o.RimRadius:F0}/ramp{o.RimRamp:F0}" : "off")} " +
-                            $"slices={o.Slices} dither={o.Dither} invert={o.Invert}"),
-            };
 
-            // Written at the source's own precision unless told otherwise: silently taking a
-            // 16-bit map to 8 bits on the way out would be the exact fault this program reports.
-            int outBits = o.OutputBitDepth == 8 ? 8 : 16;
-            var scaled = tuned;
-            if (outBits == 8 && maxValue > 255)
-            {
-                scaled = new ushort[tuned.Length];
-                for (int i = 0; i < tuned.Length; i++)
-                    scaled[i] = (ushort)Math.Round(tuned[i] / (double)maxValue * 255);
-            }
-            else if (outBits == 16 && maxValue < 65535)
-            {
-                scaled = new ushort[tuned.Length];
-                for (int i = 0; i < tuned.Length; i++)
-                    scaled[i] = (ushort)Math.Round(tuned[i] / (double)maxValue * 65535);
-            }
-
-            PngEncoder.WriteGrey(outPath, scaled, loaded.Image.Width, loaded.Image.Height,
-                                 outBits, o.Dpi, notes.ToArray());
+            // Shared with the Tune window, deliberately: a file written from the dialog and one
+            // written here with the same settings are the same bytes, which is only true while
+            // there is one implementation of "write it out".
+            TuneJob.WriteTuned(outPath, tuned, loaded.Image.Width, loaded.Image.Height,
+                               maxValue, o, Path.GetFileName(input));
 
             if (maskPath is not null && o.AddRim)
-                WriteRimMask(maskPath, loaded.Image.Width, loaded.Image.Height, o);
+            {
+                TuneJob.WriteRimMask(maskPath, loaded.Image.Width, loaded.Image.Height, o);
+                Console.WriteLine($"  mask            {Path.GetFileName(maskPath)} (white = engraved area)");
+            }
 
             // Re-analyse what was written. The tool marking its own homework is the point:
             // the claim that tuning helped should be a measurement, not an assertion.
@@ -572,26 +602,6 @@ internal static class Program
             Console.Error.WriteLine("Tune failed: " + ex.Message);
             return 2;
         }
-    }
-
-    /// <summary>The rim as its own image, for running the floor or the field on separate settings.</summary>
-    private static void WriteRimMask(string path, int width, int height, TuningOptions o)
-    {
-        double cx = o.RimCentreX ?? (width - 1) / 2.0;
-        double cy = o.RimCentreY ?? (height - 1) / 2.0;
-        var mask = new ushort[(long)width * height];
-        for (int y = 0; y < height; y++)
-        {
-            double dy = y - cy;
-            for (int x = 0; x < width; x++)
-            {
-                double dx = x - cx;
-                mask[y * width + x] = Math.Sqrt(dx * dx + dy * dy) >= o.RimRadius ? (ushort)0 : (ushort)255;
-            }
-        }
-        // A mask is two states, so 8 bits is honest and a fifth of the size.
-        PngEncoder.WriteGrey(path, mask, width, height, 8);
-        Console.WriteLine($"  mask            {Path.GetFileName(path)} (white = engraved area)");
     }
 
     // ------------------------------------------------------------------ headless relief render

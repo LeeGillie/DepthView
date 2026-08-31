@@ -74,25 +74,45 @@ that is 1.1 mm per side; at ~110 passes that is 10 µm steps, which means 110 is
 ceiling and a 56,299-level map is 99.8% wasted. Feed it measured depth-per-pass and it
 becomes a planning tool. These are the same numbers LaserTuner recipes want.
 
-### 1.3 Export a LightBurn-ready map
+### 1.3 ~~Export a LightBurn-ready map~~  **Done 2026-08-31** — this became the Tuner
 
-- invert to LightBurn's convention (black deepest)
-- remap min/max to the full range so no passes are wasted — the *Unused headroom* row
-  already reports what there is to reclaim
-- clamp or mask the background so a flat far plane does not get full power
-- quantise deliberately to exactly N levels, matching the pass count
-- **dither the slice boundaries** — the trick that breaks up terracing on smooth curves
-- write true 16-bit *greyscale* PNG, never RGB
-- resample to the engraving raster from physical size + DPI, and set the pHYs chunk so
-  LightBurn imports at the correct size without resampling
+Shipped as `--tune` and the **Tune…** dialog, sharing one implementation (`TuneJob`) so a
+file written from the dialog and one written from the command line with the same settings
+are the same bytes.
+
+- ~~invert to LightBurn's convention (black deepest)~~ — `--invert`, and black-deepest is
+  the default convention throughout
+- ~~remap min/max to the full range so no passes are wasted~~ — the two level points, with
+  percentile defaults rather than min/max, because one stray pixel at an extreme makes a
+  min/max stretch do nothing at all
+- ~~clamp or mask the background so a flat far plane does not get full power~~ — the black
+  and white points do this, and the rim does it geometrically at the edge
+- ~~quantise deliberately to exactly N levels, matching the pass count~~ — `--slices`
+- ~~dither the slice boundaries~~ — 8×8 ordered, `--dither`
+- ~~write true 16-bit greyscale PNG, never RGB~~ — own encoder, colour type 0, with the
+  settings stamped in as tEXt so a tuned file six months later says what was done to it
+- ~~set the pHYs chunk so LightBurn imports at the correct size~~ — from the blank
+  diameter, and **off by default**: a file that claims 40 mm because a box happened to say
+  40 is worse than a file that claims nothing, since an importer will believe it
+
+**Still open from this item:** actually *resampling* to the engraving raster. DepthView
+reports whether the map's resolution matches the spot, but it does not yet resize the map
+to a target DPI. That is a real gap for anyone whose art is 1024 px on a 40 mm blank.
+
+One deliberate omission: nothing in the tuner writes over the original. Every path produces
+a new file.
 
 ### 1.4 Material response calibration  *(the one that closes LightBurn's admitted gap)*
 
-1. DepthView emits a stepped grey wedge.
-2. Engrave it on the real material at the chosen pass count.
+1. ~~DepthView emits a stepped grey wedge.~~ **Done 2026-08-31** — `--calibrate` writes a
+   coupon sized to the blank, carrying all three tests at once (see 1.4b), plus a bench
+   worksheet to write the measurements on.
+2. Engrave it on the real material at the chosen pass count. *(brass and stainless, pending)*
 3. Measure each step's depth with a depth gauge.
-4. Type the measurements back in.
-5. DepthView builds the inverse LUT.
+4. Type the measurements back in. **Not built.** Deliberately deferred until there are real
+   measurements to design the entry form around — a form invented before the first coupon
+   is a guess about what the numbers look like.
+5. DepthView builds the inverse LUT. **Not built**, follows from 4.
 
 Applied, a linear depth map then produces *linear physical depth*. Brass ablation is not
 linear as the pocket deepens, so this is the difference between a relief that looks right
@@ -117,6 +137,15 @@ rather than an opinion, exactly as item 1.4 does for depth response.
 
 Worth pairing with them in one calibration artefact: a depth wedge, a wall-angle row, and a
 spot-size resolution comb. One engraving that answers all three, once per material.
+
+**Built 2026-08-31.** `--calibrate` emits exactly that coupon: ramps at known wall angles,
+a depth wedge across the middle, and a comb of shrinking gaps, all inside the rim so the
+untouched field stays as the datum. The labels are engraved at a fraction of full depth
+rather than full depth — caught by rendering the pattern and noticing it was asking for
+over a millimetre of deep cutting just to write the numbers.
+
+What remains here is not code: engrave it, look at it, measure it. Until then the ramp
+default stays "none", which is an honest admission rather than a guess.
 
 ### 1.5 Focus-stepping schedule
 

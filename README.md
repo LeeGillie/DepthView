@@ -355,6 +355,43 @@ once — **evenly spaced teeth there are the fastest visual tell for an imposter
 
 Every UI element has a tooltip explaining what it means.
 
+### Tuning
+
+Inspection tells you a file is wrong. **Tune…** is where you fix it, with the
+original and the corrected map side by side and every number recomputed as you drag.
+
+<p align="center">
+  <img src="docs/images/tune.png" alt="The tuning dialog: original and tuned previews, draggable level points on the source histogram, and live depth figures" width="820">
+</p>
+
+Drag the two markers on the source histogram. Everything at or below the red one
+becomes a single uniform full depth — which is how a noisy floor stops engraving
+mottled and starts coming out polished. Everything at or above the amber one is left
+untouched. What remains is stretched to fill the range, and the shaded ends show you
+exactly which pixels you are giving up to get that.
+
+The panel underneath answers the only question that matters: **at the pass count you
+intend to run, how many distinct depths do you actually get, before and after.** On
+the sample above that is 88 → 255 at 256 passes, with 168 passes that were repeating
+a depth reduced to one.
+
+**Leave an untouched rim at the edge** paints the raised rim of a coin blank white, so
+the laser skips it, and ramps the engraving up to meet it rather than ending in a wall.
+Rim geometry is entered in millimetres, because that is how a rim is known — with
+calipers. It also tells you what the rim *costs*: if the artwork runs past it, you get
+the percentage of the design that overlaps and the scale the art would need to clear it.
+Nothing is guessed from the picture; a design that is not circular is handled by
+measuring the overlap rather than assuming there is none.
+
+The predicted figures are exact rather than sampled — they come from putting the
+source histogram through the same arithmetic, over the whole image. The pictures are
+computed from a downsampled copy so the dialog stays live on a 4096 × 4096 map. When
+you save, the correction runs at full resolution, the file is written with the settings
+stamped into it, and DepthView **re-reads it from disk and analyses it as a stranger's
+file**, so the closing line of the status bar is a measurement rather than a claim.
+
+Everything here is also available from the command line; see below.
+
 ### About
 
 **About** in the header reports the version and the UTC build date, every platform
@@ -387,6 +424,41 @@ DepthView --report <image>           full text report (also written beside the i
 DepthView --report <folder>          every image in the folder
 DepthView --report <folder> --summary --out results.txt
 ```
+
+Tuning works headlessly too, and the dialog can be opened already configured:
+
+```
+DepthView --tune coin.png --blank 40 --rim-mm 0.9
+DepthView --tune coin.png --black 20316 --white 42598 --passes 256 --depth-mm 0.3
+DepthView --tune coin.png --blank 40 --rim-mm 0.9 --mask rim.png --slices 256 --dither
+DepthView coin.png --tune-ui --blank 40 --rim-mm 0.9      # the dialog, rim already set
+```
+
+Every `--tune` run prints what it changed and then re-reads the file it wrote and
+analyses that, so the improvement is a measurement rather than a claim:
+
+```
+Tuned 07-wasted-headroom.png -> 07-wasted-headroom-tuned.png
+  levels          black 20,316, white 42,598, stretched
+  flattened       175,320 px to pure black, 65,200 px to pure white
+  changed         809,995 of 810,000 pixels
+  depths @ 256    88 -> 255   (wasted passes 168 -> 1)
+  range use       34.0% -> 100.0%
+```
+
+And there's a calibration coupon generator, so the numbers you tune against are your
+machine's rather than someone else's:
+
+```
+DepthView --calibrate --blank 40 --machine "Lumos Ultra" --material brass
+```
+
+It writes a 16-bit coupon sized to the blank — a depth wedge, ramps at known wall
+angles, and a comb of shrinking gaps — plus a worksheet to fill in at the bench.
+Engrave it once per machine and material, measure it, and you know the depth your
+settings actually reach, the steepest wall the machine will hold, and the finest
+detail its spot can resolve. The field is left uncut on purpose: the original surface
+is the datum you measure depths against.
 
 There's a headless render mode too, so previews can be scripted across a folder of
 candidates or a sweep of materials, light angles and slice counts:
@@ -480,11 +552,16 @@ src/DepthView/
   BuildInfo.cs            version, build date, host and platform strings for the About box
   Views/MainWindow        UI, input handling, preview rendering
   Views/ReliefWindow      lit 3D relief preview
+  Views/TuneWindow        side-by-side tuning: level points, rim, slicing, save and verify
   Views/AboutWindow       version, supported platforms, scrolling credits, licence
   Views/Credits.cs        the credit roll contents, as data rather than markup
   Controls/               HistogramControl - hover readout, wheel zoom, comb strip
+                          LevelStripControl - the draggable black and white points
   Imaging/                PngDecoder, PnmDecoder, PfmDecoder, TiffSniffer, ImageLoader
+                          PngEncoder - 8/16-bit greyscale out, with pHYs and provenance
   Analysis/               DepthAnalyzer, AnalysisResult, ReportWriter
+  Processing/             DepthTuner (the correction), TuningOptions, TuneJob (shared by
+                          the dialog and the command line), CalibrationPattern, TinyFont
   Rendering/              ReliefRenderer (software height-field shading), MaterialPreset
   Assets/                 icon files consumed by the build
 artwork/

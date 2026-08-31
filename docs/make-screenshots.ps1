@@ -46,6 +46,12 @@ Capture @("$fix\true16.png",        '--screenshot', "$img\analysis-genuine.png")
 Capture @("$fix\relief_demo.png", '--orbit', '24', '42',
           '--screenshot', "$img\relief-preview.png") 14
 
+# The tuning dialog, opened with a rim already configured. The flags are how the rim case
+# gets captured at all: it is two checkbox clicks in the UI and neither of them is a thing a
+# script can do, and the rim is the layout most likely to overflow on a small screen.
+Capture @("$root\samples\07-wasted-headroom.png", '--tune-ui', '--blank', '40',
+          '--rim-mm', '0.9', '--screenshot', "$img\tune.png") 10
+
 # The credit roll is moving, so pin the capture to a fixed delay: the same --delay always
 # lands on the same line of the roll, which keeps this image stable between runs.
 Capture @('--about', '--delay', '900', '--screenshot', "$img\about.png") 8

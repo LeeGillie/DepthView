@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private string? _lastPath;
     private bool _busy;
     private ReliefWindow? _relief;
+    private TuneWindow? _tune;
 
     /// <summary>Only set on the --about screenshot path; the About button uses a dialog.</summary>
     private AboutWindow? _about;
@@ -55,6 +56,7 @@ public partial class MainWindow : Window
         CopyButton.Click += async (_, _) => await CopyReportAsync();
         SaveButton.Click += async (_, _) => await SaveReportAsync();
         ReliefButton.Click += (_, _) => OpenRelief();
+        TuneButton.Click += (_, _) => OpenTune();
         ClearButton.Click += (_, _) => ClearAll();
         AboutButton.Click += (_, _) => new AboutWindow().ShowDialog(this);
 
@@ -99,6 +101,7 @@ public partial class MainWindow : Window
             var bytes = await File.ReadAllBytesAsync(start);
             await LoadBytesAsync(bytes, Path.GetFileName(start), start, "opened from the command line");
             if (Program.StartupRelief) OpenRelief();
+            if (Program.StartupTune) OpenTune();
             if (Program.ScreenshotPath is not null) ScheduleScreenshot();
         };
     }
@@ -114,7 +117,8 @@ public partial class MainWindow : Window
         {
             Interval = TimeSpan.FromMilliseconds(
                 Program.ScreenshotDelayMs
-                ?? (Program.StartupRelief ? 4500 : Program.StartupAbout ? 1400 : 2200))
+                ?? (Program.StartupRelief ? 4500 : Program.StartupAbout ? 1400
+                    : Program.StartupTune ? 3000 : 2200))
         };
 
         timer.Tick += (_, _) =>
@@ -125,6 +129,7 @@ public partial class MainWindow : Window
                 Histogram.ClearHover();
                 Window target =
                     Program.StartupAbout && _about is not null ? _about :
+                    Program.StartupTune && _tune is not null ? _tune :
                     Program.StartupRelief && _relief is not null ? _relief : this;
                 var size = new PixelSize(Math.Max(1, (int)target.ClientSize.Width),
                                          Math.Max(1, (int)target.ClientSize.Height));
@@ -328,6 +333,10 @@ public partial class MainWindow : Window
             ZoomUsedButton.IsEnabled = true;
             ResetZoomButton.IsEnabled = true;
 
+            // Tuning works on integer levels. A float map has no container to fill and no
+            // level ladder to repair, so the dialog would have nothing to say about it.
+            TuneButton.IsEnabled = img.Kind != SampleKind.Float;
+
             TimingText.Text = $"analysed in {result.Elapsed.TotalMilliseconds:N0} ms";
             StatusText.Text = DefaultStatus();
         }
@@ -352,10 +361,12 @@ public partial class MainWindow : Window
         Histogram.Clear();
         RangeText.Text = "";
         ReloadButton.IsEnabled = CopyButton.IsEnabled = SaveButton.IsEnabled =
-            ClearButton.IsEnabled = ReliefButton.IsEnabled =
+            ClearButton.IsEnabled = ReliefButton.IsEnabled = TuneButton.IsEnabled =
             ZoomUsedButton.IsEnabled = ResetZoomButton.IsEnabled = false;
         _relief?.Close();
         _relief = null;
+        _tune?.Close();
+        _tune = null;
         ShowIntroDetails();
         StatusText.Text = "Ready. Drop an image on the panel at left, click it to browse, or press Ctrl+V.";
     }
@@ -372,6 +383,27 @@ public partial class MainWindow : Window
         _relief = new ReliefWindow(_image, _meta?.FileName ?? "image");
         _relief.Closed += (_, _) => _relief = null;
         _relief.Show(this);
+    }
+
+    /// <summary>
+    /// Opens the tuning dialog. Not modal: the analysis behind it stays readable while the
+    /// level points are being placed, which is most of the reason to have both on screen.
+    /// </summary>
+    private void OpenTune()
+    {
+        if (_image is null || _result is null) return;
+
+        try
+        {
+            _tune?.Close();
+            _tune = new TuneWindow(_image, _result, _meta?.FileName ?? "image", _lastPath);
+            _tune.Closed += (_, _) => _tune = null;
+            _tune.Show(this);
+        }
+        catch (Exception ex)
+        {
+            ShowError(ex.Message);
+        }
     }
 
     private void ShowError(string message)

@@ -80,8 +80,27 @@ public sealed class TuningOptions
     /// <summary>Rim width in mm, measured from the edge inward.</summary>
     public double? RimWidthMm;
 
-    /// <summary>Ramp width in mm. Defaults to the rim width when not given.</summary>
+    /// <summary>
+    /// Ramp width in mm. Zero is valid and means a hard step at the rim.
+    ///
+    /// Worth understanding before setting it. The map cannot express an edge sharper than one
+    /// pixel, and the beam smears any transition to roughly its own spot size whatever the map
+    /// says - so a ramp between zero and about one spot diameter achieves nothing the beam was
+    /// not going to do anyway. Either ask for a hard step and let the optics decide, or make
+    /// the ramp wide enough to be a deliberate shoulder.
+    ///
+    /// The map does not control the wall angle either. It states a depth per pixel; what comes
+    /// out is whatever ablation produces, and ablated pockets taper as they deepen. Whether a
+    /// given machine holds a near-vertical wall at a given depth is a question for a test
+    /// piece, not for a default in a config file.
+    /// </summary>
     public double? RimRampMm;
+
+    /// <summary>
+    /// Intended full engraving depth in mm. Never changes a pixel - it is only used to report
+    /// the geometry the settings imply: microns per pass, and the wall angle the ramp asks for.
+    /// </summary>
+    public double? TargetDepthMm;
 
     /// <summary>Pixels per mm implied by the blank diameter and the image's short side.</summary>
     public double? PixelsPerMm(int width, int height) =>
@@ -100,7 +119,10 @@ public sealed class TuningOptions
         {
             AddRim = true;
             RimRadius = Math.Max(1, half - RimWidthMm.Value * ppmm);
-            RimRamp = (RimRampMm ?? RimWidthMm.Value) * ppmm;
+            // A ramp is not assumed. Unstated means none: a hard step is what a coin blank's
+            // own rim looks like, and a shoulder should be asked for rather than arrive by
+            // default in a file someone is about to cut metal from.
+            RimRamp = (RimRampMm ?? 0) * ppmm;
         }
         Dpi ??= ppmm * 25.4;
     }

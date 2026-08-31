@@ -98,6 +98,26 @@ Applied, a linear depth map then produces *linear physical depth*. Brass ablatio
 linear as the pocket deepens, so this is the difference between a relief that looks right
 and one that is crushed in the shadows.
 
+### 1.4b Wall-angle test piece  *(sibling of 1.4, same "stop guessing" idea)*
+
+Open question raised while building the rim: **what wall angle will a Lumos Ultra actually
+hold, and at what depth?** Nobody involved knows, and it is not the sort of thing to put a
+default in a config file for.
+
+What is certain: the map cannot express an edge sharper than one pixel (9.8 um on a 40 mm
+blank at 4096 px), and the beam smears any transition to roughly its own spot size whatever
+the map says, so a ramp between zero and about one spot diameter is pointless. What is not
+certain is whether a near-vertical wall survives at 1.1 mm depth - ablated pockets taper as
+they deepen, because the beam converges to a waist, debris and plasma shield the floor, and
+a deep narrow pocket clips the beam on its own wall.
+
+So emit a test piece: a row of pockets of equal depth with ramps from zero to, say, 1 mm,
+each labelled. Engrave it, look at it, measure it. Then the ramp default is a measurement
+rather than an opinion, exactly as item 1.4 does for depth response.
+
+Worth pairing with them in one calibration artefact: a depth wedge, a wall-angle row, and a
+spot-size resolution comb. One engraving that answers all three, once per material.
+
 ### 1.5 Focus-stepping schedule
 
 DepthView knows the slice-to-depth mapping, so it can emit the table of which pass ranges

@@ -108,7 +108,12 @@ internal static class Program
           Measured in millimetres instead, which is how a rim is actually known:
             --blank <mm>        diameter of the blank, matched to the image's short side
             --rim-mm <mm>       rim width, measured inward from the edge
-            --ramp-mm <mm>      ramp width, if it should differ from the rim
+            --ramp-mm <mm>      ramp into the rim. Omitted means none: a hard step, which is
+                                what a blank's own rim looks like. A ramp narrower than the
+                                spot does nothing the beam was not going to do anyway
+            --depth-mm <mm>     intended engraving depth. Changes no pixels; reports the
+                                geometry the settings imply - microns per pass, and the wall
+                                angle the ramp is asking the machine for
             --spot <um>         beam spot size, to check the map's resolution (default 7)
             --dpi <n>           override the resolution written into the PNG; with --blank
                                 it is worked out for you, so the map imports at true size
@@ -308,6 +313,7 @@ internal static class Program
                 case "--rim-mm": if (double.TryParse(Next(), out double rmm)) o.RimWidthMm = rmm; break;
                 case "--ramp-mm": if (double.TryParse(Next(), out double ramm)) o.RimRampMm = ramm; break;
                 case "--spot": if (double.TryParse(Next(), out double sp)) spotMicrons = sp; break;
+                case "--depth-mm": if (double.TryParse(Next(), out double dm)) o.TargetDepthMm = dm; break;
                 case "--bits": if (int.TryParse(Next(), out int bd)) o.OutputBitDepth = bd; break;
                 default:
                     if (!a.StartsWith('-') && input is null) input = a;
@@ -398,8 +404,41 @@ internal static class Program
                 Console.WriteLine($"  resolution      {check.MicronsPerPixel:F1} um/pixel against a {spotMicrons:F0} um spot"
                                 + $"  -  {check.Note}");
                 if (o.RimWidthMm is double rw)
+                {
+                    double rampMm = o.RimRampMm ?? 0;
                     Console.WriteLine($"  rim             {rw:F2} mm = {rw * ppmm:F0} px"
-                                    + $", ramp {(o.RimRampMm ?? rw):F2} mm");
+                                    + (rampMm <= 0
+                                        ? ", hard step at the rim (no ramp)"
+                                        : $", ramp {rampMm:F2} mm = {rampMm * ppmm:F0} px"));
+
+                    // A ramp narrower than the beam is the worst of both: the spot smears the
+                    // transition to its own width regardless, so the ramp achieves nothing the
+                    // optics were not going to do anyway.
+                    if (rampMm > 0 && rampMm * 1000 < spotMicrons)
+                        Console.WriteLine($"                  note: that ramp is {rampMm * 1000:F1} um, narrower than the"
+                                        + $" {spotMicrons:F0} um spot. The beam will smear the edge to about its own"
+                                        + " width either way, so this is doing nothing a hard step would not.");
+
+                    if (o.TargetDepthMm is double dep && dep > 0)
+                    {
+                        if (rampMm > 0)
+                        {
+                            double angle = Math.Atan2(dep, rampMm) * 180 / Math.PI;
+                            Console.WriteLine($"  wall            {dep:F2} mm deep over a {rampMm:F2} mm ramp"
+                                            + $"  =  {angle:F0} deg from horizontal");
+                            if (angle > 75)
+                                Console.WriteLine("                  that is very steep. Whether the machine holds it is a"
+                                                + " question for a test piece: ablated pockets taper as they deepen.");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"  wall            {dep:F2} mm deep with a hard step - the wall angle will be"
+                                            + " whatever the optics and the taper give you, not what the map asked for.");
+                        }
+                        Console.WriteLine($"  depth per pass  {dep * 1000 / passes:F1} um at {passes:N0} passes"
+                                        + $"  ({dep:F2} mm total)");
+                    }
+                }
             }
             Console.WriteLine($"  levels          black {o.BlackPoint:N0}, white {o.WhitePoint:N0}"
                             + (o.Stretch ? ", stretched" : ", not stretched"));

@@ -80,30 +80,60 @@ public sealed class AnalysisResult
     public int EffectiveBits;
 
     // --- slicing ---------------------------------------------------------
-    // A depth-map slicer thresholds the image into passes. LightBurn's 3D Slice works in
-    // 256 levels: one pass per grey level at 256 passes, batched below that, and duplicated
-    // above it. So the number that decides how many passes are worth running is not how many
-    // levels the file holds - it is how many survive reduction to 256.
-
-    /// <summary>Distinct levels left after reducing to 256, i.e. slices that do real work.</summary>
-    public int UsableSlices;
-
-    /// <summary>What UsableSlices would become if the occupied range were stretched to fill the container.</summary>
-    public int UsableSlicesRemapped;
-
-    /// <summary>Slices lost purely to unused headroom: UsableSlicesRemapped - UsableSlices.</summary>
-    public int SlicesLostToHeadroom => Math.Max(0, UsableSlicesRemapped - UsableSlices);
+    // A slicer turns the map into passes: darkest gets every pass, pure white gets none.
+    // So the useful question is not how many levels the file holds in the abstract, but how
+    // many distinct depths survive at the pass count you intend to run.
+    //
+    // The pass count is the parameter, deliberately. LightBurn's galvo path was internally
+    // 8-bit before 2.1 and gained 16-bit support in it, and other toolchains have their own
+    // ceilings - MakeIt is quoted at 256 layers. Hard-coding any one of those would bake a
+    // particular version of a particular program into the analysis. Asking "at N passes,
+    // what do I get" is true everywhere and stays true.
 
     /// <summary>
-    /// Distinct slices actually produced at a given pass count, and how many of those passes
-    /// repeat a slice that already exists. Below 256 the slicer batches levels together, so
-    /// the count is limited by the passes; above it, by the data.
+    /// Distinct depths this map produces at a given pass count, and how many of those passes
+    /// repeat a depth that already exists.
+    ///
+    /// Both limits are real: you cannot resolve more depths than you have passes, and you
+    /// cannot resolve more than the file holds once reduced to that many levels.
     /// </summary>
     public (int Distinct, int Wasted) SlicesAt(int passes)
     {
-        if (passes <= 0 || UsableSlices <= 0) return (0, Math.Max(0, passes));
-        int distinct = Math.Min(passes, UsableSlices);
-        return (distinct, passes - distinct);
+        if (passes <= 1 || UsedLevels.Length == 0) return (0, Math.Max(0, passes));
+        int distinct = DistinctAfterReduction(UsedLevels, MaxValue, passes, MinLevel, MaxLevel, false);
+        return (distinct, Math.Max(0, passes - distinct));
+    }
+
+    /// <summary>The same count after stretching the occupied range to fill the container.</summary>
+    public int SlicesAtRemapped(int passes)
+    {
+        if (passes <= 1 || UsedLevels.Length == 0) return 0;
+        return DistinctAfterReduction(UsedLevels, MaxValue, passes, MinLevel, MaxLevel, true);
+    }
+
+    /// <summary>Depths recovered purely by reclaiming unused headroom, at this pass count.</summary>
+    public int SlicesLostToHeadroom(int passes) =>
+        Math.Max(0, SlicesAtRemapped(passes) - SlicesAt(passes).Distinct);
+
+    private static int DistinctAfterReduction(int[] used, int maxValue, int levels,
+                                              int minLevel, int maxLevel, bool remap)
+    {
+        if (levels <= 1) return 0;
+        double lo = remap ? minLevel : 0;
+        double hi = remap ? maxLevel : maxValue;
+        double span = hi - lo;
+        if (span <= 0) return used.Length > 0 ? 1 : 0;
+
+        var seen = new bool[levels];
+        int distinct = 0;
+        foreach (int v in used)
+        {
+            int q = (int)Math.Round((v - lo) / span * (levels - 1));
+            if (q < 0) q = 0;
+            if (q >= levels) q = levels - 1;
+            if (!seen[q]) { seen[q] = true; distinct++; }
+        }
+        return distinct;
     }
 
     // --- alpha ----------------------------------------------------------

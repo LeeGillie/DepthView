@@ -20,35 +20,37 @@ Background established by research on 2026-08-29:
 - LightBurn's docs also admit 3D Slice "does not offer precise control over the
   engraving's depth". Item 1.4 below is aimed squarely at that gap.
 
-### 1.0 Usable slice count through a 256-level slicer  *(new, and now the headline number)*
+### 1.0 ~~Depths per pass count~~  **Done 2026-08-31** — and a lesson worth keeping
 
-Established on the LightBurn forum, from LightBurn's own description of the mechanism: **3D
-Slice reduces to 256 threshold levels.** Each pass is thresholded and run as a 1-bit image,
-256 passes gives one pass per grey level, fewer clusters layers into batches, and more than
-256 duplicates layers — 512 passes runs every layer twice. A 16-bit source therefore buys no
-extra depth resolution through that path at all.
+Shipped: `SlicesAt(passes)` and the DEPTHS PER PASS COUNT table. For any pass count it
+reports how many distinct depths the file actually resolves, how many passes repeat a depth
+already cut, and what reclaiming unused headroom would recover.
 
-This corrects a claim DepthView's README used to make, and it changes what the headline
-number should be. "How many distinct levels does this file hold" is close to irrelevant above
-256. The number that matters is:
+**The lesson matters more than the feature.** This item was first written claiming 3D Slice
+has a flat 256-level ceiling and that 16-bit buys nothing, sourced from a forum quote of
+LightBurn's own creator. The quote was accurate and *out of date*: it described the galvo
+path before LightBurn 2.1, which added 16-bit depth map support. The current documentation
+says so plainly — "As of LightBurn 2.1, LightBurn support 16 bit depth maps", and "if you
+plan to run more than 256 passes, a 16 bit image is better".
 
-> **After reduction to 256 levels, how many distinct slices does this file actually produce?**
+So the README was correct, then was "corrected" into being wrong, then corrected back. The
+error was conceding to an authoritative-sounding quote without checking its date against
+primary sources. **An authoritative source can still be describing an old version.** Check
+the docs for the version in front of you.
 
-That is not 256 for most files. A map occupying 60% of its range reduces to roughly 154
-distinct levels, so a third of the passes duplicate work — and DepthView already computes
-range utilisation, it simply is not framing it as the thing the user cares about.
+The design that came out of it is better than either wrong answer: the pass count is a
+**parameter**, never an assumption. LightBurn was 8-bit and is now 16-bit, MakeIt is quoted
+at 256 layers, other toolchains differ. Hard-coding any one ceiling bakes a particular
+version of a particular program into the analysis. "At N passes, what do I get" is true
+everywhere and stays true.
 
-Report, in the verdict rather than buried:
+Still open, and the natural next step:
 
-- **Usable slices**: distinct values surviving reduction to 256 levels.
-- **Wasted passes** at a stated pass count: how many duplicate a slice that already exists.
-- The recommended pass count, being the usable slice count — running more is duplication.
-- What remapping to full range would recover, in slices.
-
-Cheap: it is arithmetic on the histogram that is already built. Probably the single highest
-value-per-line item in this file now, because it turns every existing measurement into a
-number a 3D Slice user can act on, and it answers the fair question "what does this tell me
-that I can use" for the largest group of potential users.
+- Let the user **enter their pass count** and have the whole report speak in those terms.
+- Pixel area per slice, for a time estimate.
+- **Terracing risk**: the largest area jump between adjacent slices, which is where a
+  visible contour step lands on the workpiece.
+- Overlay the slice boundaries on the histogram control.
 
 ### 1.1 Pass-count simulator  *(highest value, mostly arithmetic on data we already have)*
 

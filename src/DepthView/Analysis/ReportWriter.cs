@@ -113,25 +113,24 @@ public static class ReportWriter
             sb.AppendLine($"  Alpha             {(r.AlphaConstant ? $"constant {r.AlphaMin:N0}" : $"{r.AlphaMin:N0} .. {r.AlphaMax:N0}")}");
         sb.AppendLine();
 
-        // What the level structure above is actually worth once a slicer has had it.
-        if (r.UsableSlices > 0)
+        // What the level structure above is actually worth once a slicer has had it. The
+        // pass count is the variable: 8-bit runs out at 256, LightBurn's galvo path gained
+        // 16-bit support in 2.1, and MakeIt is quoted at 256 layers, so no single ceiling
+        // is right for everyone. What is always true is how many depths a given pass count
+        // gets out of this particular file.
+        if (r.UsedLevels.Length > 1)
         {
-            sb.AppendLine("SLICING (through a 256-level slicer, e.g. LightBurn 3D Slice)");
-            sb.AppendLine($"  Usable slices     {r.UsableSlices:N0}");
-            sb.AppendLine($"  Suggested passes  {r.UsableSlices:N0}   (more than this duplicates layers)");
-            if (r.SlicesLostToHeadroom > 0)
-                sb.AppendLine($"  Recoverable       {r.SlicesLostToHeadroom:N0} more by remapping to full range " +
-                              $"({r.UsableSlicesRemapped:N0} total)");
-            else
-                sb.AppendLine("  Recoverable       none - the range is already well used");
-
-            sb.AppendLine("  At a given pass count:");
-            foreach (int passes in new[] { 64, 128, 256, 384 })
+            sb.AppendLine("DEPTHS PER PASS COUNT");
+            sb.AppendLine("  passes    depths   wasted   after reclaiming headroom");
+            foreach (int passes in new[] { 64, 128, 256, 512, 1024 })
             {
                 var (distinct, wasted) = r.SlicesAt(passes);
-                sb.AppendLine($"    {passes,4} passes      {distinct,4:N0} distinct" +
-                              (wasted > 0 ? $", {wasted:N0} repeating an existing slice" : ""));
+                int remapped = r.SlicesAtRemapped(passes);
+                sb.AppendLine($"  {passes,6}  {distinct,8:N0} {wasted,8:N0}   {remapped,8:N0}");
             }
+            sb.AppendLine("  'depths' is how many distinct engraved levels you actually get:");
+            sb.AppendLine("  limited by the passes you run and by the gradation in the file,");
+            sb.AppendLine("  whichever runs out first. 'wasted' passes repeat a depth already cut.");
             sb.AppendLine();
         }
 

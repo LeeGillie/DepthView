@@ -293,74 +293,6 @@ public static class DepthAnalyzer
             .ToList();
     }
 
-    /// <summary>
-    /// How many slices this map really produces through a 256-level slicer, and how many more
-    /// it would produce if its range were stretched to fill the container.
-    ///
-    /// LightBurn's 3D Slice thresholds each pass into a 1-bit image and works in 256 levels:
-    /// at 256 passes you get one pass per grey level, fewer batches them together, and more
-    /// than 256 duplicates layers. So a file's raw level count stops mattering above 256, and
-    /// the question becomes how many distinct levels survive the reduction. Two files can both
-    /// report tens of thousands of levels and produce very different slice counts, because
-    /// what decides it is the range they occupy, not the container they sit in.
-    ///
-    /// The reduction modelled here is proportional (value scaled into 0..255 and rounded),
-    /// which is the ordinary way an image is taken to 8 bits. A slicer that truncated instead
-    /// would give a slightly different count; the figure is a close estimate, not a promise
-    /// about one program's internals.
-    /// </summary>
-    private static void ComputeSliceCounts(AnalysisResult r, List<int> used, int containerLevels)
-    {
-        const int SliceLevels = 256;
-
-        if (used.Count == 0 || containerLevels <= 1)
-        {
-            r.UsableSlices = 0;
-            r.UsableSlicesRemapped = 0;
-            return;
-        }
-
-        // Already at or below the slicer's resolution: every level is its own slice.
-        if (containerLevels <= SliceLevels)
-        {
-            r.UsableSlices = used.Count;
-            r.UsableSlicesRemapped = used.Count;
-            return;
-        }
-
-        double maxValue = containerLevels - 1;
-        var seen = new bool[SliceLevels];
-        int distinct = 0;
-        foreach (int level in used)
-        {
-            int reduced = (int)Math.Round(level / maxValue * (SliceLevels - 1));
-            if (reduced < 0) reduced = 0;
-            if (reduced >= SliceLevels) reduced = SliceLevels - 1;
-            if (!seen[reduced]) { seen[reduced] = true; distinct++; }
-        }
-        r.UsableSlices = distinct;
-
-        // The same count after stretching min..max across the full container, which is what
-        // the "unused headroom" figure is worth in slices rather than in levels.
-        int span = r.MaxLevel - r.MinLevel;
-        if (span <= 0)
-        {
-            r.UsableSlicesRemapped = distinct;
-            return;
-        }
-
-        Array.Clear(seen);
-        int distinctRemapped = 0;
-        foreach (int level in used)
-        {
-            int reduced = (int)Math.Round((level - r.MinLevel) / (double)span * (SliceLevels - 1));
-            if (reduced < 0) reduced = 0;
-            if (reduced >= SliceLevels) reduced = SliceLevels - 1;
-            if (!seen[reduced]) { seen[reduced] = true; distinctRemapped++; }
-        }
-        r.UsableSlicesRemapped = distinctRemapped;
-    }
-
     private static void ComputeLevelStructure(AnalysisResult r)
     {
         var h = r.GreyHistogram;
@@ -376,8 +308,6 @@ public static class DepthAnalyzer
             ? (double)(r.MaxLevel - r.MinLevel + 1) / h.Length
             : 0;
         r.EffectiveBits = unique <= 1 ? 0 : (int)Math.Ceiling(Math.Log2(unique));
-
-        ComputeSliceCounts(r, used, h.Length);
 
         if (unique < 2) { r.LevelStep = 1; return; }
 
@@ -527,21 +457,25 @@ public static class DepthAnalyzer
                 "a colourised preview, or an encoded (turbo/viridis) depth image."));
         }
 
-        if (r.UsableSlices > 0)
+        if (r.UsedLevels.Length > 1)
         {
-            int lost = r.SlicesLostToHeadroom;
-            bool worthReclaiming = lost >= 16 && r.UsableSlices < 256;
+            // 256 is the reference point because it is where 8-bit runs out, so it is the
+            // pass count at which "would a 16-bit file have helped" gets its answer.
+            var (at256, wasted256) = r.SlicesAt(256);
+            int lost256 = r.SlicesLostToHeadroom(256);
+            bool worthReclaiming = lost256 >= 16;
 
-            f.Add(new Finding(worthReclaiming ? Severity.Warn : Severity.Info, "Usable slices",
-                $"Through a 256-level slicer such as LightBurn's 3D Slice, this map yields "
-              + $"{r.UsableSlices:N0} distinct slices. That, not the raw level count, is the "
-              + $"number of passes worth running: at 256 passes {256 - Math.Min(256, r.UsableSlices):N0} "
-              + $"of them would repeat a slice that already exists, and above 256 the slicer "
-              + $"duplicates layers regardless of what the file holds."
-              + (lost > 0
-                  ? $" Remapping the occupied range to fill the container would recover about "
-                  + $"{lost:N0} of them, taking it to {r.UsableSlicesRemapped:N0}."
-                  : " The range is already well used; remapping would gain nothing.")));
+            f.Add(new Finding(worthReclaiming ? Severity.Warn : Severity.Info, "Depths per pass count",
+                $"At 256 passes this map resolves {at256:N0} distinct depths"
+              + (wasted256 > 0
+                  ? $", so {wasted256:N0} of those passes repeat a depth that already exists."
+                  : ", using every pass.")
+              + (lost256 > 0
+                  ? $" Reclaiming the unused headroom would take it to {r.SlicesAtRemapped(256):N0}"
+                  + $" - about {lost256:N0} more depths for no extra passes."
+                  : " The range is already well used; remapping would gain nothing.")
+              + " The full pass-count table is in the report: how many passes are worth running"
+              + " depends on the depth you want and how much gradation the file really holds."));
         }
 
         if (r.IsGrayscaleStoredAsColor)

@@ -41,38 +41,48 @@ LightBurn 2.1's [3D Sliced Image mode](https://docs.lightburnsoftware.com/2.1/Gu
 is a genuinely good way to cut relief on a galvo. It also accepts your depth map without
 judgement, and that is where DepthView earns its place.
 
-> ### First, the thing that changes the question
+> ### Version matters here
 >
-> **3D Slice works in 256 levels, and a 16-bit source buys you no extra depth resolution
-> through it.** LightBurn's own description of the mechanism ([forum, Oz](https://forum.lightburnsoftware.com/t/98681/5)):
-> each pass is thresholded and run as a 1-bit image, 256 passes gives exactly one pass per
-> grey level, fewer than 256 clusters layers into batches, and **more than 256 duplicates
-> layers** — 512 passes simply runs every layer twice.
+> The galvo 3D Slice path was **internally 8-bit before LightBurn 2.1**, and 2.1 added
+> 16-bit support. From the [current documentation](https://docs.lightburnsoftware.com/2.1/Guides/3DSlicedImage/):
 >
-> So "is my file really 16-bit?" is the wrong question to ask of this path, and an earlier
-> version of this README got that wrong. Corrected after
-> [Jack Wilborn pointed it out](https://forum.lightburnsoftware.com/t/depth-maps-that-claim-16-bit-and-arent-how-to-spot-them-before-you-slice/192202).
+> > *"As of LightBurn 2.1, LightBurn support 16 bit depth maps."*
+> > *"If you plan to run more than 256 passes, a 16 bit image is better, as it can contain
+> > more than 256 shades of gray."*
 >
-> The right question is **how many of those 256 levels your file actually reaches**, and
-> that is a question a lot of depth maps fail.
+> So on 2.1 and later a genuine 16-bit map does buy you depth resolution, above 256 passes.
+> On earlier versions it does not. This README briefly claimed a flat 256-level ceiling for
+> all versions, which was wrong — thanks to
+> [Nathaniel Klumb](https://forum.lightburnsoftware.com/t/depth-maps-that-claim-16-bit-and-arent-how-to-spot-them-before-you-slice/192202)
+> for the correction.
+>
+> Because no single ceiling is right for everyone, DepthView does not assume one. It reports
+> **how many distinct depths your file resolves at a given pass count**, which is true on any
+> version and any toolchain.
 
-Because the ceiling is 256, everything below is about whether you get 256 usable slices or
-far fewer:
+Two real files, from `--report`:
+
+```
+          passes    depths   wasted        passes    depths   wasted
+              64        22       42            64        61        3
+             256        88      168           256       238       18
+            1024       347      677          1024       948       76
+
+     a 16-bit map using a third        a 16-bit map using its
+     of its range: 17,463 levels       full range: 7,814 levels
+```
+
+The left file holds **more than twice** the grey levels and resolves **a third as many
+depths** at every pass count, because it wastes most of its range. That is the kind of thing
+you cannot see by looking at the image or the header.
 
 | What LightBurn does | What it doesn't tell you | What DepthView adds |
 |---|---|---|
-| Reduces your map to 256 threshold levels | That a map occupying only 60% of its range reduces to about **154** distinct levels, not 256 — so a third of your passes duplicate work | Reports range utilisation and unused headroom, which *is* your usable slice count |
-| Thresholds from the values present | That flat black or flat white areas are depth that was clipped away upstream and cannot come back | Counts pure-black and pure-white pixels, and the lightest and darkest levels actually present |
-| Slices whatever it is given | Whether the file holds 256 distinct levels at all — plenty hold far fewer | Counts the true distinct levels, and names the byte-widening and ladder patterns that fake a level count |
-| **Number of Passes** is the slice count | What that pass count looks like as physical steps | Quantise-to-steps preview — set it to your pass count and see where the terraces land |
+| Accepts 8-bit **and** (since 2.1) 16-bit greyscale | Whether your 16-bit file *contains* 16 bits | Names the imposter and its mechanism, before you burn a blank |
+| Treats a 24-bit image as 8-bit — its docs say a 24-bit depth map "is actually three 8-bit channels" | That your greyscale map was saved as RGB and just lost its precision | Flags *grey data stored as RGB* as its own finding |
+| **Number of Passes** is the slice count | How many distinct depths you actually get at that pass count | The pass-count table above, plus what reclaiming headroom would recover |
+| Slices whatever range the image occupies | That a map spanning 267–63,271 wastes passes at both ends | Reports unused headroom, in depths rather than percentages |
 | Accepts colour images | That stray non-grey pixels are in there at all | Flags them, and shows them as a red mask |
-
-**Where 16 bits still earns its keep** is as *working* precision, not output precision — the
-same reason photographers edit in 16-bit and export 8-bit. If you resize, rotate, blur,
-level-adjust, or combine maps before slicing, an 8-bit source bands as you go and a 16-bit
-one survives it. It also matters on toolchains that are not 3D Slice. If you are handing an
-untouched file straight to 3D Slice, it does not matter, and DepthView will tell you the
-things that do.
 
 The short version: LightBurn decides *how* to cut. DepthView tells you whether the file you
 are about to hand it can fill the passes you were planning to run.
@@ -87,9 +97,9 @@ ways depending on which software you drive the machine with.
 
 > **What that number actually is.** WeCreat's support team have confirmed that the 256-layer
 > figure is an **8-bit software representation, not a controller limit** — it describes what
-> the toolchain carries, not what the machine is capable of. Worth knowing, though note that
-> LightBurn's 3D Slice has its own 256-level ceiling, so neither path currently resolves more
-> than that.
+> the toolchain carries, not what the machine is capable of — so the ceiling moves when the
+> software does. LightBurn 2.1 is an example of exactly that: its galvo path was 8-bit and
+> now takes 16-bit depth maps.
 
 **Through MakeIt** — 256 layers is the ceiling. A 16-bit depth map is over-spec for that path,
 so "is my file really 16-bit?" is the wrong question. The right one is *do my 256 levels land
@@ -97,12 +107,12 @@ well* — are they evenly distributed, do they reach both ends of the range, is 
 detail clipped? DepthView reports exactly that: level occupancy, range utilisation, endpoint
 counts, and how much of the depth budget goes unused.
 
-**Through LightBurn** — the Lumos Ultra is listed as supporting both MakeIt and LightBurn, and
-LightBurn's 3D Slice mode is galvo-only, which a MOPA Lumos Ultra is. That path has the same
-256-level ceiling (see above), so switching software does not buy you more depth steps — pass
-counts above 256 duplicate layers rather than adding detail. What it changes is the control you
-have over how those levels are used, and the questions DepthView answers are the same either
-way: are all 256 reachable, is either end clipped, and where will the terraces land.
+**Through LightBurn 2.1 or later** — the Lumos Ultra is listed as supporting both MakeIt and
+LightBurn, and 3D Slice is galvo-only, which a MOPA Lumos Ultra is. This is the path where a
+genuine 16-bit map earns its keep: LightBurn's docs recommend 16-bit specifically for runs
+past 256 passes, and a real 16-bit file keeps resolving new depths well beyond that, while an
+imposter stops dead at 256 no matter how many passes you run. That is the case DepthView was
+built for, and the pass-count table above is how you tell the two apart before you cut.
 
 Either way, the practical workflow is the same. AI and relief generators (Sculptok and
 friends) emit 16-bit PNGs by default whether or not the content justifies it. Point DepthView

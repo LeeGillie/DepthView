@@ -96,6 +96,7 @@ public partial class TuneWindow : Window
         SliceCheck.IsCheckedChanged += (_, _) => Queue();
         DitherCheck.IsCheckedChanged += (_, _) => Queue();
         MaskCheck.IsCheckedChanged += (_, _) => Queue();
+        OutlineCheck.IsCheckedChanged += (_, _) => Queue();
         DpiCheck.IsCheckedChanged += (_, _) => Queue();
 
         BlankBox.ValueChanged += (_, _) => Queue();
@@ -340,6 +341,7 @@ public partial class TuneWindow : Window
         FitPolicyBox.SelectedIndex = 0;
         PadBox.SelectedIndex = 0;
         MaskCheck.IsChecked = false;
+        OutlineCheck.IsChecked = false;
         DpiCheck.IsChecked = false;
         BlankBox.Value = 40;
         RimBox.Value = 1.00m;
@@ -593,6 +595,19 @@ public partial class TuneWindow : Window
                 string maskPath = Path.ChangeExtension(written, null) + "-rim-mask.png";
                 await Task.Run(() => TuneJob.WriteRimMask(maskPath, outW, outH, o));
                 maskNote = $"  Mask written as {Path.GetFileName(maskPath)}.";
+            }
+
+            if (OutlineCheck.IsChecked == true && written is not null
+                && o.BlankDiameterMm is double blankMm && blankMm > 0)
+            {
+                string outlinePath = Path.ChangeExtension(written, null) + "-outline.svg";
+                double ppmm = Math.Min(outW, outH) / blankMm;
+                double engraveMm = o.AddRim && o.RimRadius > 0 ? o.RimRadius * 2 / ppmm : 0;
+
+                await Task.Run(() => AlignmentOutline.Write(outlinePath, blankMm, engraveMm,
+                                                            Path.GetFileName(written)));
+                maskNote += $"  Alignment outline written as {Path.GetFileName(outlinePath)}"
+                          + " - put it on a tool layer and frame with Hull or Contour.";
             }
 
             StatusText.Text = $"Saved {file.Name}.{maskNote}  Re-reading it to check ...";

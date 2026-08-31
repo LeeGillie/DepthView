@@ -25,8 +25,10 @@ Run it from the repository root, after the tuned files have been written beside 
     python3 tests/check_fit.py
 """
 
+import re
 import struct
 import sys
+import xml.etree.ElementTree as ET
 import zlib
 from pathlib import Path
 
@@ -188,6 +190,46 @@ def main():
              f"(corner {corner}, edge {edge}; expected 65535)")
     else:
         ok(f"{inverted.name}: rim stays untouched under --invert")
+
+    # --- alignment outline ---------------------------------------------------
+    # The SVG that lets a round design be framed against a round blank. Checked because it
+    # is the one output nothing else validates: an SVG with a broken comment or a wrong
+    # radius still opens in a text editor and still looks like a file.
+    outline = ROOT / "fit-outline.svg"
+    if outline.exists():
+        src = outline.read_text(encoding="utf-8")
+
+        # A double hyphen inside an XML comment is illegal and makes the whole file
+        # unparseable. This project has already been bitten by exactly that in an AXAML
+        # comment, and here the comment is long prose, which is where it would happen again.
+        if any("--" in m.group(1) for m in re.finditer(r"<!--(.*?)-->", src, re.S)):
+            fail("fit-outline.svg: '--' inside an XML comment makes the file unparseable")
+        else:
+            try:
+                root = ET.fromstring(src)
+                ns = "{http://www.w3.org/2000/svg}"
+
+                if root.get("width") != "40mm" or root.get("height") != "40mm":
+                    fail(f"fit-outline.svg: expected 40mm square, got "
+                         f"{root.get('width')} x {root.get('height')}")
+                else:
+                    ok(f"fit-outline.svg: {root.get('width')} square, true size in mm")
+
+                radii = sorted(float(c.get("r")) for c in root.iter(ns + "circle"))
+                # Outer circle is the blank; inner is the engraved area inside a 0.9 mm rim.
+                if len(radii) != 2 or abs(radii[1] - 20.0) > 0.01 or abs(radii[0] - 19.1) > 0.05:
+                    fail(f"fit-outline.svg: expected radii 19.1 and 20.0 mm, got {radii}")
+                else:
+                    ok(f"fit-outline.svg: circles at {radii[0] * 2:.1f} and {radii[1] * 2:.1f} mm")
+
+                centred = all(c.get("cx") == "20" and c.get("cy") == "20"
+                              for c in root.iter(ns + "circle"))
+                if not centred:
+                    fail("fit-outline.svg: circles are not centred on the canvas")
+                else:
+                    ok("fit-outline.svg: concentric and centred")
+            except ET.ParseError as e:
+                fail(f"fit-outline.svg: does not parse as XML - {e}")
 
     print()
     if failures:

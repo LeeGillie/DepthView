@@ -175,7 +175,8 @@ jobs:
           exe="${{ steps.exe.outputs.path }}"
           src=samples/07-wasted-headroom.png
           "$exe" --tune "$src" --blank 40 --rim-mm 0.9 --out fit-plain.png
-          "$exe" --tune "$src" --blank 40 --rim-mm 0.9 --fit --out fit-content.png
+          "$exe" --tune "$src" --blank 40 --rim-mm 0.9 --fit --outline fit-outline.svg \
+            --out fit-content.png
           "$exe" --tune "$src" --blank 40 --rim-mm 0.9 --fit canvas --out fit-canvas.png
           "$exe" --tune "$src" --blank 40 --rim-mm 0.9 --fit canvas --pad untouched \
             --out fit-untouched.png
@@ -183,6 +184,7 @@ jobs:
           for f in fit-plain fit-content fit-canvas fit-untouched fit-inverted; do
             test -s "$f.png"
           done
+          test -s fit-outline.svg
           python3 tests/check_fit.py
 
       # The window at its own minimum size, which is where the layout breaks first. A

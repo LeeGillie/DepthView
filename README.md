@@ -463,6 +463,34 @@ boundary of the source image shows up as a square step around the coin:
 design's background. Right: it is left untouched, and the edge of the source image
 becomes a visible square.</em></p>
 
+#### Lining the map up with the blank
+
+Getting the map *right* is one problem; getting it *onto the coin in the right place* is
+another, and a depth map cannot help with it at all. LightBurn frames three ways — Bounds
+(a rectangle), Hull (a rubber band round the shapes) and Contour (the exact perimeter) —
+but **an image is a rectangle to all three**, whatever is drawn inside it. A round design
+in a square PNG frames as a square, and nothing you can put in the pixels changes that,
+because the framer never looks at them.
+
+MakeIt sidesteps this by placing artwork in a round frame. In LightBurn you need a vector,
+so **Also write an alignment outline** emits one: an SVG at true size with a circle at the
+blank's diameter, a second at the edge of the engraved area, and a centre mark.
+
+```
+DepthView --tune coin.png --blank 40 --rim-mm 0.9 --fit --outline
+```
+
+Then, in LightBurn:
+
+1. Import the outline alongside the map. Both are sized in millimetres and the map carries
+   its own physical size, so they land in register.
+2. Select the circles and assign them to a **tool layer** (T1). Tool layers are never sent
+   to the laser, so nothing there can be engraved by accident.
+3. In the Cuts / Layers window, turn **Frame off for the image layer**. Leave it on for T1.
+   This is the step that matters — with the image included you get a box regardless.
+4. Set framing to **Hull** or **Contour**. Bounds is a rectangle by definition.
+5. Frame. The pointer traces the circle; line it up with the rim of the blank.
+
 The predicted figures are exact rather than sampled — they come from putting the
 source histogram through the same arithmetic, over the whole image. The pictures are
 computed from a downsampled copy so the dialog stays live on a 4096 × 4096 map. When
@@ -645,6 +673,7 @@ src/DepthView/
   Processing/             DepthTuner (the correction), TuningOptions, TuneJob (shared by
                           the dialog and the command line), DepthCanvas (fitting a design
                           inside the rim by padding, never by resampling),
+                          AlignmentOutline (the vector circle the framer can see),
                           CalibrationPattern, TinyFont
   Rendering/              ReliefRenderer (software height-field shading), MaterialPreset
   Assets/                 icon files consumed by the build

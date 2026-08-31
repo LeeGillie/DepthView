@@ -135,6 +135,13 @@ internal static class Program
             --ramp <pct>        ramp width, if it should differ from the rim width
             --mask <file>       also write the rim as its own image, for running the field
                                 on separate laser settings
+            --outline [file]    also write a vector outline (SVG, true size) to import
+                                alongside the map: circles at the blank's edge and at the
+                                edge of the engraved area, plus a centre mark. A depth map
+                                cannot help you align a round design to a round blank,
+                                because an image frames as its own rectangle whatever is
+                                drawn in it. Put these on a tool layer, turn framing off for
+                                the image layer, and frame with Hull or Contour
             --slices <n>        quantise to exactly n depths, matching a pass count
             --dither            scatter the slice boundaries, which breaks up the contour
                                 rings a hard threshold leaves on smooth curves
@@ -473,9 +480,9 @@ internal static class Program
     {
         AttachParentConsole();
 
-        string? input = null, outPath = null, maskPath = null;
+        string? input = null, outPath = null, maskPath = null, outlinePath = null;
         var o = new TuningOptions();
-        bool haveBlack = false, haveWhite = false;
+        bool haveBlack = false, haveWhite = false, wantOutline = false;
         double? rimPct = null, rampPct = null;
         int passes = 256;
         // WeCreat support give 6-8 um for the Lumos Ultra UV spot; 7 sits in the middle.
@@ -514,6 +521,12 @@ internal static class Program
 
                 case "--pad":
                     if (Next() is "untouched") o.PadWith = PadFill.Untouched;
+                    break;
+
+                // Takes an optional filename; bare --outline writes it beside the map.
+                case "--outline":
+                    wantOutline = true;
+                    if (i + 1 < rest.Length && !rest[i + 1].StartsWith('-')) outlinePath = rest[++i];
                     break;
                 case "--passes": if (int.TryParse(Next(), out int pp) && pp > 1) passes = pp; break;
                 case "--dpi": if (double.TryParse(Next(), out double d)) o.Dpi = d; break;
@@ -577,6 +590,21 @@ internal static class Program
             {
                 TuneJob.WriteRimMask(maskPath, outW, outH, o);
                 Console.WriteLine($"  mask            {Path.GetFileName(maskPath)} (white = engraved area)");
+            }
+
+            // The vector the framer can actually see. A depth map cannot help here at all: an
+            // image frames as its own rectangle whatever is drawn inside it, so lining a round
+            // design up with a round blank needs a circle the laser can trace.
+            if (wantOutline && o.BlankDiameterMm is double blankMm && blankMm > 0)
+            {
+                outlinePath ??= Path.ChangeExtension(outPath, null) + "-outline.svg";
+                double engraveMm = o.RimRadius > 0 ? o.RimRadius * 2 / (Math.Min(outW, outH) / blankMm) : 0;
+                AlignmentOutline.Write(outlinePath, blankMm, engraveMm, Path.GetFileName(outPath));
+
+                Console.WriteLine($"  outline         {Path.GetFileName(outlinePath)} - "
+                                + $"{blankMm:F1} mm circle to frame against the blank's rim");
+                Console.WriteLine("                  put it on a tool layer, turn Frame off for the image");
+                Console.WriteLine("                  layer, and frame with Hull or Contour rather than Bounds.");
             }
 
             // Re-analyse what was written. The tool marking its own homework is the point:

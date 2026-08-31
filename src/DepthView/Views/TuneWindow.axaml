@@ -222,6 +222,9 @@
               <CheckBox x:Name="MaskCheck"
                         Content="Also write the rim as a separate mask"
                         ToolTip.Tip="A two-tone image of the engraved area, for running the field on separate laser settings." />
+              <CheckBox x:Name="OutlineCheck"
+                        Content="Also write an alignment outline (SVG)"
+                        ToolTip.Tip="A vector circle at the blank's diameter, at true size, to import alongside the map and frame against the rim of the physical blank.&#x0a;&#x0a;The map itself cannot do this job: an image frames as its own rectangle whatever is drawn inside it, so a round design in a square PNG always frames as a square. Put the circle on a tool layer (it never outputs), turn Frame off for the image layer, and frame with Hull or Contour rather than Bounds." />
               <!-- Off by default, and that is the point. Ticking it makes the file assert a
                    real-world size, and a file that claims 40 mm because a box happened to say
                    40 is worse than a file that claims nothing: an importer will believe it. -->

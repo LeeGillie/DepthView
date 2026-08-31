@@ -16,6 +16,7 @@ publish/
 # Anchored with a leading slash, because an unanchored fit-*.png also matches
 # docs/images/fit-pad-background.png, which is a tracked README image.
 /fit-*.png
+/fit-*.svg
 _fit/
 *-tuned.png
 *-rim-mask.png

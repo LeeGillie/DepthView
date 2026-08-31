@@ -113,6 +113,28 @@ public static class ReportWriter
             sb.AppendLine($"  Alpha             {(r.AlphaConstant ? $"constant {r.AlphaMin:N0}" : $"{r.AlphaMin:N0} .. {r.AlphaMax:N0}")}");
         sb.AppendLine();
 
+        // What the level structure above is actually worth once a slicer has had it.
+        if (r.UsableSlices > 0)
+        {
+            sb.AppendLine("SLICING (through a 256-level slicer, e.g. LightBurn 3D Slice)");
+            sb.AppendLine($"  Usable slices     {r.UsableSlices:N0}");
+            sb.AppendLine($"  Suggested passes  {r.UsableSlices:N0}   (more than this duplicates layers)");
+            if (r.SlicesLostToHeadroom > 0)
+                sb.AppendLine($"  Recoverable       {r.SlicesLostToHeadroom:N0} more by remapping to full range " +
+                              $"({r.UsableSlicesRemapped:N0} total)");
+            else
+                sb.AppendLine("  Recoverable       none - the range is already well used");
+
+            sb.AppendLine("  At a given pass count:");
+            foreach (int passes in new[] { 64, 128, 256, 384 })
+            {
+                var (distinct, wasted) = r.SlicesAt(passes);
+                sb.AppendLine($"    {passes,4} passes      {distinct,4:N0} distinct" +
+                              (wasted > 0 ? $", {wasted:N0} repeating an existing slice" : ""));
+            }
+            sb.AppendLine();
+        }
+
         sb.AppendLine("ENDPOINTS AND CLIPPING");
         sb.AppendLine(r.PureWhitePixels > 0
             ? $"  Pure white        {r.PureWhitePixels:N0} px ({Fmt.Pct(r.PureWhitePixels, r.GreyPixels)}) on level {r.MaxValue:N0}"

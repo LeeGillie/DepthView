@@ -79,6 +79,33 @@ public sealed class AnalysisResult
     public double RangeUtilisation;         // (max - min + 1) / (MaxValue + 1)
     public int EffectiveBits;
 
+    // --- slicing ---------------------------------------------------------
+    // A depth-map slicer thresholds the image into passes. LightBurn's 3D Slice works in
+    // 256 levels: one pass per grey level at 256 passes, batched below that, and duplicated
+    // above it. So the number that decides how many passes are worth running is not how many
+    // levels the file holds - it is how many survive reduction to 256.
+
+    /// <summary>Distinct levels left after reducing to 256, i.e. slices that do real work.</summary>
+    public int UsableSlices;
+
+    /// <summary>What UsableSlices would become if the occupied range were stretched to fill the container.</summary>
+    public int UsableSlicesRemapped;
+
+    /// <summary>Slices lost purely to unused headroom: UsableSlicesRemapped - UsableSlices.</summary>
+    public int SlicesLostToHeadroom => Math.Max(0, UsableSlicesRemapped - UsableSlices);
+
+    /// <summary>
+    /// Distinct slices actually produced at a given pass count, and how many of those passes
+    /// repeat a slice that already exists. Below 256 the slicer batches levels together, so
+    /// the count is limited by the passes; above it, by the data.
+    /// </summary>
+    public (int Distinct, int Wasted) SlicesAt(int passes)
+    {
+        if (passes <= 0 || UsableSlices <= 0) return (0, Math.Max(0, passes));
+        int distinct = Math.Min(passes, UsableSlices);
+        return (distinct, passes - distinct);
+    }
+
     // --- alpha ----------------------------------------------------------
     public bool HasAlphaChannel;
     public int AlphaMin, AlphaMax;

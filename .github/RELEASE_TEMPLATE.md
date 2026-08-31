@@ -59,8 +59,12 @@ certutil -hashfile DepthView-*-win-x64.exe SHA256   # Windows, compare by eye
 
 ## Start here
 
-The `samples/` folder in the repository holds eight depth maps that are the same picture
-encoded eight different ways. Drop them on DepthView in order: the image never changes and
-the verdict does, which is the fastest way to understand what the program is for.
+Download **`DepthView-samples.zip`** as well. It holds eight depth maps that are the same
+picture encoded eight different ways — genuine 16-bit, two byte-widening fakes, a quantised
+ladder, grey stored as RGB, honest 8-bit, wasted headroom, and colour contamination.
+
+Drop them on DepthView in order. The image never changes and the verdict does, which is the
+fastest way to understand what the program is for. The included `README.md` explains what
+each one demonstrates.
 
 ---

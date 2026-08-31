@@ -41,16 +41,41 @@ LightBurn 2.1's [3D Sliced Image mode](https://docs.lightburnsoftware.com/2.1/Gu
 is a genuinely good way to cut relief on a galvo. It also accepts your depth map without
 judgement, and that is where DepthView earns its place.
 
+> ### First, the thing that changes the question
+>
+> **3D Slice works in 256 levels, and a 16-bit source buys you no extra depth resolution
+> through it.** LightBurn's own description of the mechanism ([forum, Oz](https://forum.lightburnsoftware.com/t/98681/5)):
+> each pass is thresholded and run as a 1-bit image, 256 passes gives exactly one pass per
+> grey level, fewer than 256 clusters layers into batches, and **more than 256 duplicates
+> layers** — 512 passes simply runs every layer twice.
+>
+> So "is my file really 16-bit?" is the wrong question to ask of this path, and an earlier
+> version of this README got that wrong. Corrected after
+> [Jack Wilborn pointed it out](https://forum.lightburnsoftware.com/t/depth-maps-that-claim-16-bit-and-arent-how-to-spot-them-before-you-slice/192202).
+>
+> The right question is **how many of those 256 levels your file actually reaches**, and
+> that is a question a lot of depth maps fail.
+
+Because the ceiling is 256, everything below is about whether you get 256 usable slices or
+far fewer:
+
 | What LightBurn does | What it doesn't tell you | What DepthView adds |
 |---|---|---|
-| Accepts 8-bit **and** 16-bit greyscale | Whether your 16-bit file *contains* 16 bits | Names the imposter and its mechanism, before you burn a blank |
-| Treats a 24-bit image as 8-bit — its docs say a 24-bit depth map "is actually three 8-bit channels" | That your greyscale map was saved as RGB and just lost its precision | Flags *grey data stored as RGB* as its own finding |
-| **Number of Passes** is the slice count: darkest gets every pass, white gets none | What that pass count will look like as physical steps | Quantise-to-steps preview — slide the count and watch for the terrace threshold |
-| Slices whatever range the image occupies | That a map spanning 267–63,271 wastes passes at both ends doing nothing | Reports unused headroom above and below, in levels |
-| Its own docs admit 3D Slice "does not offer precise control over the engraving's depth" | — | Turns level count into an honest ceiling on how many passes are worth running |
+| Reduces your map to 256 threshold levels | That a map occupying only 60% of its range reduces to about **154** distinct levels, not 256 — so a third of your passes duplicate work | Reports range utilisation and unused headroom, which *is* your usable slice count |
+| Thresholds from the values present | That flat black or flat white areas are depth that was clipped away upstream and cannot come back | Counts pure-black and pure-white pixels, and the lightest and darkest levels actually present |
+| Slices whatever it is given | Whether the file holds 256 distinct levels at all — plenty hold far fewer | Counts the true distinct levels, and names the byte-widening and ladder patterns that fake a level count |
+| **Number of Passes** is the slice count | What that pass count looks like as physical steps | Quantise-to-steps preview — set it to your pass count and see where the terraces land |
+| Accepts colour images | That stray non-grey pixels are in there at all | Flags them, and shows them as a red mask |
+
+**Where 16 bits still earns its keep** is as *working* precision, not output precision — the
+same reason photographers edit in 16-bit and export 8-bit. If you resize, rotate, blur,
+level-adjust, or combine maps before slicing, an 8-bit source bands as you go and a 16-bit
+one survives it. It also matters on toolchains that are not 3D Slice. If you are handing an
+untouched file straight to 3D Slice, it does not matter, and DepthView will tell you the
+things that do.
 
 The short version: LightBurn decides *how* to cut. DepthView tells you whether the file you
-are about to hand it is worth cutting at that resolution.
+are about to hand it can fill the passes you were planning to run.
 
 ---
 
@@ -62,9 +87,9 @@ ways depending on which software you drive the machine with.
 
 > **What that number actually is.** WeCreat's support team have confirmed that the 256-layer
 > figure is an **8-bit software representation, not a controller limit** — it describes what
-> the toolchain carries, not what the machine is capable of. That is a useful correction: it
-> means the ceiling moves when the software does, which is exactly what makes the LightBurn
-> path below worth taking, and exactly why a file's real bit depth is worth knowing.
+> the toolchain carries, not what the machine is capable of. Worth knowing, though note that
+> LightBurn's 3D Slice has its own 256-level ceiling, so neither path currently resolves more
+> than that.
 
 **Through MakeIt** — 256 layers is the ceiling. A 16-bit depth map is over-spec for that path,
 so "is my file really 16-bit?" is the wrong question. The right one is *do my 256 levels land
@@ -73,9 +98,11 @@ detail clipped? DepthView reports exactly that: level occupancy, range utilisati
 counts, and how much of the depth budget goes unused.
 
 **Through LightBurn** — the Lumos Ultra is listed as supporting both MakeIt and LightBurn, and
-LightBurn's 3D Slice mode is galvo-only, which a MOPA Lumos Ultra is. Here 16-bit genuinely
-buys you something, pass counts can go well past 256, and an imposter file quietly costs you
-everything you switched software to gain. This is precisely the case DepthView was built for.
+LightBurn's 3D Slice mode is galvo-only, which a MOPA Lumos Ultra is. That path has the same
+256-level ceiling (see above), so switching software does not buy you more depth steps — pass
+counts above 256 duplicate layers rather than adding detail. What it changes is the control you
+have over how those levels are used, and the questions DepthView answers are the same either
+way: are all 256 reachable, is either end clipped, and where will the terraces land.
 
 Either way, the practical workflow is the same. AI and relief generators (Sculptok and
 friends) emit 16-bit PNGs by default whether or not the content justifies it. Point DepthView

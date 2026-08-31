@@ -20,6 +20,36 @@ Background established by research on 2026-08-29:
 - LightBurn's docs also admit 3D Slice "does not offer precise control over the
   engraving's depth". Item 1.4 below is aimed squarely at that gap.
 
+### 1.0 Usable slice count through a 256-level slicer  *(new, and now the headline number)*
+
+Established on the LightBurn forum, from LightBurn's own description of the mechanism: **3D
+Slice reduces to 256 threshold levels.** Each pass is thresholded and run as a 1-bit image,
+256 passes gives one pass per grey level, fewer clusters layers into batches, and more than
+256 duplicates layers — 512 passes runs every layer twice. A 16-bit source therefore buys no
+extra depth resolution through that path at all.
+
+This corrects a claim DepthView's README used to make, and it changes what the headline
+number should be. "How many distinct levels does this file hold" is close to irrelevant above
+256. The number that matters is:
+
+> **After reduction to 256 levels, how many distinct slices does this file actually produce?**
+
+That is not 256 for most files. A map occupying 60% of its range reduces to roughly 154
+distinct levels, so a third of the passes duplicate work — and DepthView already computes
+range utilisation, it simply is not framing it as the thing the user cares about.
+
+Report, in the verdict rather than buried:
+
+- **Usable slices**: distinct values surviving reduction to 256 levels.
+- **Wasted passes** at a stated pass count: how many duplicate a slice that already exists.
+- The recommended pass count, being the usable slice count — running more is duplication.
+- What remapping to full range would recover, in slices.
+
+Cheap: it is arithmetic on the histogram that is already built. Probably the single highest
+value-per-line item in this file now, because it turns every existing measurement into a
+number a 3D Slice user can act on, and it answers the fair question "what does this tell me
+that I can use" for the largest group of potential users.
+
 ### 1.1 Pass-count simulator  *(highest value, mostly arithmetic on data we already have)*
 
 Enter N passes; report:

@@ -10,6 +10,18 @@ publish/
 *.suo
 *.userprefs
 
+# --- scratch output from running the tools by hand or in CI ---
+# check_fit.py works on tuned copies written beside the repository root; they are outputs,
+# not fixtures, and are recreated by the --tune lines in build.yml.
+# Anchored with a leading slash, because an unanchored fit-*.png also matches
+# docs/images/fit-pad-background.png, which is a tracked README image.
+/fit-*.png
+_fit/
+*-tuned.png
+*-rim-mask.png
+depthview-calibration*.png
+depthview-calibration*-worksheet.txt
+
 # --- runtime state, not source ---
 # Written next to the executable when you save an edited material library.
 materials.json

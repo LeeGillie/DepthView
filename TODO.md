@@ -102,6 +102,48 @@ to a target DPI. That is a real gap for anyone whose art is 1024 px on a 40 mm b
 One deliberate omission: nothing in the tuner writes over the original. Every path produces
 a new file.
 
+### 1.3b ~~Fit a design inside the rim~~  **Done 2026-08-31**
+
+Raised by the obvious question: what happens when the artwork runs past where the rim goes?
+The first answer was to report the overlap and suggest a scale factor. The better answer,
+and the one shipped, is to grow the canvas — put the map in the middle of a larger square so
+the whole design lands inside the rim.
+
+The point is that **padding does not resample**. Scaling the artwork down would interpolate,
+inventing grey levels that were never in the file, which is the exact fault this program
+exists to detect; doing it to make artwork fit would be indefensible. The physical result is
+identical either way, because the blank does not change size — the same artwork simply spans
+fewer millimetres of it, at a finer effective resolution than before.
+
+Two choices, both exposed because both have a real cost:
+
+- **What clears the rim.** *Content* measures the furthest engraved pixel; *canvas* contains
+  all four corners. Canvas cannot clip anything but has to fit a square inside a circle, so
+  it gives up a factor of √2 — 27 mm of art on a 40 mm blank against content's 38 mm.
+- **What the new ring is cut to.** Matching the design's background keeps the field
+  continuous; leaving it untouched costs nothing to engrave. On art with a cut-away floor the
+  untouched fill puts a visible square step around the coin, which is why the default matches
+  the background — and why both renders are in the README rather than a sentence describing
+  them.
+
+Three bugs came out of building it, all of which would have reached metal:
+
+1. **`--invert` plus a rim cut the rim to full depth.** Inversion ran last, so the rim's
+   "paint this white" became "cut this away" — on the one part of a blank nobody wants
+   touched. Anything that must end up untouched is now written as its mirror before the flip.
+2. **Padding with white left a square step.** The first implementation filled the new space
+   with untouched rather than with the design's own background, so the boundary of the source
+   image showed up as a raised square around the coin.
+3. **The content test was a brightness threshold.** "Above a fifth of the range is content"
+   only holds for art on a black floor, reads a white-floor map backwards, and inverts again
+   the moment someone ticks Invert. It now takes the background from the image border, which
+   is true whatever the convention, and measures content only inside the original rectangle —
+   because after padding the border is our own fill, and asking it what the background is
+   just reads back our own answer.
+
+`tests/check_fit.py` pins the geometry, byte-for-byte pixel preservation, both padding fills
+and the rim polarity, and runs on all three platforms in CI.
+
 ### 1.4 Material response calibration  *(the one that closes LightBurn's admitted gap)*
 
 1. ~~DepthView emits a stepped grey wedge.~~ **Done 2026-08-31** — `--calibrate` writes a

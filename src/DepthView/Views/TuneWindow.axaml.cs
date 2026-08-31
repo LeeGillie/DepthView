@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -89,6 +90,9 @@ public partial class TuneWindow : Window
         StretchCheck.IsCheckedChanged += (_, _) => Queue();
         InvertCheck.IsCheckedChanged += (_, _) => Queue();
         RimCheck.IsCheckedChanged += (_, _) => Queue();
+        FitCheck.IsCheckedChanged += (_, _) => Queue();
+        FitPolicyBox.SelectionChanged += (_, _) => Queue();
+        PadBox.SelectionChanged += (_, _) => Queue();
         SliceCheck.IsCheckedChanged += (_, _) => Queue();
         DitherCheck.IsCheckedChanged += (_, _) => Queue();
         MaskCheck.IsCheckedChanged += (_, _) => Queue();
@@ -149,6 +153,12 @@ public partial class TuneWindow : Window
             RimBox.Value = (decimal)rim;
             RimCheck.IsChecked = true;
         }
+
+        if (Program.StartupFit != FitPolicy.None)
+        {
+            FitCheck.IsChecked = true;
+            FitPolicyBox.SelectedIndex = Program.StartupFit == FitPolicy.Canvas ? 1 : 0;
+        }
     }
 
     // ------------------------------------------------------------------ preview source
@@ -177,16 +187,23 @@ public partial class TuneWindow : Window
 
     private void RenderOriginal()
     {
-        OriginalImage.Source = ToBitmap(_previewGrey);
+        OriginalImage.Source = ToBitmap(_previewGrey, _pw, _ph);
 
         var (min, max, unique) = TuneJob.Span(_source.GreyHistogram);
         OriginalCaption.Text = $"{unique:N0} levels, {min:N0} to {max:N0}, "
                              + $"{TuneJob.RangeUse(_source.GreyHistogram, _maxValue) * 100:F0}% of the range";
     }
 
-    private WriteableBitmap ToBitmap(ushort[] grey)
+    /// <summary>
+    /// Render a grey buffer at its own dimensions, which are not always the source's: fitting
+    /// grows the canvas. Both panes are then stretched to the same box on screen, and that is
+    /// the honest comparison, because in both panes the frame means the same thing - the whole
+    /// blank. The artwork visibly occupying less of the tuned frame is not a drawing artefact;
+    /// it is exactly what happens to the coin.
+    /// </summary>
+    private WriteableBitmap ToBitmap(ushort[] grey, int w, int h)
     {
-        var buf = new byte[(long)_pw * _ph * 4];
+        var buf = new byte[(long)w * h * 4];
         for (long i = 0; i < grey.Length; i++)
         {
             byte v = (byte)Math.Clamp((long)grey[i] * 255 / Math.Max(1, _maxValue), 0, 255);
@@ -194,12 +211,12 @@ public partial class TuneWindow : Window
             buf[d] = v; buf[d + 1] = v; buf[d + 2] = v; buf[d + 3] = 255;
         }
 
-        var bmp = new WriteableBitmap(new PixelSize(_pw, _ph), new Vector(96, 96),
+        var bmp = new WriteableBitmap(new PixelSize(w, h), new Vector(96, 96),
                                       PixelFormats.Bgra8888, AlphaFormat.Opaque);
         using (var fb = bmp.Lock())
         {
-            int rowBytes = _pw * 4;
-            for (int y = 0; y < _ph; y++)
+            int rowBytes = w * 4;
+            for (int y = 0; y < h; y++)
                 Marshal.Copy(buf, y * rowBytes, fb.Address + y * fb.RowBytes, rowBytes);
         }
         return bmp;
@@ -256,6 +273,9 @@ public partial class TuneWindow : Window
         RimCheck.IsChecked = false;
         SliceCheck.IsChecked = false;
         DitherCheck.IsChecked = false;
+        FitCheck.IsChecked = false;
+        FitPolicyBox.SelectedIndex = 0;
+        PadBox.SelectedIndex = 0;
         MaskCheck.IsChecked = false;
         DpiCheck.IsChecked = false;
         BlankBox.Value = 40;
@@ -295,6 +315,10 @@ public partial class TuneWindow : Window
         {
             o.RimWidthMm = (double)(RimBox.Value ?? 0);
             o.RimRampMm = (double)(RampBox.Value ?? 0);
+            o.Fit = FitCheck.IsChecked != true ? FitPolicy.None
+                  : FitPolicyBox.SelectedIndex == 1 ? FitPolicy.Canvas
+                  : FitPolicy.Content;
+            o.PadWith = PadBox.SelectedIndex == 1 ? PadFill.Untouched : PadFill.Background;
         }
 
         o.ResolvePhysical(_w, _h);
@@ -323,7 +347,7 @@ public partial class TuneWindow : Window
 
         var tuned = DepthTuner.Apply(_previewGrey, _pw, _ph, _maxValue, preview, out var rep);
         _rimReport = rep;
-        TunedImage.Source = ToBitmap(tuned);
+        TunedImage.Source = ToBitmap(tuned, rep.OutWidth, rep.OutHeight);
 
         _tunedHist = TuneJob.MapHistogram(_source.GreyHistogram, _maxValue, full,
                                           out long flattened, out long lifted);
@@ -349,24 +373,56 @@ public partial class TuneWindow : Window
             // two together would let a rim that is eating the artwork hide inside a number the
             // reader attributes to the level points.
             $"Levels absorbed        {flattened:N0} px black, {lifted:N0} px white",
-        }.Concat(full.AddRim && rep.RimClipped > 0
-            ? new[] { $"Rim overlaps           {rep.RimClippedFraction * 100:F2}% of the design; "
-                    + $"art at {rep.SuggestedScale * 100:F0}% would clear it" }
-            : full.AddRim
-                ? new[] { "Rim                    sits clear of the design" }
-                : Array.Empty<string>()));
+        }.Concat(RimLines(rep, full)));
 
-        UpdateRimNote(full);
         UpdateStatus(full);
     }
 
-    private void UpdateRimNote(TuningOptions o)
+    /// <summary>
+    /// The rim and fit rows of the results card.
+    ///
+    /// These belong with the numbers rather than beside the checkboxes that produce them. The
+    /// cost of growing the canvas is the part that has to be visible without scrolling:
+    /// "whole image" fits a square inside a circle, which gives up a factor of root two before
+    /// the rim is even considered, and a 40 mm blank then carries about 27 mm of art. That is
+    /// a fair trade for a guarantee, but only if the person making it can see the number.
+    /// </summary>
+    private IEnumerable<string> RimLines(TuningReport rep, TuningOptions o)
     {
-        if (o.PixelsPerMm(_w, _h) is not double ppmm || ppmm <= 0)
+        if (!o.AddRim) yield break;
+
+        if (rep.Fit is { } fit)
         {
-            RimNote.Text = "";
-            return;
+            // The plan is measured on the reduced preview, so quote the size as a ratio of the
+            // real image rather than the preview's own pixel count, which would mean nothing.
+            int fullSize = (int)Math.Round(Math.Max(_w, _h) * (fit.Size / (double)Math.Max(_pw, _ph)));
+            double blank = o.BlankDiameterMm ?? 40;
+
+            yield return $"Canvas grown           {Math.Max(_w, _h):N0} to ~{fullSize:N0} px, no resampling";
+            yield return $"Artwork spans          {fit.ArtAcrossMm:F1} of {blank:F0} mm "
+                       + $"({fit.ArtAcrossMm / blank * 100:F0}% of the blank)";
         }
+        else if (o.Fit != FitPolicy.None)
+        {
+            yield return "Canvas                 already clear, no growth needed";
+        }
+
+        yield return rep.RimClipped > 0
+            ? $"Rim overlaps           {rep.RimClippedFraction * 100:F2}% of the design; "
+            + $"art at {rep.SuggestedScale * 100:F0}% would clear it"
+            : "Rim                    sits clear of the design";
+    }
+
+    /// <summary>
+    /// The geometry the settings imply, in the footer rather than in the settings panel.
+    ///
+    /// It reads as prose and it is wide, so it belongs on the wide row at the bottom; putting
+    /// it in the 376px column cost three lines of height and pushed the rim controls out of
+    /// sight, which is a poor trade for text nobody edits.
+    /// </summary>
+    private string GeometryNote(TuningOptions o)
+    {
+        if (o.PixelsPerMm(_w, _h) is not double ppmm || ppmm <= 0) return "";
 
         double spot = (double)(SpotBox.Value ?? 7);
         var check = ResolutionCheck.For(1000.0 / ppmm, spot);
@@ -388,15 +444,22 @@ public partial class TuneWindow : Window
                       + " smear the edge to about its own width either way.";
         }
 
-        RimNote.Text = note;
+        return note;
     }
 
     private void UpdateStatus(TuningOptions o)
     {
-        string dpi = o.Dpi is double d ? $"{d:F0} dpi written into the file" : "no physical size written";
-        StatusText.Text = o.IsNoOp(_maxValue) && !o.Stretch
-            ? "These settings would change nothing. Move the level points, or press Suggest."
-            : $"{_w:N0} x {_h:N0}, {dpi}. Saving writes a new file; {_fileName} is never modified.";
+        if (o.IsNoOp(_maxValue) && !o.Stretch)
+        {
+            StatusText.Text = "These settings would change nothing. Move the level points, or press Suggest.";
+            return;
+        }
+
+        string dpi = o.Dpi is double d ? $"{d:F0} dpi written in" : "no physical size written";
+        string geometry = GeometryNote(o);
+
+        StatusText.Text = $"{_w:N0} x {_h:N0}, {dpi}. Saving writes a new file; {_fileName} is never modified."
+                        + (geometry.Length > 0 ? "   " + geometry : "");
     }
 
     // ------------------------------------------------------------------ saving
@@ -431,9 +494,14 @@ public partial class TuneWindow : Window
             var o = Build();
 
             // The full-resolution pass is the only expensive thing this window does, and it
-            // happens once, when it has been asked for.
+            // happens once, when it has been asked for. It is also where the fit is planned
+            // for real: the preview's figures come from the reduced copy, so the file gets its
+            // own measurement rather than a scaled-up estimate.
+            TuningReport rep = null!;
             var tuned = await Task.Run(() =>
-                DepthTuner.Apply(_grey, _w, _h, _maxValue, o, out _));
+                DepthTuner.Apply(_grey, _w, _h, _maxValue, o, out rep));
+
+            int outW = rep.OutWidth, outH = rep.OutHeight;
 
             await using (var s = await file.OpenWriteAsync())
             {
@@ -442,7 +510,7 @@ public partial class TuneWindow : Window
                 // longer one would leave the old tail behind and produce a file that opens
                 // and then fails a CRC. Truncate first where the stream allows it.
                 if (s.CanSeek) s.SetLength(0);
-                await Task.Run(() => TuneJob.WriteTuned(s, tuned, _w, _h, _maxValue, o, _fileName));
+                await Task.Run(() => TuneJob.WriteTuned(s, tuned, outW, outH, _maxValue, o, _fileName));
             }
 
             string? written = file.TryGetLocalPath();
@@ -451,7 +519,7 @@ public partial class TuneWindow : Window
             if (MaskCheck.IsChecked == true && o.AddRim && written is not null)
             {
                 string maskPath = Path.ChangeExtension(written, null) + "-rim-mask.png";
-                await Task.Run(() => TuneJob.WriteRimMask(maskPath, _w, _h, o));
+                await Task.Run(() => TuneJob.WriteRimMask(maskPath, outW, outH, o));
                 maskNote = $"  Mask written as {Path.GetFileName(maskPath)}.";
             }
 

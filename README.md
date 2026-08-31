@@ -383,6 +383,45 @@ the percentage of the design that overlaps and the scale the art would need to c
 Nothing is guessed from the picture; a design that is not circular is handled by
 measuring the overlap rather than assuming there is none.
 
+#### Fitting artwork inside the rim
+
+A design that runs to the edge of its own canvas — one whose graphics overlay the
+apparent rim — will be painted over by that ring. **Grow the canvas so nothing is
+clipped** solves it the other way round: the map is placed in the middle of a larger
+square, so the whole design ends up inside the rim.
+
+The important part is that **nothing is resampled.** Every original pixel keeps its exact
+value and its exact neighbour; the new pixels are all one constant. Scaling the artwork
+down would interpolate, which invents grey levels that were never in the file — the
+precise fault this program exists to detect. The physical result is the same either way,
+because the blank does not change size: after padding, the same artwork simply spans
+fewer millimetres of the same coin, and arrives at a *finer* effective resolution than
+before, since a millimetre now holds more pixels.
+
+Two things to decide, and DepthView shows you the cost of both.
+
+**What has to clear the rim.** *Artwork (measured)* grows until the furthest engraved
+pixel is inside — it uses as much of the blank as the design actually needs, because the
+corners of most coin art are background. *Whole image (corners)* grows until all four
+corners clear it, which cannot clip anything by construction but has to fit a square
+inside a circle, giving up a factor of √2 before the rim is even considered. On a 40 mm
+blank that is the difference between 38 mm of art and 27 mm.
+
+**What the new ring is cut to.** *Match the background* carries the design's own field
+out to the rim, so there is no step where the original file ended. *Leave untouched* cuts
+nothing there, which is faster and spends no depth budget — but only looks right when the
+design's background is already near untouched. On artwork with a cut-away floor the
+boundary of the source image shows up as a square step around the coin:
+
+<p align="center">
+  <img src="docs/images/fit-pad-background.png" alt="Padding matched to the design's background: a clean round coin" width="330">
+  <img src="docs/images/fit-pad-untouched.png" alt="Untouched padding on the same map: the original file's square boundary shows as a step" width="330">
+</p>
+
+<p align="center"><em>The same map and the same rim. Left: the new ring matches the
+design's background. Right: it is left untouched, and the edge of the source image
+becomes a visible square.</em></p>
+
 The predicted figures are exact rather than sampled — they come from putting the
 source histogram through the same arithmetic, over the whole image. The pictures are
 computed from a downsampled copy so the dialog stays live on a 4096 × 4096 map. When
@@ -430,8 +469,10 @@ Tuning works headlessly too, and the dialog can be opened already configured:
 ```
 DepthView --tune coin.png --blank 40 --rim-mm 0.9
 DepthView --tune coin.png --black 20316 --white 42598 --passes 256 --depth-mm 0.3
+DepthView --tune coin.png --blank 40 --rim-mm 0.9 --fit            # nothing gets clipped
+DepthView --tune coin.png --blank 40 --rim-mm 0.9 --fit canvas --pad untouched
 DepthView --tune coin.png --blank 40 --rim-mm 0.9 --mask rim.png --slices 256 --dither
-DepthView coin.png --tune-ui --blank 40 --rim-mm 0.9      # the dialog, rim already set
+DepthView coin.png --tune-ui --blank 40 --rim-mm 0.9 --fit   # the dialog, already set up
 ```
 
 Every `--tune` run prints what it changed and then re-reads the file it wrote and
@@ -561,7 +602,9 @@ src/DepthView/
                           PngEncoder - 8/16-bit greyscale out, with pHYs and provenance
   Analysis/               DepthAnalyzer, AnalysisResult, ReportWriter
   Processing/             DepthTuner (the correction), TuningOptions, TuneJob (shared by
-                          the dialog and the command line), CalibrationPattern, TinyFont
+                          the dialog and the command line), DepthCanvas (fitting a design
+                          inside the rim by padding, never by resampling),
+                          CalibrationPattern, TinyFont
   Rendering/              ReliefRenderer (software height-field shading), MaterialPreset
   Assets/                 icon files consumed by the build
 artwork/
@@ -582,6 +625,8 @@ tests/
   make_fixtures.py        generates test images with known-correct answers
   make_textures.py        generates sample material textures and a demo relief
   check_report.py         asserts the report says exactly what it should
+  check_fit.py            asserts fitting a design inside a rim gets the geometry right and
+                          copies every original pixel unchanged
   fixtures/               the generated images
   textures/               the generated material textures
 .github/workflows/

@@ -142,7 +142,7 @@ jobs:
         run: |
           xvfb-run -a --server-args="-screen 0 1600x1100x24" \
             "${{ steps.exe.outputs.path }}" samples/07-wasted-headroom.png \
-            --tune-ui --blank 40 --rim-mm 0.9 \
+            --tune-ui --blank 40 --rim-mm 0.9 --fit \
             --screenshot tune-${{ matrix.os }}.png
           test -s "tune-${{ matrix.os }}.png"
 
@@ -151,7 +151,7 @@ jobs:
         shell: bash
         run: |
           "${{ steps.exe.outputs.path }}" samples/07-wasted-headroom.png \
-            --tune-ui --blank 40 --rim-mm 0.9 \
+            --tune-ui --blank 40 --rim-mm 0.9 --fit \
             --screenshot "tune-${{ matrix.os }}.png"
           test -s "tune-${{ matrix.os }}.png"
 
@@ -161,9 +161,29 @@ jobs:
         run: |
           xvfb-run -a --server-args="-screen 0 1600x1100x24" \
             "${{ steps.exe.outputs.path }}" samples/07-wasted-headroom.png \
-            --tune-ui --blank 40 --rim-mm 0.9 --window 1024 660 \
+            --tune-ui --blank 40 --rim-mm 0.9 --fit canvas --window 1024 660 \
             --screenshot tune-minsize-${{ matrix.os }}.png
           test -s "tune-minsize-${{ matrix.os }}.png"
+
+      # Fitting is the one part of the tuner that changes the output's dimensions, so it gets
+      # checked headlessly on every platform rather than only looked at in a screenshot. Both
+      # policies, both padding fills, and the result re-analysed from disk each time.
+      - name: Tune with every fit policy and check the output
+        shell: bash
+        run: |
+          set -e
+          exe="${{ steps.exe.outputs.path }}"
+          src=samples/07-wasted-headroom.png
+          "$exe" --tune "$src" --blank 40 --rim-mm 0.9 --out fit-plain.png
+          "$exe" --tune "$src" --blank 40 --rim-mm 0.9 --fit --out fit-content.png
+          "$exe" --tune "$src" --blank 40 --rim-mm 0.9 --fit canvas --out fit-canvas.png
+          "$exe" --tune "$src" --blank 40 --rim-mm 0.9 --fit canvas --pad untouched \
+            --out fit-untouched.png
+          "$exe" --tune "$src" --blank 40 --rim-mm 0.9 --invert --out fit-inverted.png
+          for f in fit-plain fit-content fit-canvas fit-untouched fit-inverted; do
+            test -s "$f.png"
+          done
+          python3 tests/check_fit.py
 
       # The window at its own minimum size, which is where the layout breaks first. A
       # 1024x768 CI runner is what found the buttons and the verdict card being pushed off

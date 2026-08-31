@@ -44,6 +44,25 @@ public sealed class TuningOptions
     /// </summary>
     public double RimRamp;
 
+    /// <summary>
+    /// Whether to grow the canvas so the design clears the rim, instead of letting the rim
+    /// paint over whatever runs past it.
+    ///
+    /// The alternative anyone reaches for first is to scale the artwork down, and that is the
+    /// worse answer: scaling resamples, which invents grey levels that were never in the file.
+    /// Padding keeps every original pixel exactly as it was. The physical outcome is the same
+    /// either way - the blank is still 40 mm, so the same artwork simply spans fewer of its
+    /// millimetres - but one route arrives with the data intact and the other does not.
+    /// </summary>
+    public FitPolicy Fit;
+
+    /// <summary>
+    /// What the new ring of space created by <see cref="Fit"/> is cut to. Matching the
+    /// design's background keeps the field continuous; leaving it untouched costs nothing to
+    /// engrave. Which is right depends on the artwork, so it is asked rather than assumed.
+    /// </summary>
+    public PadFill PadWith = PadFill.Background;
+
     // --- slicing --------------------------------------------------------
 
     /// <summary>Quantise to exactly this many levels, matching a pass count. 0 leaves it alone.</summary>

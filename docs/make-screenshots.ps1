@@ -50,7 +50,7 @@ Capture @("$fix\relief_demo.png", '--orbit', '24', '42',
 # gets captured at all: it is two checkbox clicks in the UI and neither of them is a thing a
 # script can do, and the rim is the layout most likely to overflow on a small screen.
 Capture @("$root\samples\07-wasted-headroom.png", '--tune-ui', '--blank', '40',
-          '--rim-mm', '0.9', '--screenshot', "$img\tune.png") 10
+          '--rim-mm', '0.9', '--fit', '--screenshot', "$img\tune.png") 10
 
 # The credit roll is moving, so pin the capture to a fixed delay: the same --delay always
 # lands on the same line of the roll, which keeps this image stable between runs.
@@ -65,6 +65,22 @@ Start-Process -Wait -NoNewWindow -FilePath $exe -ArgumentList (
     @('--render', $demo) + $common + @('--out', "$img\relief-continuous.png"))
 Start-Process -Wait -NoNewWindow -FilePath $exe -ArgumentList (
     @('--render', $demo) + $common + @('--slices', '16', '--out', "$img\relief-terraced.png"))
+
+# The two padding choices, rendered as metal. This pair is the argument for the default:
+# with an untouched fill the boundary of the source image comes out as a square step around
+# the coin, which is far more convincing seen than described.
+Write-Host "Rendering the padding comparison..." -ForegroundColor Cyan
+$coin = "$root\samples\07-wasted-headroom.png"
+$fitCommon = @('--blank', '40', '--rim-mm', '0.9', '--fit', 'canvas')
+
+foreach ($pad in 'background', 'untouched') {
+    $tuned = Join-Path $env:TEMP "fit-pad-$pad.png"
+    Start-Process -Wait -NoNewWindow -FilePath $exe -ArgumentList (
+        @('--tune', $coin) + $fitCommon + @('--pad', $pad, '--out', $tuned))
+    Start-Process -Wait -NoNewWindow -FilePath $exe -ArgumentList (
+        @('--render', $tuned, '--material', 'Polished brass', '--exag', '1.4',
+          '--size', '560', '--out', "$img\fit-pad-$pad.png"))
+}
 
 Get-ChildItem $img | ForEach-Object { "  {0,-26} {1,8:N0} KB" -f $_.Name, ($_.Length / 1KB) }
 Write-Host "Done." -ForegroundColor Green

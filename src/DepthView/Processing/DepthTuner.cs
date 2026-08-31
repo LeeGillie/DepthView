@@ -16,15 +16,26 @@ public sealed class TuningReport
     public double SuggestedScale = 1;  // shrink the art by this to make the rim fit cleanly
     public long Changed;               // pixels whose value moved at all
     public string Summary = "";
+
+    /// <summary>
+    /// Size of the result. Not always the size of the input: fitting the map inside a rim
+    /// grows the canvas, so the caller has to write the file at these dimensions rather than
+    /// the ones it handed in.
+    /// </summary>
+    public int OutWidth, OutHeight;
+
+    /// <summary>Set when the canvas was grown to make the design clear the rim.</summary>
+    public DepthCanvas.FitPlan? Fit;
 }
 
 /// <summary>
 /// Applies a correction to a depth map.
 ///
 /// Order matters and is deliberate: levels first, because everything downstream is expressed
-/// in the corrected range; then the rim, which must be able to paint over whatever the levels
-/// produced; then quantisation, so the slice count is the last word on how many depths exist;
-/// then inversion, which is purely a convention flip at the very end.
+/// in the corrected range; then the fit, which decides how big the canvas has to be for the
+/// design to clear the rim; then the rim itself, which must be able to paint over whatever the
+/// levels produced; then quantisation, so the slice count is the last word on how many depths
+/// exist; then inversion, which is purely a convention flip at the very end.
 ///
 /// Nothing here ever writes over the source. The caller supplies the destination.
 /// </summary>
@@ -49,7 +60,7 @@ public static class DepthTuner
     public static ushort[] Apply(ushort[] source, int width, int height, int maxValue,
                                  TuningOptions o, out TuningReport report)
     {
-        report = new TuningReport { MaxValue = maxValue };
+        report = new TuningReport { MaxValue = maxValue, OutWidth = width, OutHeight = height };
         var outp = new ushort[source.Length];
 
         int black = Math.Clamp(o.BlackPoint, 0, maxValue);
@@ -69,21 +80,85 @@ public static class DepthTuner
                 : (ushort)v;
         }
 
+        for (int i = 0; i < source.Length; i++)
+            if (source[i] != outp[i]) report.Changed++;
+
+        // The value that means "no passes at all, leave the metal alone".
+        //
+        // Inversion happens at the very end, so anything that must come out untouched has to
+        // be written as its mirror now. Without this, --invert together with a rim cut the rim
+        // to full depth - the one part of a coin blank nobody wants the laser to reach.
+        ushort untouched = o.Invert ? (ushort)0 : (ushort)maxValue;
+
+        int w = width, h = height;
+
+        // The level the design sits on, measured once, here, and used for every question that
+        // follows: how far out the artwork reaches, what the new space should be filled with,
+        // and what counts as design when reporting what the rim covered.
+        //
+        // Measured before any padding, deliberately. It comes from the border, and the border
+        // is only reliably background while it is still the original file's own edge - once
+        // padding is in place the border is whatever we just put there, and asking it what the
+        // background is would return our own answer.
+        ushort background = DepthCanvas.BackgroundLevel(outp, w, h);
+
+        // The map at its original extent, kept across the padding step. Everything downstream
+        // that asks "is this artwork" asks this rather than the padded buffer, because only
+        // the original rectangle can contain artwork.
+        ushort[] design = outp;
+        int dw = w, dh = h;
+
+        // ---- fit --------------------------------------------------------
+        // Grow the canvas until the design clears the rim, instead of letting the rim paint
+        // over it. The blank is a fixed 40 mm whatever we do, so a larger canvas means the
+        // same artwork spans fewer millimetres of it - the same outcome as scaling the art
+        // down, reached without resampling a single pixel.
+        if (o.AddRim && o.Fit != FitPolicy.None && o.BlankDiameterMm is > 0)
+        {
+            var plan = DepthCanvas.Plan(outp, w, h, maxValue, o, background);
+            if (plan.Size > 0 && plan.Grows(w, h))
+            {
+                // What the new ring gets cut to, and it is not a cosmetic choice.
+                //
+                // Matching the background keeps the field continuous, with no step where the
+                // original file ended, and it is self-correcting across conventions: art on a
+                // cut-away floor extends the floor, art on an untouched field extends that.
+                // The cost is that on a cut-away floor it means engraving the whole new ring
+                // to full depth, which is real time on the machine and real depth budget.
+                //
+                // Leaving it untouched costs nothing to cut, but only looks right when the
+                // design's background is already near untouched - otherwise the boundary of
+                // the source image shows up as a square step around the artwork.
+                ushort fill = o.PadWith == PadFill.Untouched ? untouched : background;
+                outp = DepthCanvas.Pad(outp, w, h, plan.Size, plan.OffsetX, plan.OffsetY, fill);
+                w = h = plan.Size;
+                report.Fit = plan;
+                report.OutWidth = w;
+                report.OutHeight = h;
+
+                // Every millimetre figure was resolved against the old canvas and is now wrong.
+                // The written resolution especially: a pHYs chunk describing the original size
+                // would place the padded map at the wrong scale, which is a worse failure than
+                // writing none at all. Only rewritten when one was going to be written.
+                double ppmm = plan.PixelsPerMm;
+                o.RimRadius = Math.Max(1, w / 2.0 - (o.RimWidthMm ?? 0) * ppmm);
+                o.RimRamp = (o.RimRampMm ?? 0) * ppmm;
+                if (o.Dpi is not null) o.Dpi = ppmm * 25.4;
+            }
+        }
+
         // ---- rim --------------------------------------------------------
         if (o.AddRim && o.RimRadius > 0)
-            ApplyRim(source, outp, width, height, maxValue, o, report);
+            ApplyRim(outp, w, h, design, dw, dh, maxValue, untouched, background, o, report);
 
         // ---- quantise ---------------------------------------------------
         if (o.Slices > 1)
-            Quantise(outp, maxValue, o.Slices, o.Dither, width);
+            Quantise(outp, maxValue, o.Slices, o.Dither, w);
 
         // ---- invert -----------------------------------------------------
         if (o.Invert)
             for (int i = 0; i < outp.Length; i++)
                 outp[i] = (ushort)(maxValue - outp[i]);
-
-        for (int i = 0; i < source.Length; i++)
-            if (source[i] != outp[i]) report.Changed++;
 
         return outp;
     }
@@ -91,51 +166,82 @@ public static class DepthTuner
     /// <summary>
     /// Paints an untouched ring at the edge and ramps into it.
     ///
-    /// The ramp blends the existing value toward white as a function of radius rather than
+    /// The ramp blends the existing value toward untouched as a function of radius rather than
     /// heading for one fixed level. That way it meets the artwork exactly at the inner edge
     /// at every angle - no seam where the design happens to sit deeper on one side - and it
-    /// can only ever lighten a pixel, so it can never cut somewhere the original did not.
+    /// can only ever move a pixel toward untouched, so it can never cut somewhere the original
+    /// did not.
+    ///
+    /// <para><paramref name="design"/> is the map at its original extent, before any padding,
+    /// and it is the only thing consulted about what counts as artwork. That distinction is
+    /// what keeps the accounting honest: padding puts our own fill around the edge, and a
+    /// content test run over the padded buffer ends up measuring whatever this code just wrote
+    /// there - reporting the field as clipped design with a background fill, and the padding
+    /// itself as clipped design with an untouched one. The design lives in the original
+    /// rectangle; nothing outside it can be artwork. Padding is centred, so a radius measured
+    /// from the original's centre is the same distance in the padded canvas.</para>
     /// </summary>
-    private static void ApplyRim(ushort[] source, ushort[] outp, int width, int height,
-                                 int maxValue, TuningOptions o, TuningReport report)
+    private static void ApplyRim(ushort[] buf, int width, int height,
+                                 ushort[] design, int dw, int dh,
+                                 int maxValue, ushort untouched, ushort background,
+                                 TuningOptions o, TuningReport report)
     {
         double cx = o.RimCentreX ?? (width - 1) / 2.0;
         double cy = o.RimCentreY ?? (height - 1) / 2.0;
         double outer = o.RimRadius;
         double inner = Math.Max(0, outer - Math.Max(0, o.RimRamp));
 
-        // "Content" means clearly not background: above a fifth of the range. Used only to
-        // report what the rim costs, never to decide anything.
-        int contentFloor = maxValue / 5;
+        // The background arrives from the caller, measured on the original extent while the
+        // border was still the file's own edge rather than our padding.
+        int tol = Math.Max(1, maxValue / 128);
+
+        // A ramp covers a pixel gradually; call it covered past the halfway point of the
+        // blend, which is also exactly "past the rim" when there is no ramp at all.
+        double coveredFrom = (inner + outer) / 2;
+
         long totalContent = 0;
-        for (int i = 0; i < source.Length; i++) if (source[i] > contentFloor) totalContent++;
+        double furthestContent = 0;
+        double dcx = (dw - 1) / 2.0, dcy = (dh - 1) / 2.0;
+
+        for (int y = 0; y < dh; y++)
+        {
+            double dy = y - dcy;
+            long row = (long)y * dw;
+            for (int x = 0; x < dw; x++)
+            {
+                if (Math.Abs(design[row + x] - background) <= tol) continue;
+                totalContent++;
+
+                double dx = x - dcx;
+                double r = Math.Sqrt(dx * dx + dy * dy);
+                if (r > furthestContent) furthestContent = r;
+                if (r >= coveredFrom) report.RimClipped++;
+            }
+        }
 
         for (int y = 0; y < height; y++)
         {
             double dy = y - cy;
-            int row = y * width;
+            long row = (long)y * width;
             for (int x = 0; x < width; x++)
             {
                 double dx = x - cx;
                 double r = Math.Sqrt(dx * dx + dy * dy);
                 if (r < inner) continue;
 
-                int idx = row + x;
-                bool hadContent = source[idx] > contentFloor;
+                long idx = row + x;
 
                 if (r >= outer)
                 {
-                    if (outp[idx] != maxValue) report.RimPixels++;
-                    if (hadContent) report.RimClipped++;
-                    outp[idx] = (ushort)maxValue;
+                    if (buf[idx] != untouched) report.RimPixels++;
+                    buf[idx] = untouched;
                     continue;
                 }
 
                 double t = (r - inner) / (outer - inner);
                 t = t * t * (3 - 2 * t);                       // smoothstep
-                int v = outp[idx];
-                outp[idx] = (ushort)Math.Round(v + (maxValue - v) * t);
-                if (hadContent && t > 0.5) report.RimClipped++;
+                int v = buf[idx];
+                buf[idx] = (ushort)Math.Round(v + (untouched - v) * t);
             }
         }
 
@@ -143,30 +249,18 @@ public static class DepthTuner
 
         // If the rim eats into the design, say by how much the art would have to shrink to
         // clear it: the furthest content from the centre, against the ramp's inner edge.
-        if (report.RimClipped > 0 && inner > 0)
-        {
-            double furthest = 0;
-            for (int y = 0; y < height; y++)
-            {
-                double dy = y - cy;
-                int row = y * width;
-                for (int x = 0; x < width; x++)
-                    if (source[row + x] > contentFloor)
-                    {
-                        double dx = x - cx;
-                        double r = Math.Sqrt(dx * dx + dy * dy);
-                        if (r > furthest) furthest = r;
-                    }
-            }
-            if (furthest > inner) report.SuggestedScale = inner / furthest;
-        }
+        if (report.RimClipped > 0 && inner > 0 && furthestContent > inner)
+            report.SuggestedScale = inner / furthestContent;
 
-        report.Summary =
-            report.RimClipped == 0
-                ? "The rim sits clear of the design."
-                : $"The rim overlaps {report.RimClipped:N0} pixels of design "
-                + $"({report.RimClippedFraction * 100:F2}% of it). Scaling the art to "
-                + $"{report.SuggestedScale * 100:F0}% would clear it.";
+        report.Summary = report.RimClipped == 0
+            ? report.Fit is { } fit
+                ? $"The canvas was grown to {fit.Size:N0} px so the design clears the rim; "
+                + $"the artwork now spans {fit.ArtAcrossMm:F1} mm of the blank."
+                : "The rim sits clear of the design."
+            : $"The rim overlaps {report.RimClipped:N0} pixels of design "
+            + $"({report.RimClippedFraction * 100:F2}% of it). Scaling the art to "
+            + $"{report.SuggestedScale * 100:F0}% would clear it, or grow the canvas instead "
+            + "and keep every pixel.";
     }
 
     /// <summary>

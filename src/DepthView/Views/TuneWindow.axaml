@@ -124,11 +124,13 @@
                         ScrollViewer.AllowAutoHide="False">
             <StackPanel Margin="14,4,18,14">
 
+              <!-- No explanatory paragraphs in this panel. Every control carries a tooltip
+                   with the reasoning, the header states the convention, and the histogram
+                   strip states the gesture; a third copy here only pushed the rim controls
+                   below the fold on a 900px window. -->
               <TextBlock Classes="section" Text="LEVELS" Margin="0,8,0,7" />
-              <TextBlock Classes="note"
-                         Text="At or below black becomes one uniform full depth; at or above white is left untouched. Drag the markers on the histogram below." />
 
-              <Grid ColumnDefinitions="86,*" Margin="0,9,0,0">
+              <Grid ColumnDefinitions="86,*">
                 <TextBlock Grid.Column="0" Classes="label" Text="Black point" />
                 <NumericUpDown Grid.Column="1" x:Name="BlackBox" Minimum="0" Increment="1" FormatString="0" />
               </Grid>
@@ -153,9 +155,8 @@
 
               <TextBlock Classes="section" Text="RIM" />
               <CheckBox x:Name="RimCheck"
-                        Content="Leave an untouched rim at the edge" />
-              <TextBlock Classes="note"
-                         Text="For a coin blank with a raised rim. In millimetres, because that is how a rim is known: with calipers." />
+                        Content="Leave an untouched rim at the edge"
+                        ToolTip.Tip="For a coin blank with a raised rim. Measured in millimetres, because that is how a rim is known: with calipers." />
 
               <Grid ColumnDefinitions="112,*" Margin="0,9,0,0">
                 <TextBlock Grid.Column="0" Classes="label" Text="Blank diameter" />
@@ -167,6 +168,30 @@
                 <NumericUpDown Grid.Column="1" x:Name="RimBox" Minimum="0" Maximum="50"
                                Increment="0.1" FormatString="0.00" Value="1.00" />
               </Grid>
+              <!-- Fit sits directly under the two measurements it depends on, and above the
+                   refinements, because it is the one decision here that changes how much of
+                   the coin the design gets. Burying it under ramp and spot size put it below
+                   the fold on a 900px window, where nobody would find it. -->
+              <CheckBox x:Name="FitCheck"
+                        Content="Grow the canvas so nothing is clipped"
+                        ToolTip.Tip="Instead of the rim painting over artwork that runs past it, put the map in the middle of a larger square so the whole design sits inside the rim. Nothing is resampled - every original pixel is copied across untouched - so the artwork simply spans fewer millimetres of the same blank." />
+              <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
+                <TextBlock Grid.Column="0" Classes="label" Text="Keep clear of" />
+                <ComboBox Grid.Column="1" x:Name="FitPolicyBox" HorizontalAlignment="Stretch" SelectedIndex="0"
+                          ToolTip.Tip="Artwork: grow until the furthest engraved pixel clears the rim, which uses as much of the blank as the design actually needs.&#x0a;Whole image: grow until all four corners clear it. Nothing can be clipped by construction, but a square inside a circle gives up a factor of root two, so a 40 mm blank carries about 27 mm of art.">
+                  <ComboBoxItem Content="Artwork (measured)" />
+                  <ComboBoxItem Content="Whole image (corners)" />
+                </ComboBox>
+              </Grid>
+              <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
+                <TextBlock Grid.Column="0" Classes="label" Text="New space" />
+                <ComboBox Grid.Column="1" x:Name="PadBox" HorizontalAlignment="Stretch" SelectedIndex="0"
+                          ToolTip.Tip="What the laser does in the ring the growth creates.&#x0a;Match the background: the design's own field carries on out to the rim, so there is no step where the original file ended - but on art with a cut-away floor that means engraving the whole ring to full depth, which is real time on the machine.&#x0a;Leave untouched: nothing is cut there. Only looks right when the design's background is already near untouched, or the boundary of the source image shows as a square step.">
+                  <ComboBoxItem Content="Match the background" />
+                  <ComboBoxItem Content="Leave untouched" />
+                </ComboBox>
+              </Grid>
+
               <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
                 <TextBlock Grid.Column="0" Classes="label" Text="Ramp mm" />
                 <NumericUpDown Grid.Column="1" x:Name="RampBox" Minimum="0" Maximum="20"
@@ -179,8 +204,6 @@
                                Increment="1" FormatString="0" Value="7"
                                ToolTip.Tip="Beam spot diameter, used to check whether the map's resolution and the ramp width are asking for detail the machine can actually place." />
               </Grid>
-
-              <TextBlock x:Name="RimNote" Classes="note" Margin="0,8,0,0" />
 
               <TextBlock Classes="section" Text="SLICING" />
               <CheckBox x:Name="SliceCheck"

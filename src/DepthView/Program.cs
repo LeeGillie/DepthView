@@ -33,6 +33,9 @@ internal static class Program
     public static double? StartupBlankMm, StartupRimMm, StartupRampMm;
     public static int? StartupPasses;
 
+    /// <summary>Fit policy to open the tuning dialog with, from the same --fit flag as --tune.</summary>
+    public static FitPolicy StartupFit = FitPolicy.None;
+
     /// <summary>Open the About box straight away. Exists so its screenshot is reproducible too.</summary>
     public static bool StartupAbout;
 
@@ -108,6 +111,24 @@ internal static class Program
                                 depth, which is how a noisy floor stops engraving mottled
             --white <level>     levels at or above this become pure white: no passes at all
             --no-stretch        keep the levels where they are instead of filling the range
+            --fit [content|canvas]
+                                grow the canvas so the design clears the rim, instead of
+                                letting the rim paint over whatever runs past it. Nothing is
+                                resampled: the original pixels are copied into the middle of
+                                a larger square, so the same artwork simply spans fewer mm of
+                                the same blank. "content" (the default) grows until the
+                                furthest engraved pixel clears the rim; "canvas" grows until
+                                all four corners do, which cannot clip anything but costs the
+                                diagonal - a square inside a circle gives up a factor of root
+                                two, so a 40 mm blank carries about 27 mm of art
+            --pad <background|untouched>
+                                what the new ring between the artwork and the rim is cut to.
+                                "background" (the default) carries the design's own field out
+                                to the rim, so there is no step where the original file ended,
+                                but on art with a cut-away floor that means engraving the whole
+                                ring to full depth. "untouched" cuts nothing there, which only
+                                looks right when the design's background is already near
+                                untouched
             --rim <pct>         paint an untouched ring pct% of the radius wide, for the
                                 raised rim on a coin blank, ramping into it so the
                                 engraving rises to meet it instead of ending in a wall
@@ -185,6 +206,11 @@ internal static class Program
             StartupRimMm = Flag(args, "--rim-mm");
             StartupRampMm = Flag(args, "--ramp-mm");
             StartupPasses = Flag(args, "--passes") is double p && p >= 2 ? (int)p : null;
+
+            int fi = Array.IndexOf(args, "--fit");
+            if (fi >= 0)
+                StartupFit = fi + 1 < args.Length && args[fi + 1].Equals("canvas", StringComparison.OrdinalIgnoreCase)
+                    ? FitPolicy.Canvas : FitPolicy.Content;
         }
         StartupAbout = args.Any(a => a is "--about");
         StartupLicence = args.Any(a => a is "--licence" or "--license");
@@ -472,6 +498,23 @@ internal static class Program
                 case "--slices": if (int.TryParse(Next(), out int s)) o.Slices = s; break;
                 case "--dither": o.Dither = true; break;
                 case "--invert": o.Invert = true; break;
+
+                // "--fit" on its own means content, which is the useful default. The word is
+                // optional so the common case stays short, and naming it is how you ask for
+                // the guarantee instead.
+                case "--fit":
+                    o.Fit = FitPolicy.Content;
+                    if (i + 1 < rest.Length)
+                    {
+                        string? mode = rest[i + 1].ToLowerInvariant();
+                        if (mode is "canvas") { o.Fit = FitPolicy.Canvas; i++; }
+                        else if (mode is "content") i++;
+                    }
+                    break;
+
+                case "--pad":
+                    if (Next() is "untouched") o.PadWith = PadFill.Untouched;
+                    break;
                 case "--passes": if (int.TryParse(Next(), out int pp) && pp > 1) passes = pp; break;
                 case "--dpi": if (double.TryParse(Next(), out double d)) o.Dpi = d; break;
                 case "--blank": if (double.TryParse(Next(), out double bd2)) o.BlankDiameterMm = bd2; break;
@@ -521,15 +564,18 @@ internal static class Program
 
             outPath ??= Path.ChangeExtension(input, null) + "-tuned.png";
 
+            // Fitting grows the canvas, so the output is not always the size of the input.
+            // The report carries the dimensions that were actually produced.
+            int outW = rep.OutWidth, outH = rep.OutHeight;
+
             // Shared with the Tune window, deliberately: a file written from the dialog and one
             // written here with the same settings are the same bytes, which is only true while
             // there is one implementation of "write it out".
-            TuneJob.WriteTuned(outPath, tuned, loaded.Image.Width, loaded.Image.Height,
-                               maxValue, o, Path.GetFileName(input));
+            TuneJob.WriteTuned(outPath, tuned, outW, outH, maxValue, o, Path.GetFileName(input));
 
             if (maskPath is not null && o.AddRim)
             {
-                TuneJob.WriteRimMask(maskPath, loaded.Image.Width, loaded.Image.Height, o);
+                TuneJob.WriteRimMask(maskPath, outW, outH, o);
                 Console.WriteLine($"  mask            {Path.GetFileName(maskPath)} (white = engraved area)");
             }
 
@@ -590,6 +636,15 @@ internal static class Program
                             + (o.Stretch ? ", stretched" : ", not stretched"));
             Console.WriteLine($"  flattened       {rep.FlattenedToBlack:N0} px to pure black, "
                             + $"{rep.LiftedToWhite:N0} px to pure white");
+
+            if (rep.Fit is { } fit)
+            {
+                Console.WriteLine($"  fitted          canvas grown {loaded.Image.Width:N0} -> {fit.Size:N0} px"
+                                + $" so the design clears the rim; no pixel resampled");
+                Console.WriteLine($"                  the artwork now spans {fit.ArtAcrossMm:F1} mm of the"
+                                + $" {o.BlankDiameterMm:F1} mm blank, at {fit.PixelsPerMm:F1} px/mm");
+            }
+
             if (o.AddRim) Console.WriteLine($"  rim             {rep.Summary}");
             Console.WriteLine($"  changed         {rep.Changed:N0} of {grey.Length:N0} pixels");
             Console.WriteLine($"  depths @ {passes,-4}   {dBefore:N0} -> {dAfter:N0}"

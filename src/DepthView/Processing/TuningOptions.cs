@@ -67,7 +67,67 @@ public sealed class TuningOptions
     /// <summary>Written into the PNG as a pHYs chunk, so the map imports at its true size.</summary>
     public double? Dpi;
 
+    // --- physical size ---------------------------------------------------
+    // Rim geometry is measured with calipers, not guessed as a percentage. Given the blank
+    // diameter, every other dimension can be stated in millimetres and converted once, and
+    // the resulting resolution can be written into the file so an importer places it at the
+    // right size without anyone scaling it by hand - which is one of the easier ways to
+    // ruin a coin.
+
+    /// <summary>Diameter of the blank, in mm, matched to the short side of the image.</summary>
+    public double? BlankDiameterMm;
+
+    /// <summary>Rim width in mm, measured from the edge inward.</summary>
+    public double? RimWidthMm;
+
+    /// <summary>Ramp width in mm. Defaults to the rim width when not given.</summary>
+    public double? RimRampMm;
+
+    /// <summary>Pixels per mm implied by the blank diameter and the image's short side.</summary>
+    public double? PixelsPerMm(int width, int height) =>
+        BlankDiameterMm is > 0 ? Math.Min(width, height) / BlankDiameterMm : null;
+
+    /// <summary>
+    /// Turns the millimetre figures into pixels and fills in the DPI. Call once, before
+    /// <see cref="DepthTuner.Apply"/>, when the physical size is known.
+    /// </summary>
+    public void ResolvePhysical(int width, int height)
+    {
+        if (PixelsPerMm(width, height) is not double ppmm || ppmm <= 0) return;
+
+        double half = Math.Min(width, height) / 2.0;
+        if (RimWidthMm is > 0)
+        {
+            AddRim = true;
+            RimRadius = Math.Max(1, half - RimWidthMm.Value * ppmm);
+            RimRamp = (RimRampMm ?? RimWidthMm.Value) * ppmm;
+        }
+        Dpi ??= ppmm * 25.4;
+    }
+
     /// <summary>True when nothing here would change a single pixel.</summary>
     public bool IsNoOp(int maxValue) =>
         BlackPoint <= 0 && WhitePoint >= maxValue && !AddRim && Slices <= 0 && !Invert;
+}
+
+/// <summary>How the file's resolution compares with what the machine can actually resolve.</summary>
+public readonly record struct ResolutionCheck(double MicronsPerPixel, string Note)
+{
+    /// <summary>
+    /// A depth map finer than the beam is wasted work, and one coarser than the beam throws
+    /// away detail the machine could have cut. Both are worth knowing before a long job.
+    /// </summary>
+    public static ResolutionCheck For(double micronsPerPixel, double spotMicrons)
+    {
+        double ratio = micronsPerPixel / spotMicrons;
+        string note = ratio switch
+        {
+            < 0.5 => "finer than the beam can resolve - the extra pixels cost time and buy nothing",
+            < 0.9 => "comfortably finer than the spot",
+            <= 1.6 => "well matched to the spot",
+            <= 3.0 => "coarser than the spot - a higher resolution map would carry more detail",
+            _ => "much coarser than the spot - the machine can cut finer than this file describes",
+        };
+        return new ResolutionCheck(micronsPerPixel, note);
+    }
 }

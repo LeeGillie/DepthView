@@ -104,8 +104,14 @@ internal static class Program
                                 rings a hard threshold leaves on smooth curves
             --invert            flip black/white, for art authored white-deepest
             --bits <8|16>       output bit depth (default 16)
-            --dpi <n>           record the physical size in the PNG
             --passes <n>        pass count to report depths against (default 256)
+          Measured in millimetres instead, which is how a rim is actually known:
+            --blank <mm>        diameter of the blank, matched to the image's short side
+            --rim-mm <mm>       rim width, measured inward from the edge
+            --ramp-mm <mm>      ramp width, if it should differ from the rim
+            --spot <um>         beam spot size, to check the map's resolution (default 7)
+            --dpi <n>           override the resolution written into the PNG; with --blank
+                                it is worked out for you, so the map imports at true size
           Black and white default to the 0.1 and 99.9 percentiles, because one stray pixel
           at an extreme is enough to make a min/max stretch do nothing.
 
@@ -276,6 +282,8 @@ internal static class Program
         bool haveBlack = false, haveWhite = false;
         double? rimPct = null, rampPct = null;
         int passes = 256;
+        // WeCreat support give 6-8 um for the Lumos Ultra UV spot; 7 sits in the middle.
+        double spotMicrons = 7;
 
         for (int i = 0; i < rest.Length; i++)
         {
@@ -296,6 +304,10 @@ internal static class Program
                 case "--invert": o.Invert = true; break;
                 case "--passes": if (int.TryParse(Next(), out int pp) && pp > 1) passes = pp; break;
                 case "--dpi": if (double.TryParse(Next(), out double d)) o.Dpi = d; break;
+                case "--blank": if (double.TryParse(Next(), out double bd2)) o.BlankDiameterMm = bd2; break;
+                case "--rim-mm": if (double.TryParse(Next(), out double rmm)) o.RimWidthMm = rmm; break;
+                case "--ramp-mm": if (double.TryParse(Next(), out double ramm)) o.RimRampMm = ramm; break;
+                case "--spot": if (double.TryParse(Next(), out double sp)) spotMicrons = sp; break;
                 case "--bits": if (int.TryParse(Next(), out int bd)) o.OutputBitDepth = bd; break;
                 default:
                     if (!a.StartsWith('-') && input is null) input = a;
@@ -323,7 +335,10 @@ internal static class Program
             if (!haveBlack) o.BlackPoint = sb;
             if (!haveWhite) o.WhitePoint = sw;
 
-            if (rimPct is double pct)
+            // Millimetres win over percentages when both are given: one came off a pair of
+            // calipers and the other is a guess.
+            o.ResolvePhysical(loaded.Image.Width, loaded.Image.Height);
+            if (rimPct is double pct && o.RimWidthMm is null)
             {
                 double half = Math.Min(loaded.Image.Width, loaded.Image.Height) / 2.0;
                 o.RimRadius = half * (1 - pct / 100.0);
@@ -375,6 +390,17 @@ internal static class Program
             var (dAfter, wAfter) = after.SlicesAt(passes);
 
             Console.WriteLine($"Tuned {Path.GetFileName(input)} -> {Path.GetFileName(outPath)}");
+            if (o.PixelsPerMm(loaded.Image.Width, loaded.Image.Height) is double ppmm)
+            {
+                var check = ResolutionCheck.For(1000.0 / ppmm, spotMicrons);
+                Console.WriteLine($"  physical        {o.BlankDiameterMm:F1} mm across {Math.Min(loaded.Image.Width, loaded.Image.Height):N0} px"
+                                + $"  =  {ppmm:F1} px/mm, {o.Dpi:F0} dpi");
+                Console.WriteLine($"  resolution      {check.MicronsPerPixel:F1} um/pixel against a {spotMicrons:F0} um spot"
+                                + $"  -  {check.Note}");
+                if (o.RimWidthMm is double rw)
+                    Console.WriteLine($"  rim             {rw:F2} mm = {rw * ppmm:F0} px"
+                                    + $", ramp {(o.RimRampMm ?? rw):F2} mm");
+            }
             Console.WriteLine($"  levels          black {o.BlackPoint:N0}, white {o.WhitePoint:N0}"
                             + (o.Stretch ? ", stretched" : ", not stretched"));
             Console.WriteLine($"  flattened       {rep.FlattenedToBlack:N0} px to pure black, "

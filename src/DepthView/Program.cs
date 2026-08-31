@@ -8,6 +8,7 @@ using System.Text;
 using Avalonia;
 using DepthView.Analysis;
 using DepthView.Imaging;
+using DepthView.Processing;
 using SixLabors.ImageSharp;   // for the SaveAsPng extension on the headless render path
 
 namespace DepthView;
@@ -85,6 +86,29 @@ internal static class Program
             --size <px>         output width (default 900)
             --out <file>        output PNG (default <image>-relief.png)
 
+        Tune a depth map (writes a new file, never over the original)
+          DepthView --tune <image> [options]
+            --out <file>        output PNG (default <image>-tuned.png)
+            --black <level>     levels at or below this become pure black: one uniform
+                                depth, which is how a noisy floor stops engraving mottled
+            --white <level>     levels at or above this become pure white: no passes at all
+            --no-stretch        keep the levels where they are instead of filling the range
+            --rim <pct>         paint an untouched ring pct% of the radius wide, for the
+                                raised rim on a coin blank, ramping into it so the
+                                engraving rises to meet it instead of ending in a wall
+            --ramp <pct>        ramp width, if it should differ from the rim width
+            --mask <file>       also write the rim as its own image, for running the field
+                                on separate laser settings
+            --slices <n>        quantise to exactly n depths, matching a pass count
+            --dither            scatter the slice boundaries, which breaks up the contour
+                                rings a hard threshold leaves on smooth curves
+            --invert            flip black/white, for art authored white-deepest
+            --bits <8|16>       output bit depth (default 16)
+            --dpi <n>           record the physical size in the PNG
+            --passes <n>        pass count to report depths against (default 256)
+          Black and white default to the 0.1 and 99.9 percentiles, because one stray pixel
+          at an extreme is enough to make a min/max stretch do nothing.
+
         Exit codes: 0 all clean, 1 at least one file flagged as an imposter, 2 a file failed to load.
         """;
 
@@ -97,6 +121,9 @@ internal static class Program
             Console.WriteLine(Help);
             return 0;
         }
+
+        int tidx = Array.FindIndex(args, a => a is "--tune");
+        if (tidx >= 0) return RunTune(args.Skip(tidx + 1).ToArray());
 
         int ridx = Array.FindIndex(args, a => a is "--render");
         if (ridx >= 0) return RunRender(args.Skip(ridx + 1).ToArray());
@@ -229,6 +256,161 @@ internal static class Program
         }
 
         return exit;
+    }
+
+    // ------------------------------------------------------------------ headless tuning
+
+    /// <summary>
+    /// Writes a tuned copy of a depth map without opening a window, so a whole folder can be
+    /// put through the same treatment, and so every part of the tuning path is exercisable
+    /// from a script and from CI rather than only by hand.
+    ///
+    /// Never writes over the input. A tuned map is a new file, always.
+    /// </summary>
+    private static int RunTune(string[] rest)
+    {
+        AttachParentConsole();
+
+        string? input = null, outPath = null, maskPath = null;
+        var o = new TuningOptions();
+        bool haveBlack = false, haveWhite = false;
+        double? rimPct = null, rampPct = null;
+        int passes = 256;
+
+        for (int i = 0; i < rest.Length; i++)
+        {
+            string a = rest[i];
+            string? Next() => i + 1 < rest.Length ? rest[++i] : null;
+
+            switch (a)
+            {
+                case "--out": outPath = Next(); break;
+                case "--mask": maskPath = Next(); break;
+                case "--black": if (int.TryParse(Next(), out int b)) { o.BlackPoint = b; haveBlack = true; } break;
+                case "--white": if (int.TryParse(Next(), out int w)) { o.WhitePoint = w; haveWhite = true; } break;
+                case "--no-stretch": o.Stretch = false; break;
+                case "--rim": if (double.TryParse(Next(), out double rp)) { rimPct = rp; o.AddRim = true; } break;
+                case "--ramp": if (double.TryParse(Next(), out double rr)) rampPct = rr; break;
+                case "--slices": if (int.TryParse(Next(), out int s)) o.Slices = s; break;
+                case "--dither": o.Dither = true; break;
+                case "--invert": o.Invert = true; break;
+                case "--passes": if (int.TryParse(Next(), out int pp) && pp > 1) passes = pp; break;
+                case "--dpi": if (double.TryParse(Next(), out double d)) o.Dpi = d; break;
+                case "--bits": if (int.TryParse(Next(), out int bd)) o.OutputBitDepth = bd; break;
+                default:
+                    if (!a.StartsWith('-') && input is null) input = a;
+                    break;
+            }
+        }
+
+        if (input is null || !File.Exists(input))
+        {
+            Console.Error.WriteLine("Usage: DepthView --tune <image> [options]. See --help.");
+            return 2;
+        }
+
+        try
+        {
+            var loaded = ImageLoader.Load(File.ReadAllBytes(input), Path.GetFileName(input), input, "tuning");
+            var before = DepthAnalyzer.Analyze(loaded.Image, loaded.Meta);
+            var grey = DepthTuner.ExtractGrey(loaded.Image);
+            int maxValue = loaded.Image.MaxValue;
+
+            // Unstated level points come from percentiles, not min/max: a handful of stray
+            // pixels at either extreme is common, and one of them makes a min/max stretch
+            // do nothing at all.
+            var (sb, sw) = DepthTuner.SuggestLevels(before.GreyHistogram);
+            if (!haveBlack) o.BlackPoint = sb;
+            if (!haveWhite) o.WhitePoint = sw;
+
+            if (rimPct is double pct)
+            {
+                double half = Math.Min(loaded.Image.Width, loaded.Image.Height) / 2.0;
+                o.RimRadius = half * (1 - pct / 100.0);
+                o.RimRamp = half * ((rampPct ?? pct) / 100.0);
+            }
+
+            var tuned = DepthTuner.Apply(grey, loaded.Image.Width, loaded.Image.Height,
+                                         maxValue, o, out var rep);
+
+            outPath ??= Path.ChangeExtension(input, null) + "-tuned.png";
+            var notes = new List<(string, string)>
+            {
+                ("Software", $"DepthView {BuildInfo.Version}"),
+                ("Source", Path.GetFileName(input)),
+                ("Comment", $"black={o.BlackPoint} white={o.WhitePoint} stretch={o.Stretch} " +
+                            $"rim={(o.AddRim ? $"r{o.RimRadius:F0}/ramp{o.RimRamp:F0}" : "off")} " +
+                            $"slices={o.Slices} dither={o.Dither} invert={o.Invert}"),
+            };
+
+            // Written at the source's own precision unless told otherwise: silently taking a
+            // 16-bit map to 8 bits on the way out would be the exact fault this program reports.
+            int outBits = o.OutputBitDepth == 8 ? 8 : 16;
+            var scaled = tuned;
+            if (outBits == 8 && maxValue > 255)
+            {
+                scaled = new ushort[tuned.Length];
+                for (int i = 0; i < tuned.Length; i++)
+                    scaled[i] = (ushort)Math.Round(tuned[i] / (double)maxValue * 255);
+            }
+            else if (outBits == 16 && maxValue < 65535)
+            {
+                scaled = new ushort[tuned.Length];
+                for (int i = 0; i < tuned.Length; i++)
+                    scaled[i] = (ushort)Math.Round(tuned[i] / (double)maxValue * 65535);
+            }
+
+            PngEncoder.WriteGrey(outPath, scaled, loaded.Image.Width, loaded.Image.Height,
+                                 outBits, o.Dpi, notes.ToArray());
+
+            if (maskPath is not null && o.AddRim)
+                WriteRimMask(maskPath, loaded.Image.Width, loaded.Image.Height, o);
+
+            // Re-analyse what was written. The tool marking its own homework is the point:
+            // the claim that tuning helped should be a measurement, not an assertion.
+            var reloaded = ImageLoader.Load(File.ReadAllBytes(outPath), Path.GetFileName(outPath), outPath, "tuned");
+            var after = DepthAnalyzer.Analyze(reloaded.Image, reloaded.Meta);
+
+            var (dBefore, wBefore) = before.SlicesAt(passes);
+            var (dAfter, wAfter) = after.SlicesAt(passes);
+
+            Console.WriteLine($"Tuned {Path.GetFileName(input)} -> {Path.GetFileName(outPath)}");
+            Console.WriteLine($"  levels          black {o.BlackPoint:N0}, white {o.WhitePoint:N0}"
+                            + (o.Stretch ? ", stretched" : ", not stretched"));
+            Console.WriteLine($"  flattened       {rep.FlattenedToBlack:N0} px to pure black, "
+                            + $"{rep.LiftedToWhite:N0} px to pure white");
+            if (o.AddRim) Console.WriteLine($"  rim             {rep.Summary}");
+            Console.WriteLine($"  changed         {rep.Changed:N0} of {grey.Length:N0} pixels");
+            Console.WriteLine($"  depths @ {passes,-4}   {dBefore:N0} -> {dAfter:N0}"
+                            + $"   (wasted passes {wBefore:N0} -> {wAfter:N0})");
+            Console.WriteLine($"  range use       {before.RangeUtilisation * 100:F1}% -> {after.RangeUtilisation * 100:F1}%");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Tune failed: " + ex.Message);
+            return 2;
+        }
+    }
+
+    /// <summary>The rim as its own image, for running the floor or the field on separate settings.</summary>
+    private static void WriteRimMask(string path, int width, int height, TuningOptions o)
+    {
+        double cx = o.RimCentreX ?? (width - 1) / 2.0;
+        double cy = o.RimCentreY ?? (height - 1) / 2.0;
+        var mask = new ushort[(long)width * height];
+        for (int y = 0; y < height; y++)
+        {
+            double dy = y - cy;
+            for (int x = 0; x < width; x++)
+            {
+                double dx = x - cx;
+                mask[y * width + x] = Math.Sqrt(dx * dx + dy * dy) >= o.RimRadius ? (ushort)0 : (ushort)255;
+            }
+        }
+        // A mask is two states, so 8 bits is honest and a fifth of the size.
+        PngEncoder.WriteGrey(path, mask, width, height, 8);
+        Console.WriteLine($"  mask            {Path.GetFileName(path)} (white = engraved area)");
     }
 
     // ------------------------------------------------------------------ headless relief render

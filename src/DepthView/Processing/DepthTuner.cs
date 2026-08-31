@@ -5,7 +5,7 @@ using DepthView.Imaging;
 namespace DepthView.Processing;
 
 /// <summary>What a correction did, so the change can be stated in numbers rather than trusted.</summary>
-public sealed class CorrectionReport
+public sealed class TuningReport
 {
     public int MaxValue;
     public long FlattenedToBlack;      // pixels absorbed by the black point
@@ -28,7 +28,7 @@ public sealed class CorrectionReport
 ///
 /// Nothing here ever writes over the source. The caller supplies the destination.
 /// </summary>
-public static class DepthCorrector
+public static class DepthTuner
 {
     /// <summary>Pull a single grey plane out of an image, at its native precision.</summary>
     public static ushort[] ExtractGrey(ImageData img)
@@ -47,9 +47,9 @@ public static class DepthCorrector
     }
 
     public static ushort[] Apply(ushort[] source, int width, int height, int maxValue,
-                                 CorrectionOptions o, out CorrectionReport report)
+                                 TuningOptions o, out TuningReport report)
     {
-        report = new CorrectionReport { MaxValue = maxValue };
+        report = new TuningReport { MaxValue = maxValue };
         var outp = new ushort[source.Length];
 
         int black = Math.Clamp(o.BlackPoint, 0, maxValue);
@@ -97,7 +97,7 @@ public static class DepthCorrector
     /// can only ever lighten a pixel, so it can never cut somewhere the original did not.
     /// </summary>
     private static void ApplyRim(ushort[] source, ushort[] outp, int width, int height,
-                                 int maxValue, CorrectionOptions o, CorrectionReport report)
+                                 int maxValue, TuningOptions o, TuningReport report)
     {
         double cx = o.RimCentreX ?? (width - 1) / 2.0;
         double cy = o.RimCentreY ?? (height - 1) / 2.0;

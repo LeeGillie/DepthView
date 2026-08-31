@@ -9,7 +9,7 @@ namespace DepthView.Processing;
 /// the same reading applies to MakeIt. <see cref="Invert"/> is there for source art that was
 /// authored the other way round.
 /// </summary>
-public sealed class CorrectionOptions
+public sealed class TuningOptions
 {
     // --- levels ---------------------------------------------------------
     // The two points are a single idea: everything at or below BlackPoint becomes fully

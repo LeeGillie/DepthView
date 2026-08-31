@@ -133,6 +133,9 @@ internal static class Program
             return 0;
         }
 
+        int cidx = Array.FindIndex(args, a => a is "--calibrate");
+        if (cidx >= 0) return RunCalibrate(args.Skip(cidx + 1).ToArray());
+
         int tidx = Array.FindIndex(args, a => a is "--tune");
         if (tidx >= 0) return RunTune(args.Skip(tidx + 1).ToArray());
 
@@ -267,6 +270,119 @@ internal static class Program
         }
 
         return exit;
+    }
+
+    // ------------------------------------------------------------------ calibration coupon
+
+    /// <summary>
+    /// Writes a calibration pattern to engrave, plus a text sheet to record the measurements on.
+    ///
+    /// Everything DepthView says about physical outcomes depends on the machine and the
+    /// material, and no two are alike. Rather than hard-code one laser's numbers and quietly
+    /// mislead everyone else, it emits a coupon: engrave it, measure it, and the figures stop
+    /// being assumptions.
+    /// </summary>
+    private static int RunCalibrate(string[] rest)
+    {
+        AttachParentConsole();
+
+        var spec = new CalibrationSpec();
+        string? outPath = null;
+
+        for (int i = 0; i < rest.Length; i++)
+        {
+            string a = rest[i];
+            string? Next() => i + 1 < rest.Length ? rest[++i] : null;
+            switch (a)
+            {
+                case "--out": outPath = Next(); break;
+                case "--blank": if (double.TryParse(Next(), out double bd)) spec.BlankDiameterMm = bd; break;
+                case "--rim-mm": if (double.TryParse(Next(), out double rm)) spec.RimMm = rm; break;
+                case "--size": if (int.TryParse(Next(), out int sz)) spec.Pixels = sz; break;
+                case "--steps": if (int.TryParse(Next(), out int st)) spec.WedgeSteps = Math.Clamp(st, 4, 64); break;
+                case "--material": spec.Material = Next() ?? ""; break;
+                case "--machine": spec.Machine = Next() ?? ""; break;
+            }
+        }
+
+        try
+        {
+            var pat = CalibrationPattern.Build(spec);
+            string tag = string.Join("-", new[] { spec.Machine, spec.Material }
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s.Replace(' ', '-').ToLowerInvariant()));
+            outPath ??= $"depthview-calibration{(tag.Length > 0 ? "-" + tag : "")}.png";
+
+            PngEncoder.WriteGrey(outPath, pat.Pixels, pat.Width, pat.Height, 16, pat.Dpi, new[]
+            {
+                ("Software", $"DepthView {BuildInfo.Version}"),
+                ("Comment", $"calibration coupon, {spec.BlankDiameterMm:F1} mm blank, " +
+                            $"{spec.WedgeSteps} depth steps, machine={spec.Machine}, material={spec.Material}"),
+            });
+
+            string sheet = Path.ChangeExtension(outPath, null) + "-worksheet.txt";
+            File.WriteAllText(sheet, Worksheet(spec, pat));
+
+            Console.WriteLine($"Calibration coupon -> {outPath}");
+            Console.WriteLine($"  blank           {spec.BlankDiameterMm:F1} mm, rim {spec.RimMm:F2} mm left untouched");
+            Console.WriteLine($"  resolution      {pat.Width:N0} px, {pat.PixelsPerMm:F1} px/mm, "
+                            + $"{pat.Dpi:F0} dpi, {1000 / pat.PixelsPerMm:F1} um/pixel");
+            foreach (string line in pat.Legend) Console.WriteLine("  " + line);
+            Console.WriteLine($"  worksheet       {Path.GetFileName(sheet)}");
+            Console.WriteLine();
+            Console.WriteLine("  Black is deepest, white is untouched. The field is left uncut, so the");
+            Console.WriteLine("  original surface is your datum to measure depths against.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Calibration failed: " + ex.Message);
+            return 2;
+        }
+    }
+
+    private static string Worksheet(CalibrationSpec spec, CalibrationPattern.Result pat)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("DepthView calibration worksheet");
+        sb.AppendLine("===============================");
+        sb.AppendLine();
+        sb.AppendLine($"Machine   : {(spec.Machine.Length > 0 ? spec.Machine : "____________________")}");
+        sb.AppendLine($"Material  : {(spec.Material.Length > 0 ? spec.Material : "____________________")}");
+        sb.AppendLine("Power     : ____________  Speed: ____________  Frequency: ____________");
+        sb.AppendLine("Passes    : ____________  Date : ____________");
+        sb.AppendLine();
+        sb.AppendLine($"Blank {spec.BlankDiameterMm:F1} mm, {pat.Width} px, {pat.PixelsPerMm:F1} px/mm, "
+                    + $"{1000 / pat.PixelsPerMm:F1} um/pixel");
+        sb.AppendLine();
+        sb.AppendLine("1. DEPTH  - measure each step against the unengraved field, in microns.");
+        sb.AppendLine("   Step 1 is fully deep (black); the last step is untouched (white).");
+        sb.AppendLine("   This is the one that matters most: metal does not ablate linearly as the");
+        sb.AppendLine("   pocket deepens, so a linear depth map does not give linear depth.");
+        sb.AppendLine();
+        for (int i = 1; i <= spec.WedgeSteps; i++)
+        {
+            double commanded = 1.0 - (i - 1) / (double)(spec.WedgeSteps - 1);
+            sb.AppendLine($"   step {i,2}   commanded {commanded * 100,5:F1}% of full depth   measured ______ um");
+        }
+        sb.AppendLine();
+        sb.AppendLine("2. RAMP   - which ramp widths came out as a clean shoulder?");
+        sb.AppendLine("   The narrowest clean one is the minimum usable ramp on this material.");
+        sb.AppendLine();
+        foreach (double r in spec.RampsMm)
+            sb.AppendLine($"   {(r <= 0 ? "hard step" : r.ToString("0.00") + " mm"),-12}  clean / rough / not usable   (circle one)");
+        sb.AppendLine();
+        sb.AppendLine("3. SPOT   - the finest pitch still resolved as separate lines.");
+        sb.AppendLine("   That is the effective spot on this material, which is often not the");
+        sb.AppendLine("   figure on the spec sheet.");
+        sb.AppendLine();
+        foreach (double p in spec.CombPitchUm)
+            sb.AppendLine($"   {p,4:F0} um    resolved / merged   (circle one)");
+        sb.AppendLine();
+        sb.AppendLine("Notes:");
+        sb.AppendLine("  ____________________________________________________________");
+        sb.AppendLine("  ____________________________________________________________");
+        return sb.ToString();
     }
 
     // ------------------------------------------------------------------ headless tuning

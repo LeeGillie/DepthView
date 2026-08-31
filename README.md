@@ -656,6 +656,9 @@ can additionally target Android, iOS and WebAssembly later without a rewrite.
 
 ```
 DepthView.slnx
+CLAUDE.md                 context for anyone picking this up cold: build and test commands,
+                          the conventions that are load-bearing, the constraints, and the
+                          mistakes already made so they are not made twice
 src/DepthView/
   Program.cs              entry point, CLI report mode
   App.axaml               application shell

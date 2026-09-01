@@ -63,25 +63,27 @@ judgement, and that is where DepthView earns its place.
 Two real files, from `--report`:
 
 ```
-          passes    depths   wasted        passes    depths   wasted
-              64        22       42            64        61        3
-             256        88      168           256       238       18
-            1024       347      677          1024       948       76
+   passes  depths  uniform  relief  empty     passes  depths  uniform  relief  empty
+       64      22       22      22     20         64      64        0      64      0
+      256      88       90      87     79        256     255        0     256      0
+     1024     347      358     349    317       1024   1,014        0   1,024      0
 
      a 16-bit map using a third        a 16-bit map using its
      of its range: 17,463 levels       full range: 7,814 levels
 ```
 
 The left file holds **more than twice** the grey levels and resolves **a third as many
-depths** at every pass count, because it wastes most of its range. That is the kind of thing
-you cannot see by looking at the image or the header.
+depths** at every pass count, because its levels sit in the middle third of the range. Its
+design also ends up in a recess: at 256 passes, 90 of them cut every engraved pixel equally.
+That may be exactly what was wanted — the point is that you cannot see any of it by looking
+at the image or the header.
 
 | What LightBurn does | What it doesn't tell you | What DepthView adds |
 |---|---|---|
 | Accepts 8-bit **and** (since 2.1) 16-bit greyscale | Whether your 16-bit file *contains* 16 bits | Names the imposter and its mechanism, before you burn a blank |
 | Treats a 24-bit image as 8-bit — its docs say a 24-bit depth map "is actually three 8-bit channels" | That your greyscale map was saved as RGB and just lost its precision | Flags *grey data stored as RGB* as its own finding |
-| **Number of Passes** is the slice count | How many distinct depths you actually get at that pass count | The pass-count table above, plus what reclaiming headroom would recover |
-| Slices whatever range the image occupies | That a map spanning 267–63,271 wastes passes at both ends | Reports unused headroom, in depths rather than percentages |
+| **Number of Passes** is the slice count | How many distinct depths you actually get at that pass count | The pass-count table above, and what each pass is doing |
+| Slices whatever range the image occupies | That a map spanning 267–63,271 leaves passes cutting a flat recess at one end and empty at the other | Splits the passes into relief, uniform and empty, and leaves the judgement to you |
 | Accepts colour images | That stray non-grey pixels are in there at all | Flags them, and shows them as a red mask |
 
 The short version: LightBurn decides *how* to cut. DepthView tells you whether the file you
@@ -191,7 +193,7 @@ compression, filtering, interlacing, gamma, sBIT, ICC profile, resolution.
 | Pure white pixel count | Pixels on the container maximum. In a laser workflow these get zero passes and are left as bare surface. A large flat count can also mean clipped highlights. |
 | Pure black pixel count | Pixels on zero — full depth. A large flat count usually means clipped shadows, with relief detail past that depth already thrown away. |
 | Lightest / darkest level present | When an endpoint has no pixels at all, DepthView reports how close the map actually got and with how many pixels, rather than just saying "none". |
-| Unused headroom | Levels wasted at each end. Every unused level at the top is a laser pass that does nothing; every one at the bottom is depth you paid for and did not use. |
+| Unused headroom | Levels unoccupied at each end. Headroom at the top means passes whose mask is empty; headroom at the bottom means the design never reaches bare surface, so every pass cuts a uniform recess under it. Neither is automatically a fault — see the note on stretching below. |
 
 **Level structure** — where imposters give themselves away
 
@@ -209,9 +211,36 @@ compression, filtering, interlacing, gamma, sBIT, ICC profile, resolution.
 | Measurement | Reading it |
 |---|---|
 | Depths | Distinct engraved levels you get at that pass count, limited by the passes you run and by the gradation in the file, whichever runs out first. |
-| Wasted | Passes that repeat a depth already cut. |
-| After reclaiming headroom | What the same pass count would give if the occupied range were stretched to fill the container. The Tune dialog does this. |
+| Uniform | Passes whose mask covers every engraved pixel. They cut, and they remove real material — but they deepen the whole design equally, so what they leave is a flat recess under it rather than any part of the picture. |
+| Relief | Passes where the mask is shrinking. The only ones that carry shape. |
+| Empty | Passes with nothing in the mask at all, because nothing in the map is dark enough to reach them. |
+| Stretched | Depths you would get if the occupied levels were spread across the full range. See the note below — this is a decision about depth, not a repair. |
 | **Band spread** | How many of the file's levels fall into each pass, narrowest to widest. See below — this is a separate cost from the depth count, and it is where thin precision shows even when the depth count looks fine. |
+
+#### Stretching the range is a depth decision, not a repair
+
+Worth being precise about, because an earlier version of this README was not, and was
+[corrected on the LightBurn forum](https://forum.lightburnsoftware.com/t/depth-maps-that-claim-16-bit-and-arent-how-to-spot-them-before-you-slice/192202).
+
+Take a map whose levels occupy 34% of the range. At 256 passes it resolves 88 depths, and
+its relief occupies 87 of those passes — 1.01 levels per pass of relief depth, which is the
+theoretical maximum. **Nothing is being wasted.** You cannot fit more levels into a relief
+than you have passes of depth to put them in.
+
+Stretching it to the full range gives 255 depths. It does that by making the relief roughly
+three times deeper, and it gets more levels *because* it is deeper. Levels per unit of depth
+are identical before and after.
+
+So DepthView reports what the file currently asks for and what changing it would mean. It
+does not call a narrow range a fault. If the shallowness was deliberate — someone wanting a
+subtle relief — stretching overrides that intent by a factor of three. If it was an artefact
+of the pipeline, which happens often enough (normalised exports, 8-bit maps widened into
+16-bit containers), the extra depth is there for the taking. **Nothing in the file says
+which**, and the tool does not pretend to know.
+
+The same care applies to the pass split. A pass that adds no new level still fires and still
+removes material; it deepens rather than shapes. That is why there is no column called
+"wasted".
 
 #### Band spread, and why 16 bits matter below 256 passes
 
@@ -238,8 +267,8 @@ every file dialog:
 
 ```
 genuine 16-bit                         8-bit ladder in a 16-bit container
-passes  depths  wasted  band spread    passes  depths  wasted  band spread
-   200     199       1  327..328 x1.00    200     199       1  1..2 x2.00
+passes  depths  relief  band spread    passes  depths  relief  band spread
+   200     199     200  327..328 x1.00    200     199     200  1..2 x2.00
 ```
 
 Identical depth counts. Raised by Nathaniel Klumb on the LightBurn forum; see
@@ -552,7 +581,10 @@ Tuned 07-wasted-headroom.png -> 07-wasted-headroom-tuned.png
   levels          black 20,316, white 42,598, stretched
   flattened       175,320 px to pure black, 65,200 px to pure white
   changed         809,995 of 810,000 pixels
-  depths @ 256    88 -> 255   (wasted passes 168 -> 1)
+  depths @ 256    88 -> 255
+  passes          relief 87 -> 256, uniform 90 -> 0, empty 79 -> 0
+                  the relief is now 2.9x deeper. More depths because it is deeper, not because
+                  resolution was being wasted. If the narrow range was deliberate, this overrides it.
   range use       34.0% -> 100.0%
 ```
 

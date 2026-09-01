@@ -92,12 +92,15 @@ public sealed class AnalysisResult
 
     /// <summary>
     /// Distinct depths this map produces at a given pass count, and how many of those passes
-    /// repeat a depth that already exists.
+    /// add no new level.
     ///
     /// Both limits are real: you cannot resolve more depths than you have passes, and you
     /// cannot resolve more than the file holds once reduced to that many levels.
+    ///
+    /// The second figure is not a count of idle passes - see <see cref="PassesAt"/>, which
+    /// splits them by what they actually do.
     /// </summary>
-    public (int Distinct, int Wasted) SlicesAt(int passes)
+    public (int Distinct, int NoNewLevel) SlicesAt(int passes)
     {
         if (passes <= 1 || UsedLevels.Length == 0) return (0, Math.Max(0, passes));
         int distinct = DistinctAfterReduction(UsedLevels, MaxValue, passes, MinLevel, MaxLevel, false);
@@ -111,9 +114,60 @@ public sealed class AnalysisResult
         return DistinctAfterReduction(UsedLevels, MaxValue, passes, MinLevel, MaxLevel, true);
     }
 
-    /// <summary>Depths recovered purely by reclaiming unused headroom, at this pass count.</summary>
+    /// <summary>Depths gained by stretching the occupied range to fill the container.</summary>
     public int SlicesLostToHeadroom(int passes) =>
         Math.Max(0, SlicesAtRemapped(passes) - SlicesAt(passes).Distinct);
+
+    /// <summary>
+    /// What the passes in a job actually do, split three ways.
+    ///
+    /// This replaces a single figure that used to be labelled "wasted", which was wrong and
+    /// was rightly picked apart on the LightBurn forum by Finn65. A slicer masks each pass by
+    /// a threshold; if two consecutive thresholds fall in a gap where no pixel value exists,
+    /// the second pass fires on exactly the same mask as the first. It still cuts. It still
+    /// removes material. What it does not do is create a new distinguishable step. Calling
+    /// that "wasted" implies an idle laser, and the laser is not idle.
+    ///
+    /// Splitting it into three tells the truth and is more useful besides:
+    ///
+    /// <list type="bullet">
+    /// <item><b>Uniform</b> - passes whose mask covers every engraved pixel. They cut, but
+    /// they deepen everything equally, so what they produce is a flat recess under the whole
+    /// design rather than any part of the image. Real material, real time, no form. Whether
+    /// you want that recess is a design question, not a defect.</item>
+    /// <item><b>Relief</b> - passes where the mask is shrinking. This is where the image is
+    /// actually made, and it is the only part that carries shape.</item>
+    /// <item><b>Empty</b> - passes whose threshold is darker than anything in the map, so
+    /// nothing is in the mask at all. Whether a slicer skips these or runs them empty is an
+    /// implementation detail this program does not know.</item>
+    /// </list>
+    ///
+    /// The three always sum to the pass count.
+    /// </summary>
+    public readonly record struct PassBreakdown(int Uniform, int Relief, int Empty)
+    {
+        public int Total => Uniform + Relief + Empty;
+    }
+
+    /// <summary>
+    /// Black is deepest, so a pixel at value v is engraved on the first
+    /// round((1 - v/max) * passes) passes of the job. The darkest and lightest levels present
+    /// therefore bracket where the relief lives, and everything outside that bracket is either
+    /// uniform cutting or an empty mask.
+    /// </summary>
+    public PassBreakdown PassesAt(int passes)
+    {
+        if (passes <= 0 || UsedLevels.Length == 0 || MaxValue <= 0)
+            return new PassBreakdown(0, 0, Math.Max(0, passes));
+
+        int deepest = (int)Math.Round((1.0 - (double)MinLevel / MaxValue) * passes);
+        int lightest = (int)Math.Round((1.0 - (double)MaxLevel / MaxValue) * passes);
+
+        deepest = Math.Clamp(deepest, 0, passes);
+        lightest = Math.Clamp(lightest, 0, deepest);
+
+        return new PassBreakdown(lightest, deepest - lightest, passes - deepest);
+    }
 
     /// <summary>
     /// How evenly the file's precision divides into engraved bands, at a given pass count.

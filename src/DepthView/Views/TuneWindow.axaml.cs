@@ -423,8 +423,10 @@ public partial class TuneWindow : Window
                                           out long flattened, out long lifted);
 
         int passes = (int)(PassBox.Value ?? 256);
-        var (dBefore, wBefore) = TuneJob.DepthsAt(_source.GreyHistogram, _maxValue, passes);
-        var (dAfter, wAfter) = TuneJob.DepthsAt(_tunedHist, _maxValue, passes);
+        var (dBefore, _) = TuneJob.DepthsAt(_source.GreyHistogram, _maxValue, passes);
+        var (dAfter, _) = TuneJob.DepthsAt(_tunedHist, _maxValue, passes);
+        var pBefore = TuneJob.PassesFor(_source.GreyHistogram, _maxValue, passes);
+        var pAfter = TuneJob.PassesFor(_tunedHist, _maxValue, passes);
         var (tMin, tMax, tUnique) = TuneJob.Span(_tunedHist);
 
         double useBefore = TuneJob.RangeUse(_source.GreyHistogram, _maxValue);
@@ -441,7 +443,12 @@ public partial class TuneWindow : Window
         ResultText.Text = string.Join(Environment.NewLine, new[]
         {
             $"Distinct depths        {dBefore:N0}  to  {dAfter:N0}",
-            $"Passes repeating one   {wBefore:N0}  to  {wAfter:N0}",
+            // Relief passes, not "wasted" ones. A pass that adds no new level still fires and
+            // still cuts; what it does not do is add shape. Showing the relief count makes the
+            // honest point directly - the gain here is a deeper relief, not recovered
+            // resolution.
+            $"Passes forming relief  {pBefore.Relief:N0}  to  {pAfter.Relief:N0}",
+            $"Cutting a flat recess  {pBefore.Uniform:N0}  to  {pAfter.Uniform:N0}",
             $"Range used             {useBefore * 100:F0}%  to  {useAfter * 100:F0}%",
             // "Levels absorbed", not "absorbed": the rim swallows pixels too, and lumping the
             // two together would let a rim that is eating the artwork hide inside a number the

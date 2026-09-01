@@ -19,7 +19,7 @@ That is the entire argument for the program in one folder.
 | `04-quantised-1024.png` | **WARN** — 1,014 levels, step 64 | The subtle one, and the one people miss. A 10-bit ladder stretched across a 16-bit range. It is genuinely better than 8-bit, and still far short of what it claims. |
 | `05-grey-stored-as-rgb.png` | **OK**, with a finding | Neutral grey in three identical channels. Three times the data for no extra information — and **LightBurn reads a 24-bit image as 8-bit**, so this wrapper can silently cost precision as well as bytes. |
 | `06-honest-8bit.png` | **OK** — 255 levels, 8-bit | Not a fault. An 8-bit file that says it is 8-bit. Worth loading right after `02` to see that the numbers are identical: the imposter was never more than this. |
-| `07-wasted-headroom.png` | **OK**, with a warning | Genuine 16-bit, but the data sits in the middle third of the range. At 100 passes, roughly two-thirds of them do nothing. **Unused headroom** in the report is what you would reclaim by remapping. |
+| `07-wasted-headroom.png` | **OK**, with a warning | Genuine 16-bit, but the data sits in the middle third of the range. At 256 passes only 87 of them form the relief: 90 cut every engraved pixel equally (a flat recess under the design) and 79 have nothing in the mask. Whether that recess was wanted is a question the file cannot answer. |
 | `08-colour-contaminated.png` | **OK**, 897 non-grey px | 897 pixels out of 810,000 are not neutral — the residue of a JPEG round trip or a stray brush. Invisible on screen. Switch **Preview mode → Colour mask** and they light up red. |
 
 ## A suggested five minutes
@@ -31,8 +31,9 @@ That is the entire argument for the program in one folder.
    strip under the histogram: the evenly spaced teeth are the signature.
 3. Load `03-imposter-high-byte.png` and switch the preview to **Low byte only**. Flat black.
    Do the same to `01` and the relief is still there.
-4. Load `07-wasted-headroom.png` and read **Unused headroom**. That number is passes you
-   are paying for and not using.
+4. Load `07-wasted-headroom.png` and read the pass split in the report. 90 of 256 passes cut
+   every engraved pixel equally — a flat pocket under the whole design. That is real material
+   and real time, and it is not the same thing as a wasted pass.
 5. Load `08-colour-contaminated.png` and switch to **Colour mask**.
 
 ## Where these came from

@@ -612,8 +612,10 @@ internal static class Program
             var reloaded = ImageLoader.Load(File.ReadAllBytes(outPath), Path.GetFileName(outPath), outPath, "tuned");
             var after = DepthAnalyzer.Analyze(reloaded.Image, reloaded.Meta);
 
-            var (dBefore, wBefore) = before.SlicesAt(passes);
-            var (dAfter, wAfter) = after.SlicesAt(passes);
+            var (dBefore, _) = before.SlicesAt(passes);
+            var (dAfter, _) = after.SlicesAt(passes);
+            var pBefore = before.PassesAt(passes);
+            var pAfter = after.PassesAt(passes);
 
             Console.WriteLine($"Tuned {Path.GetFileName(input)} -> {Path.GetFileName(outPath)}");
             if (o.PixelsPerMm(loaded.Image.Width, loaded.Image.Height) is double ppmm)
@@ -689,8 +691,20 @@ internal static class Program
 
             if (o.AddRim) Console.WriteLine($"  rim             {rep.Summary}");
             Console.WriteLine($"  changed         {rep.Changed:N0} of {grey.Length:N0} pixels");
-            Console.WriteLine($"  depths @ {passes,-4}   {dBefore:N0} -> {dAfter:N0}"
-                            + $"   (wasted passes {wBefore:N0} -> {wAfter:N0})");
+            Console.WriteLine($"  depths @ {passes,-4}   {dBefore:N0} -> {dAfter:N0}");
+            Console.WriteLine($"  passes          relief {pBefore.Relief:N0} -> {pAfter.Relief:N0}, "
+                            + $"uniform {pBefore.Uniform:N0} -> {pAfter.Uniform:N0}, "
+                            + $"empty {pBefore.Empty:N0} -> {pAfter.Empty:N0}");
+
+            // Said out loud because the numbers above invite the wrong reading. Stretching
+            // makes the relief deeper; it does not recover resolution that was being thrown
+            // away. Levels per unit of depth are the same before and after.
+            if (pAfter.Relief > pBefore.Relief)
+                Console.WriteLine($"                  the relief is now {(double)pAfter.Relief / Math.Max(1, pBefore.Relief):F1}x deeper."
+                                + " More depths because it is deeper, not because");
+            if (pAfter.Relief > pBefore.Relief)
+                Console.WriteLine("                  resolution was being wasted. If the narrow range was deliberate,"
+                                + " this overrides it.");
             Console.WriteLine($"  range use       {before.RangeUtilisation * 100:F1}% -> {after.RangeUtilisation * 100:F1}%");
             return 0;
         }

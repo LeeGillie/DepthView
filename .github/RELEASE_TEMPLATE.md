@@ -11,8 +11,15 @@ other half.
 becomes one uniform full depth — which is how a noisy floor stops engraving mottled and
 starts coming out polished. Everything at or above the white point is left untouched, and
 the shaded ends of the plot show exactly which pixels you are giving up. On the
-`07-wasted-headroom` sample that takes **88 distinct depths to 255 at 256 passes**, with
-168 wasted passes reduced to one, and range use from 34% to 100%.
+`07-wasted-headroom` sample that takes **88 distinct depths to 255 at 256 passes**, and
+range use from 34% to 100%.
+
+Worth being precise about what that buys, because the first cut of these notes was not and
+was corrected on the LightBurn forum: stretching a map's range **makes the relief deeper**.
+It gets more depths because it is deeper, not because resolution was being wasted — levels
+per unit of depth are unchanged. If a narrow range was deliberate, stretching overrides that
+intent. DepthView reports what the file asks for and what changing it would mean, and leaves
+the decision where it belongs.
 
 **Leave an untouched rim for a coin blank**, in millimetres, because that is how a rim is
 known — with calipers. If the artwork runs past it you are told what it costs: the

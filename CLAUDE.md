@@ -109,6 +109,29 @@ only the powers of two divide evenly — 8 pass counts out of 255 — while 127 
 2:1 spread. A genuine 16-bit map never exceeds 1.004 anywhere in that range. This is the
 `band spread` column. Raised by Nathaniel Klumb on the forum and verified before it went in.
 
+**"Wasted passes" was wrong, and stretching is not a repair.** Two corrections from Finn65,
+and the second one is the sharper.
+
+A slicer masks each pass by a threshold. When two consecutive thresholds fall in a gap where
+no pixel value exists, the second pass fires on the same mask as the first — it still cuts,
+it still removes material. What it does not do is add a distinguishable step. Calling that a
+"wasted pass" implies an idle laser and is simply false. `PassesAt` now splits the job three
+ways instead: **uniform** (mask covers everything, so it deepens without shaping — a flat
+recess), **relief** (mask shrinking, the only passes carrying shape), and **empty** (nothing
+in the mask at all). They sum to the pass count.
+
+And stretching a narrow range does not recover wasted resolution. Work it: a map occupying
+34% of the range resolves 88 depths into 87 passes of relief — 1.01 levels per pass of relief
+depth, which is the maximum possible. Nothing is being wasted. Stretching makes the relief
+~3x deeper and gets more levels *because* it is deeper; levels per unit of depth are
+unchanged. If the narrow range was deliberate, stretching overrides the intent by 3x, and
+nothing in the file says which it was. So the tool reports and does not prescribe — no
+warning fires merely because stretching would add depths.
+
+The general lesson, which is the reason this is here: the *numbers* stayed on the right side
+of the file/material line, and the *language* did not. "Wasted", "fixing", "reclaiming" are
+physical claims dressed as file analysis. Watch for that wording creeping back.
+
 **Floor polarity.** An early design assumed a white (untouched) floor. Lee's coins use a
 black floor — deepest, cut away. Both are supported now via the two level points, and
 nothing should assume one convention again.

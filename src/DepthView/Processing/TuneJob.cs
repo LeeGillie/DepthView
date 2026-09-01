@@ -142,13 +142,17 @@ public static class TuneJob
     }
 
     /// <summary>
-    /// Distinct depths a histogram yields at a given pass count, and how many passes then
-    /// repeat a depth that already exists.
+    /// Distinct depths a histogram yields at a given pass count, and how many passes add no
+    /// new level.
     ///
     /// Both limits are real: you cannot resolve more depths than you have passes, and you
     /// cannot resolve more than the file holds once reduced to that many levels.
+    ///
+    /// The second figure is emphatically not "wasted passes". A pass that adds no new level
+    /// still fires on its mask and still removes material - it deepens rather than shapes.
+    /// See <see cref="Analysis.AnalysisResult.PassesAt"/> for the split that says which.
     /// </summary>
-    public static (int Distinct, int Wasted) DepthsAt(long[] hist, int maxValue, int passes)
+    public static (int Distinct, int NoNewLevel) DepthsAt(long[] hist, int maxValue, int passes)
     {
         if (passes <= 1 || maxValue <= 0) return (0, Math.Max(0, passes));
 
@@ -165,6 +169,24 @@ public static class TuneJob
         }
 
         return (distinct, Math.Max(0, passes - distinct));
+    }
+
+    /// <summary>
+    /// What the passes do, from a histogram: how many cut everything equally, how many form
+    /// the relief, and how many have nothing in the mask. Mirrors
+    /// <see cref="Analysis.AnalysisResult.PassesAt"/> so the dialog's live figures and the
+    /// report's agree.
+    /// </summary>
+    public static (int Uniform, int Relief, int Empty) PassesFor(long[] hist, int maxValue, int passes)
+    {
+        var (min, max, unique) = Span(hist);
+        if (passes <= 0 || unique == 0 || maxValue <= 0)
+            return (0, 0, Math.Max(0, passes));
+
+        int deepest = Math.Clamp((int)Math.Round((1.0 - (double)min / maxValue) * passes), 0, passes);
+        int lightest = Math.Clamp((int)Math.Round((1.0 - (double)max / maxValue) * passes), 0, deepest);
+
+        return (lightest, deepest - lightest, passes - deepest);
     }
 
     /// <summary>Occupied span and level count of a histogram, in one pass.</summary>

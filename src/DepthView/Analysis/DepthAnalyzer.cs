@@ -461,21 +461,33 @@ public static class DepthAnalyzer
         {
             // 256 is the reference point because it is where 8-bit runs out, so it is the
             // pass count at which "would a 16-bit file have helped" gets its answer.
-            var (at256, wasted256) = r.SlicesAt(256);
+            var (at256, _) = r.SlicesAt(256);
+            var p256 = r.PassesAt(256);
             int lost256 = r.SlicesLostToHeadroom(256);
-            bool worthReclaiming = lost256 >= 16;
 
-            f.Add(new Finding(worthReclaiming ? Severity.Warn : Severity.Info, "Depths per pass count",
-                $"At 256 passes this map resolves {at256:N0} distinct depths"
-              + (wasted256 > 0
-                  ? $", so {wasted256:N0} of those passes repeat a depth that already exists."
-                  : ", using every pass.")
+            // Deliberately no longer a warning just because stretching would add depths.
+            // Whether the relief should be deeper is the operator's call, not a defect in the
+            // file, and saying otherwise was the substance of a fair correction on the
+            // LightBurn forum. What is worth flagging is a design sitting in a deep pocket it
+            // may not have asked for.
+            bool deepPocket = p256.Uniform >= 32;
+
+            f.Add(new Finding(deepPocket ? Severity.Warn : Severity.Info, "What 256 passes would do",
+                $"This map resolves {at256:N0} distinct depths at 256 passes. Of those passes, "
+              + $"{p256.Relief:N0} form the relief, {p256.Uniform:N0} have every engraved pixel in "
+              + $"the mask, and {p256.Empty:N0} have nothing in the mask at all."
+              + (p256.Uniform > 0
+                  ? $" The {p256.Uniform:N0} uniform passes still cut - they remove real material - but"
+                  + " they deepen the whole design equally, so what they leave is a flat recess"
+                  + " under it rather than any part of the picture. That is worth knowing whether"
+                  + " or not you asked for a recess."
+                  : " Nothing is cut uniformly: the lightest part of the design reaches bare surface.")
               + (lost256 > 0
-                  ? $" Reclaiming the unused headroom would take it to {r.SlicesAtRemapped(256):N0}"
-                  + $" - about {lost256:N0} more depths for no extra passes."
-                  : " The range is already well used; remapping would gain nothing.")
-              + " The full pass-count table is in the report: how many passes are worth running"
-              + " depends on the depth you want and how much gradation the file really holds."));
+                  ? $" Spreading the occupied levels across the full range would give {r.SlicesAtRemapped(256):N0}"
+                  + " depths instead, by making the relief deeper rather than by recovering anything"
+                  + " - levels per unit of depth do not change. Worth doing if the narrow range was"
+                  + " an accident, and worth leaving alone if it was not."
+                  : " The range is already fully used.")));
 
             // The other half of what precision buys, and the half that is easy to miss because
             // the depth count can look perfectly healthy while this is bad.
@@ -516,7 +528,9 @@ public static class DepthAnalyzer
             double util = r.RangeUtilisation * 100;
             f.Add(new Finding(util < 60 ? Severity.Warn : Severity.Info, "Range utilisation",
                 $"Values occupy {r.MinLevel:N0}..{r.MaxLevel:N0} of a possible 0..{r.MaxValue:N0} " +
-                $"({util:F1}% of the range). Unused headroom is wasted precision."));
+                $"({util:F1}% of the range). Whether that matters depends on how deep you meant "
+              + "the relief to be: spreading the levels across the full range makes it deeper "
+              + "rather than finer."));
         }
 
         if (r.GapCount > 0 && !r.UniformLadder)

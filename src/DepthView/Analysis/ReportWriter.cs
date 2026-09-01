@@ -121,24 +121,46 @@ public static class ReportWriter
         if (r.UsedLevels.Length > 1)
         {
             sb.AppendLine("DEPTHS PER PASS COUNT");
-            sb.AppendLine("  passes    depths   wasted   headroom   band spread");
+            sb.AppendLine("  passes   depths   uniform   relief   empty   stretched   band spread");
 
             // 200 is in the list deliberately. It is not a round number, and that is the point:
             // the awkward pass counts are where thin precision shows up, and every table that
             // lists only powers of two hides the effect completely.
             foreach (int passes in new[] { 64, 100, 128, 200, 256, 512, 1024 })
             {
-                var (distinct, wasted) = r.SlicesAt(passes);
+                var (distinct, _) = r.SlicesAt(passes);
+                var p = r.PassesAt(passes);
                 int remapped = r.SlicesAtRemapped(passes);
                 string spread = r.BandSpreadAt(passes) is { } b
                     ? $"{b.Min:N0}..{b.Max:N0} x{b.Ratio:F2}"
                     : "-";
-                sb.AppendLine($"  {passes,6}  {distinct,8:N0} {wasted,8:N0}   {remapped,8:N0}   {spread}");
+                sb.AppendLine($"  {passes,6} {distinct,8:N0}  {p.Uniform,8:N0} {p.Relief,8:N0} {p.Empty,7:N0}   "
+                            + $"{remapped,9:N0}   {spread}");
             }
 
             sb.AppendLine("  'depths' is how many distinct engraved levels you actually get:");
             sb.AppendLine("  limited by the passes you run and by the gradation in the file,");
-            sb.AppendLine("  whichever runs out first. 'wasted' passes repeat a depth already cut.");
+            sb.AppendLine("  whichever runs out first.");
+            sb.AppendLine();
+            sb.AppendLine("  The next three split the passes by what they do, and always sum to");
+            sb.AppendLine("  the pass count. 'uniform' passes have every engraved pixel in the");
+            sb.AppendLine("  mask: they cut, and they remove real material, but they deepen the");
+            sb.AppendLine("  whole design equally, so what they leave is a flat recess rather");
+            sb.AppendLine("  than any part of the picture. 'relief' passes are where the mask is");
+            sb.AppendLine("  shrinking, and are the only ones that carry shape. 'empty' passes");
+            sb.AppendLine("  have nothing in the mask at all, because nothing in the map is dark");
+            sb.AppendLine("  enough to reach them.");
+            sb.AppendLine();
+            sb.AppendLine("  A large 'uniform' count is not automatically a fault. It means the");
+            sb.AppendLine("  design sits in a pocket, which is sometimes exactly what was wanted.");
+            sb.AppendLine("  It is worth knowing whether you asked for it.");
+            sb.AppendLine();
+            sb.AppendLine("  'stretched' is the depth count you would get if the occupied levels");
+            sb.AppendLine("  were spread across the full range. That is a decision about how deep");
+            sb.AppendLine("  the relief should be, not a repair: it makes the relief deeper and");
+            sb.AppendLine("  gets more levels because it is deeper. Levels per unit of depth do");
+            sb.AppendLine("  not change. If the narrow range was deliberate, stretching overrides");
+            sb.AppendLine("  the intent rather than correcting a mistake.");
             sb.AppendLine();
             sb.AppendLine("  'band spread' is how many of the file's levels fall into each pass,");
             sb.AppendLine("  narrowest to widest. A slicer cuts the range into equal bands, but");

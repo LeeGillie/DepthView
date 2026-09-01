@@ -2,51 +2,60 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.2.0 — DepthView now fixes what it finds
+## What's new in 1.2.1 — a correction
 
-Until now this tool told you a depth map was wrong and left you there. **Tune…** is the
-other half.
+This release exists because 1.2.0 said two things that were not true, and both were caught
+on the LightBurn forum by **Finn65**. No new features; the point is that the wording now
+matches what actually happens on the metal.
 
-**Set the two level points against the histogram.** Everything at or below the black point
-becomes one uniform full depth — which is how a noisy floor stops engraving mottled and
-starts coming out polished. Everything at or above the white point is left untouched, and
-the shaded ends of the plot show exactly which pixels you are giving up. On the
-`07-wasted-headroom` sample that takes **88 distinct depths to 255 at 256 passes**, and
-range use from 34% to 100%.
+**Passes are no longer called "wasted".** A slicer masks each pass by a threshold. When two
+consecutive thresholds fall in a gap where no pixel value exists, the second pass fires on
+the same mask as the first — it still cuts, it still removes material. What it does not do
+is add a distinguishable step. Calling that a wasted pass implies an idle laser, and the
+laser is not idle.
 
-Worth being precise about what that buys, because the first cut of these notes was not and
-was corrected on the LightBurn forum: stretching a map's range **makes the relief deeper**.
-It gets more depths because it is deeper, not because resolution was being wasted — levels
-per unit of depth are unchanged. If a narrow range was deliberate, stretching overrides that
-intent. DepthView reports what the file asks for and what changing it would mean, and leaves
-the decision where it belongs.
+Worse, one figure was hiding two unrelated things. The report now splits the job three ways,
+and the three always sum to your pass count:
 
-**Leave an untouched rim for a coin blank**, in millimetres, because that is how a rim is
-known — with calipers. If the artwork runs past it you are told what it costs: the
-percentage of the design that overlaps, and the scale that would clear it.
+```
+  passes   depths   uniform   relief   empty   stretched   band spread
+     256       88        90       87      79         255   87..88 x1.01
+```
 
-**Fit artwork inside the rim without resampling it.** Rather than scaling the design down —
-which interpolates, and invents grey levels that were never in the file — the canvas grows
-and the original pixels are copied into the middle of it, byte for byte. Same physical
-result on a 40 mm blank, with the data intact.
+**uniform** — every engraved pixel is in the mask. Real cutting, but it deepens the whole
+design equally, so what it leaves is a flat recess under the design rather than any part of
+the picture. **relief** — masks shrinking; the only passes carrying shape. **empty** —
+nothing in the map is dark enough to be in the mask at all.
 
-**A new `band spread` column**, and it is worth reading even if you never tune anything. A
-slicer cuts the level range into equal bands; levels are integers, so unless the pass count
-divides the range exactly, some bands hold more levels than others and terraces come out
-unevenly spaced. With 256 levels only eight pass counts out of 255 divide evenly — the
-powers of two — while 127 give a 2:1 spread. A genuine 16-bit map never exceeds 1.004
-anywhere in that range. **An imposter inherits the 8-bit behaviour**, so it costs you even
-spacing as well as depth count. Raised by Nathaniel Klumb on the LightBurn forum.
+**Stretching a narrow range is no longer described as a repair.** This is the more important
+correction. That sample resolves 88 depths into 87 passes of relief — 1.01 levels per pass
+of relief depth, which is the theoretical maximum. *Nothing was being wasted.* Stretching
+makes the relief about three times deeper and gets more levels **because it is deeper**;
+levels per unit of depth are unchanged. If the narrow range was deliberate, stretching
+overrides that intent threefold, and nothing in the file says which it was. So DepthView now
+reports and does not prescribe — the warning that fired merely because stretching would add
+depths is gone, because that was the tool calling a design decision a defect.
 
-**An alignment outline.** An image frames as its bounding rectangle in LightBurn whatever is
-drawn inside it, so a round design in a square PNG always frames as a square. `--outline`
-writes a true-size SVG circle to put on a tool layer and frame against the rim of the blank.
+A large uniform count still gets flagged, but as a question rather than a verdict: your
+design sits in a pocket, and it is worth knowing whether you asked for one.
 
-**A calibration coupon** (`--calibrate`): a depth wedge, ramps at known wall angles and a
-comb of shrinking gaps, sized to your blank, plus a bench worksheet. Engrave it once per
-machine and material and the numbers you tune against are yours rather than someone else's.
+The underlying measurements never changed and did not need to. `--depth-mm` has always
+changed no pixels, the calibration coupon exists precisely because a file cannot describe
+how your material ablates, and the rim ramp still defaults to none rather than to a figure
+nobody has measured. It was the language that overreached, and it has been swept out of the
+report, the tuning window, the README and the sample docs.
 
-Nothing in any of this writes over your original file. Every path produces a new one.
+---
+
+### Everything from 1.2.0 is still here
+
+The **Tune…** window — two level points dragged against the histogram, an untouched rim for
+a coin blank measured in millimetres, artwork fitted inside that rim by growing the canvas
+rather than resampling it, optional slicing and dithering. Plus the `band spread` column
+(thanks to Nathaniel Klumb), the `--outline` alignment circle for framing against a round
+blank, and the `--calibrate` coupon.
+
+Nothing in any of it writes over your original file. Every path produces a new one.
 
 ---
 

@@ -189,6 +189,15 @@ over a millimetre of deep cutting just to write the numbers.
 What remains here is not code: engrave it, look at it, measure it. Until then the ramp
 default stays "none", which is an honest admission rather than a guess.
 
+**Open: warn when the coupon is generated too small.** Found while rendering one for a
+post. At the 4096 px default a 40 mm coupon is 9.8 µm/pixel, so the finest comb pitch
+(25 µm) is 2.6 px and every pitch is representable. At `--size 1400` it is 28.6 µm/pixel,
+the 25 and 35 µm pairs fall below two pixels, and the comb silently becomes meaningless —
+it still renders, it just is not measuring anything. Nobody would notice until they had
+cut it. `--calibrate` should compute pitch-in-pixels for the finest comb and refuse, or at
+least warn loudly, when it drops below about 3 px. Same check would catch an over-large
+`--rim-mm` or a tiny `--blank`.
+
 ### 1.5 Focus-stepping schedule
 
 DepthView knows the slice-to-depth mapping, so it can emit the table of which pass ranges

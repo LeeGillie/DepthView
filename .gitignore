@@ -100,3 +100,6 @@ artwork/banner/_tmp.html
 /tests/live-lb.ps1
 /tests/live-lb2.ps1
 /commitmsg.txt 
+/tagmsg.txt 
+/tag-push.cmd 
+/ignoremsg.txt 

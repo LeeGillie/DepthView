@@ -1,61 +1,95 @@
-<!-- Update the "What's new" section below for each release. Everything after it is
+﻿<!-- Update the "What's new" section below for each release. Everything after it is
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.2.1 — a correction
+## What's new in 1.3.0 â€” the project, not just the picture
 
-This release exists because 1.2.0 said two things that were not true, and both were caught
-on the LightBurn forum by **Finn65**. No new features; the point is that the wording now
-matches what actually happens on the metal.
+A depth map on its own cannot tell you how big it will be. Forty millimetres or four
+hundred, the PNG is identical â€” so "is this map finer than my spot can cut" has had no
+answer, only an assumption. That answer lives in the laser project.
 
-**Passes are no longer called "wasted".** A slicer masks each pass by a threshold. When two
-consecutive thresholds fall in a gap where no pixel value exists, the second pass fires on
-the same mask as the first — it still cuts, it still removes material. What it does not do
-is add a distinguishable step. Calling that a wasted pass implies an idle laser, and the
-laser is not idle.
-
-Worse, one figure was hiding two unrelated things. The report now splits the job three ways,
-and the three always sum to your pass count:
+**DepthView now opens LightBurn `.lbrn2` projects.** Drop one on the window and it pulls out
+the depth map, analyses it exactly as it would the image alone, and keeps what only the
+project knows:
 
 ```
-  passes   depths   uniform   relief   empty   stretched   band spread
-     256       88        90       87      79         255   87..88 x1.01
+LightBurn project, 1 layer(s)  |  layer 0 Image, passes not stated  |  40 Ã— 40 mm on the blank
 ```
 
-**uniform** — every engraved pixel is in the mask. Real cutting, but it deepens the whole
-design equally, so what it leaves is a flat recess under the design rather than any part of
-the picture. **relief** — masks shrinking; the only passes carrying shape. **empty** —
-nothing in the map is dark enough to be in the mask at all.
+Every layer's cut settings are read â€” speed, power, passes, interval, image mode â€” and
+**every one of them is allowed to be absent**. LightBurn omits any parameter sitting at its
+default, so a missing pass count is not a layer that runs zero passes. The report prints `-`
+rather than a number nobody wrote, because a pass count is what every depth figure gets
+quoted against.
 
-**Stretching a narrow range is no longer described as a repair.** This is the more important
-correction. That sample resolves 88 depths into 87 passes of relief — 1.01 levels per pass
-of relief depth, which is the theoretical maximum. *Nothing was being wasted.* Stretching
-makes the relief about three times deeper and gets more levels **because it is deeper**;
-levels per unit of depth are unchanged. If the narrow range was deliberate, stretching
-overrides that intent threefold, and nothing in the file says which it was. So DepthView now
-reports and does not prescribe — the warning that fired merely because stretching would add
-depths is gone, because that was the tool calling a design decision a defect.
+### What it cannot do yet
 
-A large uniform count still gets flagged, but as a question rather than a verdict: your
-design sits in a pocket, and it is worth knowing whether you asked for one.
+**Nothing is written back.** You can load a project, tune the depth map inside it, and save
+the corrected greyscale image â€” that is the whole workflow today. DepthView cannot write a
+new `.lbrn2`, and it cannot change a layer's speed, power or pass count.
 
-The underlying measurements never changed and did not need to. `--depth-mm` has always
-changed no pixels, the calibration coupon exists precisely because a file cannot describe
-how your material ablates, and the rim ramp still defaults to none rather than to a figure
-nobody has measured. It was the language that overreached, and it has been swept out of the
-report, the tuning window, the README and the sample docs.
+That is deliberate rather than unfinished. Reading came first because a wrong read costs you
+a misleading message, and a wrong write costs you your project file. Editing cut settings
+and writing projects back is the plan; it is not in this release, and this page will say so
+until it is.
+
+### WeCreat `.wws`
+
+Recognised, not parsed. The container opens with a four-byte `WWS2` magic and everything
+after it is opaque â€” no field names, no XML, no JSON, no archive directory anywhere in three
+megabytes â€” so it is compressed, encrypted, or both. **DepthView will not attempt to defeat
+that**, and that decision is written into the code rather than merely promised here.
+
+Going further needs WeCreat's help: how to find the depth-map object in a project, which
+operation is bound to it, how to read its parameters, and how to write a change back leaving
+everything else untouched. That has been requested from WeCreat support. **There has been no
+answer yet**, and this section will be updated honestly either way. The reader sits behind
+the same interface as the LightBurn one, so a schema drops straight in.
+
+Until then: export the depth map from MakeIt and open the image directly. Every analysis and
+tuning feature works on it.
 
 ---
 
-### Everything from 1.2.0 is still here
+## Lit 3D relief while you tune
 
-The **Tune…** window — two level points dragged against the histogram, an untouched rim for
-a coin blank measured in millimetres, artwork fitted inside that rim by growing the canvas
-rather than resampling it, optional slicing and dithering. Plus the `band spread` column
-(thanks to Nathaniel Klumb), the `--outline` alignment circle for framing against a round
-blank, and the `--calibrate` coupon.
+The tuning dialog now shows both panes as a lit surface instead of grey, sharing one camera
+and one light â€” so any difference you see between them is the tuning and nothing else. No
+more saving a file and reloading it somewhere to find out what a change did.
 
-Nothing in any of it writes over your original file. Every path produces a new one.
+**Both panes terrace, and both say so.** The pass count belongs to the job rather than to the
+tuning, so it slices whichever file you send â€” the untuned one included. The headers read
+*"Original, cut at 64 passes"* and *"Tuned, cut at 64 passes"*, and each pane reports how many
+steps it actually gets. On the sample map that is 22 against 64 at the same pass count, which
+is the argument this program exists to make, drawn rather than tabulated.
+
+**Depth is now stated in millimetres.** Enter the depth you intend the deepest cut to reach,
+and exaggeration becomes doublings around *that* â€” `true scale`, `4x`, `1/16`, down to a flat
+surface at the bottom of the travel. The old default drew a 40 mm blank with 5 mm of relief,
+deeper than the blank is thick, and labelled it `1.00x`.
+
+Nothing in that section changes the file. The grey levels written when you save are identical
+whatever the preview is doing, and the panel says so above every control in it.
+
+## Smaller things
+
+- The pass count is **remembered between runs**, defaulting to 256.
+- `DepthView --project <file>` reports a project's layers from the command line.
+- `DepthView --lb <command>` drives a running copy of LightBurn over its UDP interface.
+
+## Fixed
+
+- Redirecting the CLI to a file produced an empty file. A windowed executable starts with no
+  valid standard handles, so .NET bound console output to a discarding writer before the
+  console was attached.
+- Embedded bitmaps opened upside down. LightBurn stores them bottom-up, its bed having Y
+  increasing upward. Undone by reordering rows â€” never resampling, because resampling a depth
+  map invents grey levels that were never in it.
+- The relief preview box-averaged its height field, which turned a one-pixel terrace riser
+  into a three-pixel ramp. Shading follows slope, so averaging was erasing the staircase the
+  view exists to show â€” worst at low pass counts, where terracing matters most.
+- Opening a project from the command line stranded the window open instead of reporting the
+  problem.
 
 ---
 
@@ -77,9 +111,9 @@ DepthView is gone.
 
 ## Running it
 
-**Windows** — double-click it.
+**Windows** â€” double-click it.
 
-**macOS and Linux** — mark it executable first:
+**macOS and Linux** â€” mark it executable first:
 
 ```
 chmod +x DepthView-*-osx-arm64
@@ -105,7 +139,7 @@ xattr -d com.apple.quarantine DepthView-*-osx-arm64
 
 **Linux** does not object.
 
-If that trade is not one you want to make, build from source instead — it is two commands
+If that trade is not one you want to make, build from source instead â€” it is two commands
 and the repository explains them.
 
 ## Checking what you downloaded
@@ -121,7 +155,7 @@ certutil -hashfile DepthView-*-win-x64.exe SHA256   # Windows, compare by eye
 ## Start here
 
 Download **`DepthView-samples.zip`** as well. It holds eight depth maps that are the same
-picture encoded eight different ways — genuine 16-bit, two byte-widening fakes, a quantised
+picture encoded eight different ways â€” genuine 16-bit, two byte-widening fakes, a quantised
 ladder, grey stored as RGB, honest 8-bit, wasted headroom, and colour contamination.
 
 Drop them on DepthView in order. The image never changes and the verdict does, which is the

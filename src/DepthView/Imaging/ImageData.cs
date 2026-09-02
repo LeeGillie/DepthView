@@ -74,6 +74,54 @@ public sealed class ImageData
 
     public long PixelCount => (long)Width * Height;
 
+    /// <summary>
+    /// The same image with its rows in the opposite order.
+    ///
+    /// Lossless by construction: rows are moved, never combined, so every sample value and the
+    /// histogram built from them come out identical. That matters here more than it usually
+    /// would - this program's entire argument is that nothing should quietly alter the levels
+    /// in a depth map, and a flip that resampled would be exactly the sin it complains about.
+    ///
+    /// Needed because LightBurn stores an embedded bitmap bottom-up, its bed coordinates having
+    /// Y increasing upward. Verified against two projects whose transforms disagreed about the
+    /// Y sign: in both, the stored data was the source file flipped vertically and identical
+    /// otherwise.
+    /// </summary>
+    public ImageData FlipVertical()
+    {
+        int stride = Width * Channels;
+
+        ushort[]? samples = null;
+        if (Samples is not null)
+        {
+            samples = new ushort[Samples.Length];
+            for (int y = 0; y < Height; y++)
+                Array.Copy(Samples, (long)y * stride,
+                           samples, (long)(Height - 1 - y) * stride, stride);
+        }
+
+        float[]? floats = null;
+        if (Floats is not null)
+        {
+            floats = new float[Floats.Length];
+            for (int y = 0; y < Height; y++)
+                Array.Copy(Floats, (long)y * stride,
+                           floats, (long)(Height - 1 - y) * stride, stride);
+        }
+
+        return new ImageData
+        {
+            Width = Width,
+            Height = Height,
+            Channels = Channels,
+            BitDepth = BitDepth,
+            MaxValue = MaxValue,
+            Kind = Kind,
+            Samples = samples,
+            Floats = floats
+        };
+    }
+
     public static void GuardSize(long width, long height, int channels)
     {
         long total = width * height * channels;

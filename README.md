@@ -547,6 +547,61 @@ licence of every component that ships inside the binary.
 
 ---
 
+## Laser projects
+
+A depth map on its own cannot tell you how big it will be. Forty millimetres or four
+hundred, the PNG is the same file — so "is this map finer than the spot can cut" has
+no answer until something says how many millimetres it spans. That answer lives in
+the laser project, not in the image.
+
+So DepthView opens projects too. Drop a **`.lbrn2`** on the window and it pulls out
+the depth map, analyses it exactly as it would the image on its own, and keeps what
+only the project knows:
+
+```
+LightBurn project, 1 layer(s)  |  layer 0 Image, passes not stated  |  40 × 40 mm on the blank
+```
+
+Every layer's cut settings are read into one format-neutral structure — speed, power,
+passes, interval, dither mode — with **every field nullable on purpose**. LightBurn
+omits any parameter sitting at its default, so a missing `numPasses` is not a layer
+that runs zero passes, and a reader that substituted zero would have invented one.
+Absent stays absent, and the report prints `-` rather than a number nobody wrote.
+
+The embedded bitmap is stored bottom-up, because LightBurn's bed has Y increasing
+upward. DepthView flips it back by reordering rows — never resampling, since
+resampling a depth map invents grey levels that were never in it. If the project also
+rotates or mirrors the piece on the bed, that is reported rather than applied, for the
+same reason.
+
+### What it does not do yet
+
+**Nothing is written back.** You can load a project, tune the depth map inside it, and
+save the corrected greyscale image — but DepthView cannot write a new `.lbrn2`, and it
+cannot change a layer's speed, power or pass count. Reading came first deliberately: a
+wrong read costs a message, a wrong write costs somebody their project file.
+
+Editing cut settings and writing projects back is the plan. It is not in this release.
+
+### WeCreat `.wws`
+
+Recognised, not parsed. The container starts with a four-byte `WWS2` magic and
+everything after it is opaque — no field names, no XML, no JSON, no archive directory
+anywhere in it — so it is compressed, encrypted, or both. **DepthView will not attempt
+to defeat that.**
+
+Support depends on WeCreat documenting the parts a third-party tool would need: how to
+find the depth-map object, which operation is bound to it, how to read its parameters,
+and how to write a change back leaving everything else untouched. That has been
+requested from WeCreat support; there is no answer yet. The reader is built behind the
+same interface as the LightBurn one, so a schema can be dropped in without anything
+above it changing.
+
+Meanwhile, export the depth map from MakeIt and open the image directly — every
+analysis and tuning feature works on it.
+
+---
+
 ## Command line
 
 DepthView also works headlessly, so you can screen a folder of candidates without
@@ -560,6 +615,8 @@ DepthView --licence                  the About box, opened on its licence page
 DepthView --report <image>           full text report (also written beside the image)
 DepthView --report <folder>          every image in the folder
 DepthView --report <folder> --summary --out results.txt
+DepthView --project <file.lbrn2>     read a laser project and report its layers
+DepthView --lb <command>             drive a running copy of LightBurn over UDP
 ```
 
 Tuning works headlessly too, and the dialog can be opened already configured:

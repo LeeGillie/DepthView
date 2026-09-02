@@ -13,7 +13,7 @@ using SixLabors.ImageSharp;   // for the SaveAsPng extension on the headless ren
 
 namespace DepthView;
 
-internal static class Program
+internal static partial class Program
 {
     /// <summary>File passed on the command line, loaded once the window opens.</summary>
     public static string? StartupFile;
@@ -200,6 +200,12 @@ internal static class Program
 
         int ridx = Array.FindIndex(args, a => a is "--render");
         if (ridx >= 0) return RunRender(args.Skip(ridx + 1).ToArray());
+
+        int pidx = Array.FindIndex(args, a => a is "--project");
+        if (pidx >= 0) return RunProject(args.Skip(pidx + 1).ToArray());
+
+        int lbidx = Array.FindIndex(args, a => a is "--lb");
+        if (lbidx >= 0) return RunLightBurnControl(args.Skip(lbidx + 1).ToArray());
 
         int idx = Array.FindIndex(args, a => a is "-r" or "--report");
         if (idx >= 0) return RunReport(args.Skip(idx + 1).ToArray());
@@ -870,5 +876,28 @@ internal static class Program
     {
         if (!OperatingSystem.IsWindows()) return;
         try { AttachConsole(-1); } catch { /* no console to attach to; --out still works */ }
+
+        // Attaching is only half of it. A windowed executable starts with no valid standard
+        // handles, so .NET has already bound Console.Out to a writer that discards everything -
+        // and it stays bound after AttachConsole succeeds. Worse, it stays bound when stdout
+        // was redirected to a file or a pipe, which is why "DepthView --report x.png > out.txt"
+        // produced an empty file rather than a report.
+        //
+        // Reopening the standard streams here fixes both cases at once: the handle is the
+        // console when there is one and the redirection target when there is not.
+        try
+        {
+            var so = Console.OpenStandardOutput();
+            if (so != Stream.Null)
+                Console.SetOut(new StreamWriter(so) { AutoFlush = true });
+
+            var se = Console.OpenStandardError();
+            if (se != Stream.Null)
+                Console.SetError(new StreamWriter(se) { AutoFlush = true });
+        }
+        catch
+        {
+            // Nowhere to write at all. Every path that prints also supports --out.
+        }
     }
 }

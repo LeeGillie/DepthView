@@ -93,9 +93,10 @@
         <Border Grid.Column="0" Margin="14,12,7,8" Padding="9"
                 Background="#0C0E11" BorderBrush="#2A303A" BorderThickness="1" CornerRadius="8">
           <Grid RowDefinitions="Auto,*,Auto">
-            <TextBlock Grid.Row="0" Classes="pane" Text="Original" />
+            <TextBlock Grid.Row="0" Classes="pane" x:Name="OriginalHeader" Text="Original" />
             <Image Grid.Row="1" x:Name="OriginalImage" Stretch="Uniform" Margin="0,7"
                    RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <ctl:ReliefPreview Grid.Row="1" x:Name="OriginalRelief" Margin="0,7" IsVisible="False" />
             <TextBlock Grid.Row="2" x:Name="OriginalCaption" Classes="note" />
           </Grid>
         </Border>
@@ -103,9 +104,10 @@
         <Border Grid.Column="1" Margin="7,12,14,8" Padding="9"
                 Background="#0C0E11" BorderBrush="#2A303A" BorderThickness="1" CornerRadius="8">
           <Grid RowDefinitions="Auto,*,Auto">
-            <TextBlock Grid.Row="0" Classes="pane" Text="Tuned" Foreground="#8BD49C" />
+            <TextBlock Grid.Row="0" Classes="pane" x:Name="TunedHeader" Text="Tuned" Foreground="#8BD49C" />
             <Image Grid.Row="1" x:Name="TunedImage" Stretch="Uniform" Margin="0,7"
                    RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <ctl:ReliefPreview Grid.Row="1" x:Name="TunedRelief" Margin="0,7" IsVisible="False" />
             <TextBlock Grid.Row="2" x:Name="TunedCaption" Classes="note" />
           </Grid>
         </Border>
@@ -128,7 +130,58 @@
                    with the reasoning, the header states the convention, and the histogram
                    strip states the gesture; a third copy here only pushed the rim controls
                    below the fold on a 900px window. -->
-              <TextBlock Classes="section" Text="LEVELS" Margin="0,8,0,7" />
+              <TextBlock Classes="section" Text="PREVIEW" Margin="0,8,0,7" />
+
+              <CheckBox x:Name="ReliefCheck"
+                        Content="Show both panes as lit 3D relief"
+                        ToolTip.Tip="Shades the depth map as a surface instead of showing it as grey. Both panes share one camera and one light, so any difference you see between them is the tuning and nothing else. Drag to orbit, right-drag to pan, wheel to zoom, Ctrl-drag to move the light, middle-click to reset." />
+
+              <StackPanel x:Name="ReliefPanel" IsVisible="False">
+
+                <!-- Stated once, at the top of the section, because a depth in millimetres sitting
+                     among controls that do change the file is exactly the thing a user will later
+                     swear they set correctly. -->
+                <TextBlock Classes="note" Margin="24,4,0,0" TextWrapping="Wrap"
+                           Text="Nothing in this section changes the file. Depth and exaggeration only scale how the surface is drawn, so the relief can be seen at all - the grey levels written when you save are identical either way." />
+                <Grid ColumnDefinitions="86,*" Margin="0,8,0,0">
+                  <TextBlock Grid.Column="0" Classes="label" Text="Material" />
+                  <ComboBox Grid.Column="1" x:Name="ReliefMaterialBox" HorizontalAlignment="Stretch" />
+                </Grid>
+
+                <Grid ColumnDefinitions="86,*" Margin="0,9,0,0">
+                  <TextBlock Grid.Column="0" Classes="label" Text="Target depth" />
+                  <NumericUpDown Grid.Column="1" x:Name="TargetDepthBox" Minimum="0.01" Maximum="5"
+                                 Increment="0.05" FormatString="0.00" Value="0.40"
+                                 ToolTip.Tip="How deep, in millimetres, you intend the deepest cut to be - the full black-to-white range. Nothing in this program knows how deep your laser actually reaches, so this is your figure until you cut the calibration coupon and measure it. Purely a viewing setting: it changes the picture and nothing that gets written." />
+                </Grid>
+
+                <TextBlock Classes="label" x:Name="ReliefExagLabel" Margin="0,9,0,0" Text="Vertical exaggeration" />
+                <Slider x:Name="ReliefExagSlider" Minimum="-8" Maximum="6" Value="0" TickFrequency="1"
+                        ToolTip.Tip="Doublings above or below the target depth. 0 draws the relief at the depth you entered; each step up doubles it and each step down halves it, to a completely flat surface at the bottom of the travel. Real laser relief is shallow enough that true scale can be hard to read, which is what this is for." />
+
+                <TextBlock Classes="label" x:Name="ReliefLightLabel" Text="Light direction" />
+                <Slider x:Name="ReliefLightSlider" Minimum="0" Maximum="359" Value="315"
+                        ToolTip.Tip="Where the light comes from. Worth sweeping: banding that hides under one angle is obvious under another, which is exactly why a single fixed render can flatter a bad map." />
+
+                <CheckBox x:Name="ReliefTiltCheck" IsChecked="True"
+                          Content="Tilt the camera"
+                          ToolTip.Tip="Off gives the pixel-exact view straight down. On lets the piece be orbited, which is slower to draw but far better for judging wall angles and depth." />
+
+                <CheckBox x:Name="ReliefStepCheck" IsChecked="True"
+                          Content="Show terracing at the pass count"
+                          ToolTip.Tip="Quantises the surface to the pass count set below, so you see the staircase the machine will actually cut rather than the smooth surface the file describes. This is usually the thing that decides whether a tune helped." />
+
+                <!-- The pass count is a property of the job, not of the tuning, so it lands on
+                     both files. Saying so here is not optional: without it, terracing appearing
+                     in a pane labelled "Original" reads as the dialog changing the thing it
+                     promised to leave alone. -->
+                <TextBlock Classes="note" Margin="24,2,0,0" TextWrapping="Wrap"
+                           Text="Both panes terrace. The pass count belongs to the job, so it slices whichever file you send - the untuned one included. What differs is how many steps each one gets." />
+
+                <Button x:Name="ReliefResetButton" Content="Reset view" Margin="0,9,0,0" HorizontalAlignment="Left" />
+              </StackPanel>
+
+              <TextBlock Classes="section" Text="LEVELS" />
 
               <Grid ColumnDefinitions="86,*">
                 <TextBlock Grid.Column="0" Classes="label" Text="Black point" />
@@ -246,7 +299,7 @@
                 <TextBlock Grid.Column="1" Text="at" Classes="label" Margin="0,0,6,0" />
                 <NumericUpDown Grid.Column="2" x:Name="PassBox" Minimum="2" Maximum="65535"
                                Increment="16" FormatString="0" Value="256" FontSize="11"
-                               ToolTip.Tip="The number of passes you intend to run, which every figure below is quoted against. It is a parameter rather than an assumption because every toolchain has its own ceiling and those change between versions." />
+                               ToolTip.Tip="The number of passes you intend to run, which every figure below is quoted against. It is a parameter rather than an assumption because every toolchain has its own ceiling and those change between versions. Whatever you leave it at is remembered, and the dialog opens there next time." />
               </Grid>
               <!-- Monospaced so the before and after figures line up into columns. They are
                    meant to be read as a pair per row, and a proportional font makes that a

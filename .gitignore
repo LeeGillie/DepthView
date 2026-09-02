@@ -63,3 +63,40 @@ artwork/banner/hero-smooth.png
 artwork/banner/hero-steel.png
 artwork/banner/h-*.png
 artwork/banner/_tmp.html
+
+# --- local check scratch ---
+# run-checks.cmd is the local stand-in for the "Tune with every fit policy" job in build.yml,
+# and the smoke shot is what proves the 3D panes actually drew. Both are regenerated on
+# demand and neither belongs in the history; anchored so nothing under src/ is caught.
+/run-checks.cmd
+/tune-relief-smoke.png
+/shot-steps.cmd
+/steps-before.png
+/steps-after.png
+/rep.txt
+/d-*.png
+/hdr.png
+/depth.png
+/p1.png
+/p2.png
+/proj.txt
+/projerr.txt
+/help.txt
+/try-project.ps1
+/wws.txt
+/hrmc.txt
+/open-*.png
+/embedded*.png
+/source*.png
+/source*.webp
+
+# --- personal drafts and one-off diagnostics ---
+# Forum replies and social posts are correspondence, not source. The lb-* and live-lb-*
+# scripts hardcode one machine's paths and were written to answer a single question.
+/forum-reply-*.md
+/wecreat-fb-update.md
+/tests/lb-crash.ps1
+/tests/lb-state.ps1
+/tests/live-lb.ps1
+/tests/live-lb2.ps1
+/commitmsg.txt 

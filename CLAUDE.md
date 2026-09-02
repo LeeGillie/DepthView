@@ -185,6 +185,57 @@ not a controller limit — corrected by WeCreat support.
 
 ---
 
+## Integrations (added 1.3.0)
+
+`src/DepthView/Integrations/` — `Common/` holds the format-neutral job model, `LightBurn/`
+and `WeCreat/` hold the readers, `LightBurn/Control/` the UDP client.
+
+Facts established by opening real files, not from memory. Do not re-derive these; do
+correct them if a file disagrees.
+
+**`.lbrn2` is plain uncompressed UTF-8 XML.** The "2" is not a container change.
+
+Layers are elements whose name *starts with* `CutSetting` — `CutSetting`, `CutSetting_Img` —
+carrying a **lowercase** `type` attribute. Their parameters are **child elements**, each with
+a capital-V `Value` attribute. Shapes are `Shape` elements with a **capital-T** `Type` and
+their parameters as **attributes**; the image is base64 in a `Data` attribute and the
+transform is an `XForm` child holding six space-separated numbers. That casing difference is
+real, not a transcription error. Layer `type` values seen: `Cut`, `Scan`, `Tool`, `Image`.
+
+**LightBurn omits any parameter at its default.** Absent is not zero. Every field in
+`CutLayer` is nullable for this reason, and nothing downstream may substitute a default
+silently — a missing pass count changes every depth figure quoted against it.
+
+**Embedded bitmaps are stored bottom-up**, LightBurn's bed having Y increasing upward.
+Verified against two projects whose `XForm` disagreed on the Y sign: both stored the source
+flipped vertically and byte-identical otherwise. `ImageData.FlipVertical()` undoes it by
+reordering rows. Never resample to fix orientation — an arbitrary rotation in the transform
+is *reported*, not applied.
+
+**`XForm` scale is the length of each basis vector**, not `m[0]`/`m[3]`. A rotated placement
+has near-zero on the diagonal, and reading it naively reports a size of zero.
+
+**Still unknown:** the `ditherMode` string LightBurn writes for 3D Sliced. That mode is
+galvo-only and every sample to hand was saved against a GRBL profile, so the reader matches
+on the words "slice"/"3d" and reports any image mode it does not recognise. The docs do
+establish that 3D Sliced's "Number of Passes" is the slice count. Frequency and pulse width
+are left null on purpose: no fibre sample, so the unit is unconfirmed.
+
+**UDP control** — send 19840, listen 19841. Community knowledge, not documentation, which is
+why `SendRawAsync` exists alongside the typed methods. Observed against LightBurn Core
+2.1.04: `PING` → `OK`; `STATUS` → `OK`, an acknowledgement rather than a state, so it cannot
+be polled for job completion; `LOADFILE:<good path>` → `OK` and the project opens;
+`LOADFILE:<bad path>` → **nothing**; `VERSION`, `GETSTATUS`, `HELP` → nothing. Silence is
+also what a dropped datagram looks like, so no method reports success. `START` fires a laser
+and is never sent by a test.
+
+**`.wws` is opaque.** Magic `WWS2`, then high-entropy bytes with no readable strings in
+3.3 MB. Compressed, encrypted or both. Support depends on WeCreat documenting it; the
+program will not attempt to defeat it, and that is written into the reader's own notes
+rather than only promised in an email.
+
+---
+
 ## What is owed
 
 The calibration coupon (`--calibrate`) is built but has never been cut. Until it is

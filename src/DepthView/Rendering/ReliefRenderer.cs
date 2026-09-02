@@ -65,6 +65,49 @@ public static class ReliefRenderer
     // ------------------------------------------------------------------ height field
 
     /// <summary>
+    /// Builds a normalised 0..1 height field from a plain grey buffer.
+    ///
+    /// This is the path the tuning dialog uses. It already holds a corrected buffer at preview
+    /// resolution - the whole pipeline, levels through rim, has been run on it - so handing that
+    /// straight to the renderer is both cheaper and more honest than re-deriving a surface from
+    /// something else. What you see lit is the buffer that would be written.
+    ///
+    /// Point sampling, not box averaging, and this one matters more than it looks. Shading is
+    /// driven by the slope between neighbouring samples, so averaging a 3 x 3 block turns the
+    /// one-pixel riser of a terrace into a three-pixel ramp - and a ramp catches the light like
+    /// a smooth surface. Averaging therefore erases exactly the staircase this view exists to
+    /// show, and erases it most thoroughly at low pass counts where the terracing matters most.
+    /// The flat preview reduces nearest-neighbour for the same underlying reason: a resampler
+    /// that invents intermediate values is inventing depths the file does not contain.
+    /// </summary>
+    public static float[] BuildHeights(ushort[] grey, int w, int h, int maxValue,
+                                       int maxEdge, out int outW, out int outH)
+    {
+        int step = 1;
+        while (Math.Max(w, h) / step > maxEdge) step++;
+
+        outW = Math.Max(1, w / step);
+        outH = Math.Max(1, h / step);
+
+        var result = new float[(long)outW * outH];
+        double span = maxValue <= 0 ? 1 : maxValue;
+
+        for (int y = 0; y < outH; y++)
+        {
+            int sy = Math.Min(h - 1, y * step);
+            long srow = (long)sy * w;
+            long drow = (long)y * outW;
+            for (int x = 0; x < outW; x++)
+            {
+                int sx = Math.Min(w - 1, x * step);
+                result[drow + x] = (float)Math.Clamp(grey[srow + sx] / span, 0.0, 1.0);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Builds a normalised 0..1 height field from decoded image data, box-averaging down to
     /// <paramref name="maxEdge"/> so very large maps stay interactive.
     /// </summary>

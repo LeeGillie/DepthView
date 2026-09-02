@@ -6,13 +6,16 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using DepthView.Analysis;
+using DepthView.Controls;
 using DepthView.Imaging;
 using DepthView.Processing;
+using DepthView.Rendering;
 
 namespace DepthView.Views;
 
@@ -55,7 +58,27 @@ public partial class TuneWindow : Window
     private long[]? _tunedHist;
     private TuningReport? _rimReport;
 
+    private readonly ReliefViewSettings _relief = new();
+
     private const int PreviewEdge = 560;
+
+    /// <summary>
+    /// Height fields are built smaller than the flat panes. Occlusion is recomputed whenever the
+    /// surface changes - which here is every drag of a level marker - and it samples the field
+    /// sixteen times per pixel, so the cost of this number is what decides whether the dialog
+    /// still feels live. 380 keeps a full recompute in single-digit milliseconds on the field
+    /// while losing nothing you could see at pane size.
+    /// </summary>
+    private const int ReliefEdge = 380;
+
+    /// <summary>
+    /// Pass count the dialog opens at, remembered between runs.
+    ///
+    /// Read once at construction rather than through <see cref="Preferences.Current"/> at every
+    /// use, so that changing the box mid-session cannot retroactively change what "Reset" means
+    /// while the dialog is still open.
+    /// </summary>
+    private readonly int _defaultPasses;
 
     public TuneWindow(ImageData image, AnalysisResult result, string fileName, string? sourcePath)
     {
@@ -80,6 +103,9 @@ public partial class TuneWindow : Window
 
         Strip.SetData(result.GreyHistogram, _maxValue);
 
+        _defaultPasses = Preferences.Current.DefaultPasses;
+        PassBox.Value = _defaultPasses;
+
         var (sb, sw) = DepthTuner.SuggestLevels(result.GreyHistogram);
         ApplyLevels(sb, sw);
 
@@ -99,11 +125,13 @@ public partial class TuneWindow : Window
         OutlineCheck.IsCheckedChanged += (_, _) => Queue();
         DpiCheck.IsCheckedChanged += (_, _) => Queue();
 
-        BlankBox.ValueChanged += (_, _) => Queue();
+        // The blank diameter is what turns the drawn depth into millimetres, so the 3D panes
+        // have to follow it as well as the rim geometry.
+        BlankBox.ValueChanged += (_, _) => { SyncReliefDepth(); RefreshRelief(); Queue(); };
         RimBox.ValueChanged += (_, _) => Queue();
         RampBox.ValueChanged += (_, _) => Queue();
         SpotBox.ValueChanged += (_, _) => Queue();
-        PassBox.ValueChanged += (_, _) => Queue();
+        PassBox.ValueChanged += (_, _) => { SyncReliefSteps(); RefreshRelief(); Queue(); };
         BitBox.SelectionChanged += (_, _) => Queue();
 
         StripLogCheck.IsCheckedChanged += (_, _) => Strip.LogScale = StripLogCheck.IsChecked == true;
@@ -114,6 +142,21 @@ public partial class TuneWindow : Window
         ResetButton.Click += (_, _) => ResetAll(sb, sw);
         SaveButton.Click += async (_, _) => await SaveAsync();
         CloseButton.Click += (_, _) => Close();
+
+        WireRelief();
+
+        // Whatever pass count you leave the dialog at is the one it opens at next time, on this
+        // machine and every future run. Saved on close rather than on every keystroke, so
+        // spinning through 240, 250, 256 does not write the file three times, and so a value
+        // typed and then thought better of never becomes the one you inherit.
+        Closed += (_, _) =>
+        {
+            int passes = (int)(PassBox.Value ?? _defaultPasses);
+            if (passes == Preferences.Current.DefaultPasses) return;
+
+            Preferences.Current.DefaultPasses = passes;
+            Preferences.Current.Save();
+        };
 
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(55) };
         _debounce.Tick += (_, _) => { _debounce.Stop(); Recompute(); };
@@ -160,6 +203,165 @@ public partial class TuneWindow : Window
             FitCheck.IsChecked = true;
             FitPolicyBox.SelectedIndex = Program.StartupFit == FitPolicy.Canvas ? 1 : 0;
         }
+
+        // --relief alongside --tune-ui opens straight into the lit view. Same reason as every
+        // other override here: a screenshot of the 3D panes has to be capturable headlessly,
+        // or the only thing standing between a broken layout and a release is somebody
+        // remembering to tick a box on one machine.
+        if (Program.StartupRelief) ReliefCheck.IsChecked = true;
+    }
+
+    // ------------------------------------------------------------------ relief panes
+
+    /// <summary>
+    /// The lit view is a second way of looking at the same two buffers, not a second pipeline.
+    /// Both panes are handed the exact arrays the flat panes are drawn from - the original
+    /// preview reduction, and whatever <see cref="Recompute"/> last produced - so the 3D view
+    /// cannot show a surface the flat view disagrees with.
+    /// </summary>
+    private void WireRelief()
+    {
+        foreach (var m in MaterialLibrary.Presets)
+            ReliefMaterialBox.Items.Add(new ComboBoxItem { Content = m.Name });
+        ReliefMaterialBox.SelectedIndex = 0;
+
+        OriginalRelief.Settings = _relief;
+        TunedRelief.Settings = _relief;
+
+        // One camera, two panes. A drag in either one has already mutated the shared settings
+        // by the time this fires; the other pane just needs telling to draw again.
+        OriginalRelief.ViewChanged += (_, _) => TunedRelief.Request(true);
+        TunedRelief.ViewChanged += (_, _) => OriginalRelief.Request(true);
+
+        ReliefCheck.IsCheckedChanged += (_, _) => ReliefModeChanged();
+
+        ReliefMaterialBox.SelectionChanged += (_, _) =>
+        {
+            _relief.MaterialIndex = ReliefMaterialBox.SelectedIndex;
+            RefreshRelief();
+        };
+
+        ReliefExagSlider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != RangeBase.ValueProperty) return;
+            SyncReliefDepth();
+            RefreshRelief();
+        };
+
+        TargetDepthBox.ValueChanged += (_, _) => { SyncReliefDepth(); RefreshRelief(); };
+
+        ReliefLightSlider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != RangeBase.ValueProperty) return;
+            _relief.LightAzimuthDeg = ReliefLightSlider.Value;
+            RefreshRelief();
+        };
+
+        ReliefTiltCheck.IsCheckedChanged += (_, _) =>
+        {
+            _relief.Orbit = ReliefTiltCheck.IsChecked == true;
+            RefreshRelief();
+        };
+
+        // Terracing follows the pass count rather than getting a control of its own. There is
+        // already exactly one pass count in this dialog and every other number is quoted
+        // against it; a second, independent step count would be a way to look at a staircase
+        // the job will never cut.
+        ReliefStepCheck.IsCheckedChanged += (_, _) => { SyncReliefSteps(); RefreshRelief(); Queue(); };
+
+        ReliefResetButton.Click += (_, _) => { _relief.ResetView(); RefreshRelief(); };
+    }
+
+    private void SyncReliefSteps()
+        => _relief.SliceCount = ReliefStepCheck.IsChecked == true ? (int)(PassBox.Value ?? 256) : 0;
+
+    /// <summary>
+    /// Turn the target depth and the exaggeration stops into one drawn depth, and say plainly
+    /// what that depth is.
+    ///
+    /// Stops rather than a multiplier because the interesting range spans three orders of
+    /// magnitude - a coin relief is tenths of a millimetre and the old default was drawing five
+    /// - and a linear multiplier over that span is unusable at the shallow end, which is the end
+    /// that matters. 0 is the depth the user entered, so "no exaggeration" finally means
+    /// something a caliper could check.
+    /// </summary>
+    private void SyncReliefDepth()
+    {
+        double stops = ReliefExagSlider.Value;
+        double target = (double)(TargetDepthBox.Value ?? 0.40m);
+        double blank = (double)(BlankBox.Value ?? 40);
+
+        // The bottom of the travel is a hard zero rather than another halving. Somewhere to put
+        // the slider that answers "is this shape in the map at all, or am I looking at shading?"
+        bool flat = stops <= ReliefExagSlider.Minimum + 1e-9;
+        double depth = flat ? 0 : target * Math.Pow(2, stops);
+
+        _relief.ApparentDepthMm = depth;
+        _relief.BlankMm = blank;
+
+        string factor = flat ? "flat"
+                      : Math.Abs(stops) < 1e-9 ? "true scale"
+                      : stops > 0 ? $"{Math.Pow(2, stops):0.#}x"
+                      : $"1/{Math.Pow(2, -stops):0.#}";
+
+        string shown = flat ? "no depth at all"
+                     : $"{depth:0.00#} mm deep on a {blank:0.#} mm blank";
+
+        // Broken deliberately rather than left to wrap: the factor and the millimetres are two
+        // separate facts and the panel is narrow enough that the wrap point moves as you drag.
+        ReliefExagLabel.Text = $"Vertical exaggeration   {factor}\n{shown}";
+    }
+
+    private bool ReliefOn => ReliefCheck.IsChecked == true;
+
+    private void ReliefModeChanged()
+    {
+        bool on = ReliefOn;
+        ReliefPanel.IsVisible = on;
+
+        OriginalImage.IsVisible = !on;
+        TunedImage.IsVisible = !on;
+        OriginalRelief.IsVisible = on;
+        TunedRelief.IsVisible = on;
+
+        if (!on)
+        {
+            // Drop both scenes rather than keeping them warm. They hold an occlusion map each,
+            // and someone who switched the 3D view off is not about to need them back inside a
+            // frame or two.
+            OriginalRelief.Clear();
+            TunedRelief.Clear();
+            Recompute();   // strips the step note from both captions
+            return;
+        }
+
+        SyncReliefSteps();
+        SyncReliefDepth();
+        PushOriginalRelief();
+        Recompute();
+    }
+
+    private void RefreshRelief()
+    {
+        if (_loading || !ReliefOn) return;
+        OriginalRelief.Request(true);
+        TunedRelief.Request(true);
+    }
+
+    private void PushOriginalRelief()
+    {
+        if (!ReliefOn) return;
+        var f = ReliefRenderer.BuildHeights(_previewGrey, _pw, _ph, _maxValue,
+                                            ReliefEdge, out int w, out int h);
+        OriginalRelief.SetField(f, w, h);
+    }
+
+    private void PushTunedRelief(ushort[] tuned, int w, int h)
+    {
+        if (!ReliefOn) return;
+        var f = ReliefRenderer.BuildHeights(tuned, w, h, _maxValue,
+                                            ReliefEdge, out int fw, out int fh);
+        TunedRelief.SetField(f, fw, fh);
     }
 
     // ------------------------------------------------------------------ preview source
@@ -189,11 +391,28 @@ public partial class TuneWindow : Window
     private void RenderOriginal()
     {
         OriginalImage.Source = ToBitmap(_previewGrey, _pw, _ph);
-
-        var (min, max, unique) = TuneJob.Span(_source.GreyHistogram);
-        OriginalCaption.Text = $"{unique:N0} levels, {min:N0} to {max:N0}, "
-                             + $"{TuneJob.RangeUse(_source.GreyHistogram, _maxValue) * 100:F0}% of the range";
+        OriginalCaption.Text = OriginalLevelsText();
     }
+
+    private string OriginalLevelsText()
+    {
+        var (min, max, unique) = TuneJob.Span(_source.GreyHistogram);
+        return $"{unique:N0} levels, {min:N0} to {max:N0}, "
+             + $"{TuneJob.RangeUse(_source.GreyHistogram, _maxValue) * 100:F0}% of the range";
+    }
+
+    /// <summary>
+    /// What the terraced pane is actually showing, when it is showing terraces.
+    ///
+    /// The step count is the depth count, not the pass count: asking for 256 passes on a map
+    /// that only occupies a third of the range still lands every one of its levels inside about
+    /// a third of the steps. Printing the pass count here would say the two panes were the same,
+    /// which is the exact misreading the note exists to prevent.
+    /// </summary>
+    private string StepNote(int depths, int passes)
+        => ReliefOn && ReliefStepCheck.IsChecked == true
+            ? $"\n{depths:N0} steps of the {passes:N0} passes"
+            : "";
 
     /// <summary>
     /// Render a grey buffer at its own dimensions, which are not always the source's: fitting
@@ -347,7 +566,7 @@ public partial class TuneWindow : Window
         RimBox.Value = 1.00m;
         RampBox.Value = 0.00m;
         SpotBox.Value = 7;
-        PassBox.Value = 256;
+        PassBox.Value = _defaultPasses;
         BitBox.SelectedIndex = 0;
         _loading = false;
         ApplyLevels(suggestedBlack, suggestedWhite, refresh: true);
@@ -419,6 +638,11 @@ public partial class TuneWindow : Window
         double blankRadius = full.AddRim ? Math.Min(rep.OutWidth, rep.OutHeight) / 2.0 : 0;
         TunedImage.Source = ToBitmap(tuned, rep.OutWidth, rep.OutHeight, blankRadius, preview.RimRadius);
 
+        // The lit pane gets the same array the flat pane was just drawn from. No second run of
+        // the pipeline, and no re-reading anything from disk - which is the whole point, since
+        // the round trip through a saved file is exactly what made A/B comparison painful.
+        PushTunedRelief(tuned, rep.OutWidth, rep.OutHeight);
+
         _tunedHist = TuneJob.MapHistogram(_source.GreyHistogram, _maxValue, full,
                                           out long flattened, out long lifted);
 
@@ -435,10 +659,24 @@ public partial class TuneWindow : Window
         TunedCaption.Text = $"{tUnique:N0} levels, {tMin:N0} to {tMax:N0}, "
                           + $"{useAfter * 100:F0}% of the range"
                           + (full.OutputBitDepth == 8 ? "   (written as 8-bit)" : "")
+                          + StepNote(dAfter, passes)
                           + (full.AddRim
                               ? "\nCyan: edge of the blank, everything outside it is off the coin. "
                               + "Amber: where engraving stops. Neither is in the file."
                               : "");
+
+        // Both panes terrace, because both files would be sliced at the same pass count -
+        // comparing a real staircase against an ideal smooth surface would flatter the tuning.
+        // What differs is how many treads each one gets, and without these two counts on the
+        // pictures the honest reading of the view is "why did the original change too?".
+        OriginalCaption.Text = OriginalLevelsText() + StepNote(dBefore, passes);
+
+        // "Original" on its own means the file. Once the pane is showing a sliced surface it is
+        // no longer the file, it is the job, and the header has to say so - otherwise the honest
+        // baseline looks like the dialog quietly editing the thing it promised not to touch.
+        bool stepped = ReliefOn && ReliefStepCheck.IsChecked == true;
+        OriginalHeader.Text = stepped ? $"Original, cut at {passes:N0} passes" : "Original";
+        TunedHeader.Text = stepped ? $"Tuned, cut at {passes:N0} passes" : "Tuned";
 
         ResultText.Text = string.Join(Environment.NewLine, new[]
         {

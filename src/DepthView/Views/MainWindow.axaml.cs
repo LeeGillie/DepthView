@@ -18,6 +18,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using DepthView.Analysis;
 using DepthView.Imaging;
+using DepthView.Integrations.Common;
 
 namespace DepthView.Views;
 
@@ -97,10 +98,35 @@ public partial class MainWindow : Window
             }
 
             var start = Program.StartupFile;
-            if (string.IsNullOrEmpty(start) || !File.Exists(start)) return;
-            var bytes = await File.ReadAllBytesAsync(start);
-            await LoadBytesAsync(bytes, Path.GetFileName(start), start, "opened from the command line");
-            if (Program.StartupRelief) OpenRelief();
+
+            // Nothing below may throw past this point. This is an async void handler, so an
+            // escaping exception takes the screenshot scheduling with it and leaves a window
+            // open forever with nobody to close it - which is exactly what a project file
+            // reaching the image decoder used to do.
+            try
+            {
+                if (!string.IsNullOrEmpty(start) && File.Exists(start))
+                {
+                    if (ProjectReaders.LooksLikeProject(start))
+                    {
+                        await LoadProjectAsync(start, "opened from the command line");
+                    }
+                    else
+                    {
+                        var bytes = await File.ReadAllBytesAsync(start);
+                        await LoadBytesAsync(bytes, Path.GetFileName(start), start,
+                                             "opened from the command line");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Could not open that file: " + ex.Message);
+            }
+            // With --tune-ui, --relief means "open the tuning dialog already in its lit view"
+            // rather than "also open the standalone viewer". One flag, one window: opening both
+            // would leave a second copy of the same surface behind the dialog for no reason.
+            if (Program.StartupRelief && !Program.StartupTune) OpenRelief();
             if (Program.StartupTune) OpenTune();
             if (Program.ScreenshotPath is not null) ScheduleScreenshot();
         };
@@ -117,8 +143,8 @@ public partial class MainWindow : Window
         {
             Interval = TimeSpan.FromMilliseconds(
                 Program.ScreenshotDelayMs
-                ?? (Program.StartupRelief ? 4500 : Program.StartupAbout ? 1400
-                    : Program.StartupTune ? 3000 : 2200))
+                ?? (Program.StartupTune ? (Program.StartupRelief ? 5500 : 3000)
+                    : Program.StartupRelief ? 4500 : Program.StartupAbout ? 1400 : 2200))
         };
 
         timer.Tick += (_, _) =>
@@ -194,13 +220,25 @@ public partial class MainWindow : Window
 
         var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Select a depth map candidate",
+            Title = "Select a depth map or a laser project",
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
+                // Everything openable, first, because the common case is "I have a file and I
+                // want to know about it" rather than "I know which kind I am looking for".
+                new FilePickerFileType("Depth maps and projects")
+                {
+                    Patterns = ImageLoader.SupportedPatterns.Split(';')
+                                          .Concat(ProjectReaders.SupportedPatterns.Split(';'))
+                                          .ToArray()
+                },
                 new FilePickerFileType("Depth map images")
                 {
                     Patterns = ImageLoader.SupportedPatterns.Split(';')
+                },
+                new FilePickerFileType("Laser projects")
+                {
+                    Patterns = ProjectReaders.SupportedPatterns.Split(';')
                 },
                 new FilePickerFileType("All files") { Patterns = new[] { "*" } }
             }
@@ -213,6 +251,16 @@ public partial class MainWindow : Window
     private async Task ReloadAsync()
     {
         if (_busy || string.IsNullOrEmpty(_lastPath) || !File.Exists(_lastPath)) return;
+
+        // Re-read the project rather than the image that came out of it, so F5 picks up a save
+        // made in LightBurn while this window stayed open - which is the whole point of having
+        // both on screen at once.
+        if (ProjectReaders.LooksLikeProject(_lastPath))
+        {
+            await LoadProjectAsync(_lastPath, "reloaded from disk");
+            return;
+        }
+
         var bytes = await File.ReadAllBytesAsync(_lastPath);
         await LoadBytesAsync(bytes, Path.GetFileName(_lastPath), _lastPath, "re-read from disk");
     }
@@ -278,6 +326,16 @@ public partial class MainWindow : Window
             string? path = file.TryGetLocalPath();
             byte[] bytes;
 
+            // A laser project is not an image, so it never reaches the decoder. What comes back
+            // out of one is the depth map it contains plus the thing an image on its own can
+            // never tell you: how many millimetres it spans on the workpiece, and at what
+            // settings it is going to be cut.
+            if (path is not null && ProjectReaders.LooksLikeProject(path))
+            {
+                await LoadProjectAsync(path, source);
+                return;
+            }
+
             if (path is not null && File.Exists(path))
             {
                 bytes = await File.ReadAllBytesAsync(path);
@@ -298,9 +356,171 @@ public partial class MainWindow : Window
         }
     }
 
+    // ------------------------------------------------------------------ projects
+
+    /// <summary>
+    /// Open a laser project, analyse the depth map inside it, and keep the surrounding facts.
+    ///
+    /// The image is the same analysis it would get on its own. The difference is everything the
+    /// project knows that a PNG cannot: which layer engraves it, at what pass count, and how
+    /// many millimetres it spans on the blank. Resolution against a spot size is meaningless
+    /// without that last number, and until now it could only come from a pHYs chunk that most
+    /// depth maps do not carry.
+    /// </summary>
+    private async Task LoadProjectAsync(string path, string source)
+    {
+        _busy = true;
+        ErrorText.Text = "";
+        StatusText.Text = $"Reading {Path.GetFileName(path)} ...";
+
+        ProjectReadResult read;
+        try
+        {
+            read = await Task.Run(() => ProjectReaders.Read(path));
+        }
+        catch (Exception ex)
+        {
+            _busy = false;
+            ShowError($"Could not read {Path.GetFileName(path)}: {ex.Message}");
+            return;
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        var job = read.Job;
+
+        // Recognised but not parseable is a normal outcome for a format nobody has documented,
+        // and it is not the same thing as a broken file. Saying so plainly beats an error that
+        // leaves the reader wondering whether their project is damaged.
+        if (job is null || read.Fidelity <= ReadFidelity.ContainerOnly)
+        {
+            var why = new StringBuilder();
+            why.Append(read.Message ?? "That project could not be read.");
+            if (job is not null)
+                foreach (var n in job.Notes) why.Append("\n\n").Append(n);
+
+            ShowError(why.ToString());
+            StatusText.Text = $"{Path.GetFileName(path)}: recognised, not parsed.";
+            return;
+        }
+
+        var image = job.PrimaryImage;
+        if (image?.Data is null)
+        {
+            ShowError(
+                $"{Path.GetFileName(path)} was read - {job.Layers.Count} layer(s) - but holds no "
+                + "embedded image to analyse. A project that references an image without "
+                + "embedding it has nothing in it for DepthView to look at; open the image file "
+                + "itself instead.");
+            StatusText.Text = "No depth map in that project.";
+            return;
+        }
+
+        var layer = job.LayerFor(image);
+
+        // Named for where it came from, not just what it is, so the window title and the report
+        // both say which project and which layer produced these numbers.
+        string label = $"{Path.GetFileNameWithoutExtension(path)}"
+                     + (layer?.Name is { Length: > 0 } ln ? $" [{ln}]" : "")
+                     + ".png";
+
+        await LoadBytesAsync(image.Data, label, null, $"{source}, from a {job.Format} project",
+                             flipVertical: image.StoredBottomUp);
+
+        // Reload reads the project again rather than the extracted bytes, so F5 picks up a save
+        // made in LightBurn while this window was open.
+        _lastPath = path;
+        ReloadButton.IsEnabled = true;
+
+        if (_meta is not null) AddProjectContext(_meta, job, image, layer, path);
+
+        StatusText.Text = ProjectSummary(job, image, layer);
+    }
+
+    /// <summary>
+    /// Push what the project knows into the analysis notes, so it appears in the report and in
+    /// anything saved from it rather than only on screen.
+    /// </summary>
+    private static void AddProjectContext(ImageMetadata meta, LaserJob job, ImagePlacement image,
+                                          CutLayer? layer, string path)
+    {
+        var sb = new StringBuilder();
+        sb.Append($"Opened from a {job.Format} project: {Path.GetFileName(path)}.");
+
+        if (layer is not null)
+        {
+            sb.Append($" Layer {layer.Index}");
+            if (layer.Name is { Length: > 0 }) sb.Append($" ({layer.Name})");
+            sb.Append($", {layer.Kind}");
+            if (layer.SpeedMmPerSec is { } sp) sb.Append($", {sp:0.##} mm/s");
+            if (layer.MaxPowerPercent is { } pw) sb.Append($", {pw:0.##}% power");
+            sb.Append('.');
+
+            // Absent is not zero, and the distinction matters most here: a pass count is what
+            // every depth figure gets quoted against, so a missing one has to be said out loud
+            // rather than defaulted.
+            sb.Append(layer.EffectivePasses is { } n
+                ? $" The layer runs {n:N0} pass(es), so that is the count to judge depth against."
+                : " The layer does not state a pass count, so it is running at whatever this "
+                + "version of LightBurn defaults to - the depth figures in this report are "
+                + "quoted against the count you type, not one read from the file.");
+        }
+
+        if (image.WidthMm is { } w && image.HeightMm is { } h)
+        {
+            sb.Append($" Placed at {w:0.##} x {h:0.##} mm on the workpiece");
+            if (image.MmPerPixel is { } mpp)
+                sb.Append($", which is {1 / mpp:0.#} px/mm - {mpp * 1000:0.#} um per pixel");
+            sb.Append('.');
+        }
+
+        if (image.StoredBottomUp)
+            sb.Append(" The stored bitmap is bottom-up - LightBurn's bed has Y increasing "
+                    + "upward - so it has been flipped back to the orientation it was authored "
+                    + "in. Rows were reordered and nothing was resampled, so every grey level "
+                    + "below is the one in the file.");
+
+        // The transform can rotate or mirror the piece on the bed on top of the storage flip.
+        // Reported rather than applied: a rotation that is not a multiple of 90 degrees cannot
+        // be undone without resampling, and resampling a depth map invents levels.
+        if (image.Transform is { Length: >= 4 } m)
+        {
+            bool rotated = Math.Abs(m[1]) > 1e-6 || Math.Abs(m[2]) > 1e-6;
+            bool mirrored = m[0] * m[3] - m[1] * m[2] < 0;
+
+            if (rotated || mirrored)
+                sb.Append($" The project also places it {(rotated ? "rotated" : "")}"
+                        + $"{(rotated && mirrored ? " and " : "")}{(mirrored ? "mirrored" : "")} "
+                        + "on the bed. That has not been applied here - undoing an arbitrary "
+                        + "rotation means resampling, which would invent grey levels - so the "
+                        + "preview shows the artwork, not its placement.");
+        }
+
+        meta.Warnings.Add(sb.ToString());
+
+        foreach (var n in job.Notes) meta.Warnings.Add(n);
+    }
+
+    private static string ProjectSummary(LaserJob job, ImagePlacement image, CutLayer? layer)
+    {
+        var bits = new List<string> { $"{job.Format} project, {job.Layers.Count} layer(s)" };
+
+        if (layer is not null)
+            bits.Add($"layer {layer.Index} {layer.Kind}"
+                   + (layer.EffectivePasses is { } n ? $", {n:N0} pass(es)" : ", passes not stated"));
+
+        if (image.WidthMm is { } w && image.HeightMm is { } h)
+            bits.Add($"{w:0.##} x {h:0.##} mm on the blank");
+
+        return string.Join("   |   ", bits);
+    }
+
     // ------------------------------------------------------------------ pipeline
 
-    private async Task LoadBytesAsync(byte[] bytes, string? name, string? path, string source)
+    private async Task LoadBytesAsync(byte[] bytes, string? name, string? path, string source,
+                                      bool flipVertical = false)
     {
         _busy = true;
         ErrorText.Text = "";
@@ -309,6 +529,12 @@ public partial class MainWindow : Window
         try
         {
             var (img, meta) = await Task.Run(() => ImageLoader.Load(bytes, name, path, source));
+
+            // Applied after decoding rather than to the bytes, so the container report still
+            // describes the file exactly as it was stored. The flip only moves rows, so the
+            // analysis below sees every original sample value.
+            if (flipVertical) img = await Task.Run(img.FlipVertical);
+
             var result = await Task.Run(() => DepthAnalyzer.Analyze(img, meta));
 
             _image = img;

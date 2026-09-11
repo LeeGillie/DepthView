@@ -453,13 +453,26 @@ straight line: slope gives `2w₀²`, x-intercept gives `E_th`.
 - **Done when:** `w₀` and `F_th` are written down with an R² for the fit and a stated pulse
   duration, source and lens. A number without those four qualifiers is not a result.
 
-**Kit decision, 2026-09-11.** Stage micrometer: WintopScope 4-scale, ~$16 — carries both the
-0.01 mm × 100 and 0.1 mm × 10 rulings plus 0.07 mm and 0.15 mm dots, and those dots are a
-round known-diameter object to validate the crater-measuring *procedure*, not just the scale.
-Microscope: buy the ~$40 coin scope and qualify it against the acceptance test in
-`docs/DEPTH-PREDICTION.md` §5.3 inside the return window, because no vendor at any price in
-this class publishes field of view. Do **not** buy up into a soldering microscope — their
-long working distance is bought at the cost of magnification.
+**Kit decision, 2026-09-11.** Stage micrometer: WintopScope 4-scale, ~$16 — the 0.01 mm × 100
+and 0.1 mm × 10 rulings plus 0.07 mm and 0.15 mm dots. Those dots earn their place twice:
+a round known-diameter object validates the crater-measuring *procedure*, and under a tilted
+coupon the ellipse they image as measures the tilt angle.
+
+Microscope: **the Elikliv EM4K, not the EM4K-AF.** Same 4K sensor (3840 × 2160), but manual
+focus via a wheel on the lens instead of TOF autofocus, and autofocus is a liability for
+calibrated work rather than a convenience. 4K is the only spec that translates directly into
+measurement quality and it is 3× the 720p coin scopes. Skip the EDM9 mid-range: 1080p for
+three times the EDM4's price buys stand and screen, not pixels.
+
+Then **verify USB capture resolution before trusting it.** No Elikliv model states a USB
+output resolution and none claims 4K over USB — USB 2.0 cannot carry 4K30 uncompressed. If USB
+delivers 1080p, capture stills to the SD card or via HDMI instead, or the 4K purchase buys
+nothing. This is acceptance-test item 3 in `docs/DEPTH-PREDICTION.md` §5.3 and it is the one
+that decides whether the model choice mattered.
+
+Lighting should not drive the purchase — a clip-on LED ring is $10–15. Ring/coaxial light is
+what measurement wants (even illumination, unbiased edges); grazing side light is what seeing
+topography wants. The EM4K ships with flexible side lights only.
 
 ### 7.2 Step-wedge coupon, measured by mass loss  *(bench, blocks 7.6 and 7.7)*
 
@@ -473,6 +486,13 @@ measurement and the entry path for it.
   precision above ~29 µm, and does not care about the burr at the pocket edge. The
   Mitutoyo 513-402-10E on hand is the cross-check: 12.7 µm graduation, 5.1 µm
   repeatability, and only 0.76 mm of travel against a 1.1 mm coin target.
+- **A step wedge cannot be weighed in one go, and this changes the coupon.** Mass loss gives
+  the total removed from whatever goes on the pan, so ten zones engraved in one job yield one
+  number. Cut them **sequentially, weighing between each** — eleven weighings for ten zones,
+  about an hour, one coupon. And **zones must be at least 10 × 10 mm, 15 × 15 mm by
+  preference**: at 5 × 5 mm a scale count is 4.7 µm and the scale's whole advantage over the
+  dial indicator is gone. `--calibrate` currently sizes the wedge to fit the blank rather than
+  to the measurement that must be made from it — **fix that before cutting anything.**
 - Record the **roll-off** deliberately. The log law fails as the pocket deepens — debris
   shielding, plasma absorption, the beam clipping its own wall. Where it fails is a result
   in its own right and is what item 1.4b was already circling.

@@ -234,9 +234,45 @@ the pocket edge that ruins indicator readings.
 What it costs you:
 - It measures **average** depth over the pocket, not a profile. For fitting δ and F_th from
   a step wedge that is exactly what you want.
-- Debris and recast must be completely removed. Ultrasonic cleaner, dried, weighed cold.
+- Debris and recast must be completely removed. Ultrasonic cleaner, dried, weighed cold. A
+  coupon still warm from the laser reads light — convection lifts it on the pan.
 - Oxide **adds** mass and will under-report depth. Weigh promptly.
 - Engraved area must be known accurately — it enters linearly.
+
+**Accuracy versus repeatability, again.** A £20 scale displaying 0.001 g typically has
+linearity error of several milligrams across its range. That does not matter here for the same
+reason it did not matter for the dial indicator: we take a **difference** of two weighings,
+minutes apart, at nearly the same mass. Repeatability governs, and it is close to the display
+resolution. Check it by weighing the same coupon five times, removing it from the pan between
+each.
+
+#### A step wedge cannot be weighed in one go
+
+Easy to miss, and it changes how the coupon must be cut. Mass loss gives the **total** removed
+from whatever you put on the pan. A wedge with ten zones at ten different powers, engraved in
+one job, yields one number — and one number cannot fit two constants across ten levels.
+
+Two ways out:
+
+1. **Sequential engrave-and-weigh.** Weigh the blank, cut zone 1, clean, weigh. Cut zone 2,
+   clean, weigh. Each difference is that zone's mass. Ten zones is eleven weighings and about
+   an hour, on a single coupon, and it is the method to prefer.
+2. **One coupon per power level.** Cleaner still, but ten coupons and ten times the material.
+
+**Zone size is set by this, not by convenience.** Depth resolved per scale count, brass,
+0.001 g:
+
+| Zone | Per count | ≥1 % precision above |
+|---|---|---|
+| 20 × 20 mm | 0.29 µm | 29 µm |
+| **15 × 15 mm** | **0.52 µm** | **52 µm** |
+| 10 × 10 mm | 1.18 µm | 118 µm |
+| 5 × 5 mm | 4.70 µm | 470 µm |
+
+So **zones must be at least 10 × 10 mm, and 15 × 15 mm is the sensible default.** A 5 mm zone
+throws away the scale's entire advantage over the dial indicator. This is a constraint on
+`--calibrate`, which currently sizes the wedge to fit the blank rather than to the measurement
+that has to be made from it.
 
 ### 5.2 Dial test indicator — step height, with a hard ceiling
 
@@ -428,6 +464,63 @@ Consequences worth being explicit about:
 
 So the microscope is required for one of the two constants, not both. A scope that turns out
 mediocre costs precision on `w₀` rather than blocking step 7.1 outright.
+
+#### Viewing angle: vertical for measuring, oblique for depth
+
+Worth separating two things that get conflated, because they pull opposite ways.
+
+**For the measurements that matter, vertical is correct and oblique is an error.** Crater
+diameter and line width are lateral measurements in the plane of the surface. Tilt the camera
+and a circle images as an ellipse, foreshortened by `cos θ` along the tilt axis. Every scope
+in this class shoots straight down, and that is the right geometry — not a limitation.
+
+**But tilting the sample deliberately turns depth into a lateral measurement.** A step of
+depth `d`, viewed at `θ` from the surface normal, projects its riser to a lateral extent of
+`d·sin θ` in the image:
+
+| Tilt | Projected offset per 100 µm of depth | At 1.56 µm/px |
+|---|---|---|
+| 20° | 34 µm | 22 px |
+| 30° | 50 µm | 32 px |
+| 45° | 71 µm | 45 px |
+
+This is the same manoeuvre as the power ladder in reverse: **convert a measurement the
+instrument cannot make into one it makes easily.** No special microscope is needed — an angle
+block, a sine bar or a cheap tilting vice puts the coupon at a known angle under any vertical
+scope.
+
+And it is **self-calibrating**, which removes the need to trust the angle block at all. Tilt
+the calibration slide along with the coupon and the geometry measures itself:
+
+- A **circular dot of known diameter images as an ellipse** whose minor axis is `D·cos θ`.
+  The WintopScope slide's 0.15 mm and 0.07 mm dots do this directly — measure the ellipse,
+  get the tilt.
+- Ruling spacing along the tilt direction shrinks by `cos θ` while spacing across it does
+  not, so crossed scales give the same answer independently.
+
+Combined with same-frame calibration, one photograph then carries the scale, the tilt angle
+and the measurement together, and nothing about the rig has to be trusted or reproduced.
+
+Caveats: the pocket must be wide enough that its own wall does not occlude the floor
+(irrelevant at 20 mm wide and 0.1 mm deep, fatal inside lettering), and a tilted field runs
+out of depth of field quickly — focus on the step edge and let the rest blur.
+
+#### Lighting: even for metrology, grazing for seeing
+
+Both geometries have a job, and they are not interchangeable.
+
+- **Coaxial or ring illumination is what you want for measuring.** Even, symmetric light gives
+  an edge that sits in the same place all the way round. Directional light shadows one side of
+  a crater and blows out the other, **biasing the measured diameter** rather than merely
+  adding noise.
+- **Grazing side light is what you want for seeing** — topography, wall angle, recast rim,
+  and a chrome ruling on clear glass under a top-lit scope.
+
+So a scope with both is genuinely better, and two flexible side lights placed symmetrically
+approximate a ring well enough for measurement. **Do not let lighting drive the purchase
+anyway**: a clip-on LED ring is $10–15, and a paper diffuser ring costs nothing. Buy for the
+specifications that cannot be retrofitted — sensor resolution, focus mechanism, stand rigidity
+— and fix the lighting afterwards.
 
 #### Getting depth out of it — focus stepping against the indicator
 

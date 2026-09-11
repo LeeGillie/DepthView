@@ -317,6 +317,31 @@ Using it takes five minutes, once per stand height:
    256 px is 200 µm ÷ 256 px = **0.78 µm/px**.
 4. Record that figure alongside the stand height. Change the height, repeat step 1.
 
+#### Better: put the scale in the same frame as the measurement
+
+The procedure above ties the calibration to a stand height, which makes every later
+measurement depend on that height being reproduced. There is a strictly better way.
+
+**Lay the micrometer beside the coupon, shim whichever surface is lower until the two are
+coplanar, and photograph them together.** The scale is then measured *in the very image being
+measured from*.
+
+This is worth doing even when nothing forces it, because it deletes whole classes of error at
+once:
+
+- Stand repeatability stops mattering — the scale travels with the picture.
+- Focus drift stops mattering, including **autofocus**, which otherwise changes image scale
+  between the calibration shot and the measurement shot in any non-telecentric system.
+- Session-to-session drift stops mattering. An image taken a year later is still calibrated.
+
+A 1 mm ruling fits inside any field of view small enough to be measuring craters in, so there
+is rarely a reason not to. Check coplanarity by focus: if both surfaces are sharp together,
+they are in the same plane.
+
+**This is the answer to autofocus.** An autofocus microscope is otherwise a poor instrument
+for calibrated work, and cheap ones rarely document a manual mode or a focus lock. Same-frame
+calibration makes the objection go away rather than managing it.
+
 Two practical traps, both specific to a top-lit coin scope:
 
 - **Lighting.** Most cheap stage micrometers are chrome ruling on clear glass, intended for
@@ -406,10 +431,18 @@ mediocre costs precision on `w₀` rather than blocking step 7.1 outright.
 
 #### Getting depth out of it — focus stepping against the indicator
 
-A microscope measures depth only through focus, and this one has no Z readout. It can borrow
-one: mount the dial test indicator to read the stage's vertical travel, focus on the
+A microscope measures depth only through focus, and these have no usable Z readout. One can
+be borrowed: mount the dial test indicator to read the stage's vertical travel, focus on the
 untouched surface, note the reading, rack up until the pocket floor is sharpest, note it
 again. The difference is the depth.
+
+**A trap worth naming.** Some autofocus models advertise a **time-of-flight sensor** for
+"accurate distance measurements". That sounds like the Z readout this method wants and it is
+not. Consumer TOF ranging parts resolve about **1 mm** with accuracy of several millimetres —
+they exist to tell the lens roughly where the subject is. Against a 1.1 mm pocket and 10–30 µm
+terraces that is three to four orders of magnitude short, and the reading is internal to the
+autofocus system rather than exposed. **No microscope in this class measures depth
+electronically.** Depth comes from focus against an external scale, or it does not come.
 
 - Resolution is set by **depth of field**, not by the indicator. At the modest real
   magnification of a coin scope the DOF is large — expect tens of microns even with a

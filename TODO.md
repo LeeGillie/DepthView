@@ -400,3 +400,151 @@ repository would find absent, ordered by how much each one costs the project's c
   public-domain StbImageSharp; TIFF and WebP are the only genuinely awkward parts.
 - The published binary is ~44 MB because it is self-contained. Trimming or ReadyToRun
   could cut that, at some risk to Avalonia's reflection-based XAML loading.
+
+---
+
+## 7. Depth prediction — the stepwise plan
+
+Full reasoning, formulas, published constants and measurement methods are in
+`docs/DEPTH-PREDICTION.md`. This section is only the order of work and what "done" means
+for each step.
+
+**The handoff rule, and it is not negotiable.** Steps 1 and 2 produce the two constants
+(`δ` and `F_th`) that step 6 fits its model to. Doing 6 first means inventing them, which
+defeats the entire point of the system — a model seeded with made-up constants looks
+exactly like a model fitted to measurements, and the tool would then be lying confidently.
+Anything that needs a constant waits for the coupon that produces it.
+
+**What is not blocked.** Steps 3, 4 and 5 need no physical measurement at all. They are
+geometry and statistics on the image already loaded. Ship those first so the project keeps
+moving while the coupons are cut, and so there is something real in front of contributors
+before anyone is asked to buy a scale.
+
+### 7.1 Liu's D² coupon — spot size and ablation threshold  *(bench, blocks 7.2 and 7.6)*
+
+The single cheapest experiment in the whole plan, and the one that resolves the largest
+present uncertainty. The Lumos spot is quoted somewhere between 6 and 8 µm; fluence goes as
+`1/w²`, so that range alone is a **1.8× spread in every fluence figure** we would compute.
+Everything downstream inherits it.
+
+Method: single pulses at a descending energy ladder, measure crater **diameter** — not
+depth, which is why a $40 USB scope is sufficient. Plot `D²` against `ln(E)`. It is a
+straight line: slope gives `2w₀²`, x-intercept gives `E_th`.
+
+- Needs: USB scope, calibration slide, a polished coupon. No scale, no indicator.
+- Watch for incubation — `F_th(N) = F_th(1)·N^(S−1)`. Single pulses per site, spaced well
+  apart, or the threshold you measure is not the one you think.
+- **Done when:** `w₀` and `F_th` are written down with an R² for the fit and a stated pulse
+  duration, source and lens. A number without those four qualifiers is not a result.
+
+### 7.2 Step-wedge coupon, measured by mass loss  *(bench, blocks 7.6 and 7.7)*
+
+Fits the log ablation law `d = δ·ln(F/F_th)` and finds where it stops holding.
+
+`--calibrate` already emits the coupon (see 1.4 and 1.4b). What is missing is the
+measurement and the entry path for it.
+
+- **Mass loss is the primary instrument**, not the dial indicator. A 0.001 g jeweller's
+  scale resolves 0.29 µm of average depth on a 20 × 20 mm brass pocket, reaches 1 %
+  precision above ~29 µm, and does not care about the burr at the pocket edge. The
+  Mitutoyo 513-402-10E on hand is the cross-check: 12.7 µm graduation, 5.1 µm
+  repeatability, and only 0.76 mm of travel against a 1.1 mm coin target.
+- Record the **roll-off** deliberately. The log law fails as the pocket deepens — debris
+  shielding, plasma absorption, the beam clipping its own wall. Where it fails is a result
+  in its own right and is what item 1.4b was already circling.
+- **Done when:** `δ` and `F_th` are fitted per material with residuals, and the depth beyond
+  which the fit is not trusted is stated as a number.
+- Blocked on: brass and stainless coupons cut at the chosen pass count. Nothing else.
+
+### 7.3 Terrace-width prediction  *(code only — ship this first)*
+
+Needs **no measured constant whatsoever**, which is why it goes ahead of everything else.
+Pure cartography: the spacing between contour lines on a slope.
+
+```
+terrace width = level step / |∇level|
+```
+
+Compare that width against the spot size and the line interval. Where the terrace is wider
+than the spot, the slicing will be visible as contour banding; where it is narrower, the
+beam smears it away. This turns "you may see terracing" into *"terracing will be visible
+here, and here"*, drawn on the map.
+
+The relief preview already quantises to a slice count and renders in milliseconds, so the
+gradient field is most of the way to existing.
+
+- **Done when:** the analysis reports terrace width statistics, and the preview can overlay
+  the regions predicted to band at the current pass count.
+- Depends on: nothing. Available today.
+
+### 7.4 Spike detection and noise floor  *(code only)*
+
+Two related reports, both purely statistical.
+
+- **Immerkær fast noise variance** — one convolution with `[[1,-2,1],[-2,4,-2],[1,-2,1]]`
+  gives a noise-sigma estimate in a single pass. Known to **under**-estimate at low noise,
+  so report it as a floor rather than a figure, and say so in the output.
+- **Spike detection** — isolated pixels far from their neighbours. In a depth map these are
+  not texture, they are a single pass firing where nothing was intended, and at high pass
+  counts they cut to full depth.
+
+Both matter because a noisy map wastes slice levels on noise: the analysis currently reports
+how many distinct levels exist without asking how many of them are real.
+
+- **Done when:** both figures appear in the report with an explicit statement of what they
+  can and cannot tell you.
+
+### 7.5 Dither detection  *(code only)*
+
+A dithered source arriving as a depth map is a category error — it encodes tone as pixel
+density, and a slicer will read that density as geometry. Detect the characteristic
+frequency signature and say so loudly, because every other number in the report is
+meaningless on a dithered input.
+
+- **Done when:** dithered input is identified by name (ordered vs error-diffused, if the
+  signature separates them) and the report refuses to quote level statistics for it.
+
+### 7.6 Depth model and settings-driven live preview  *(blocked on 7.1 and 7.2)*
+
+**This is the one that was called the holy grail, and it is deliberately sixth.**
+
+Compute fluence from the settings the user actually types — wattage, power percent, speed,
+line interval, pass count, spot size — feed it through the fitted `d = δ·ln(F/F_th)`, and
+drive the existing 3D relief renderer from the result. The surface then genuinely changes
+shape as a slider moves, because the realisable level count changes, not because the
+exaggeration factor changed.
+
+Requirements that are easy to lose sight of once it starts working:
+
+- **Provenance on every number.** A prediction from an A-grade fit and a prediction seeded
+  from a published constant must not look alike on screen. The uncertainty band widens
+  visibly for the seeded one, or the feature is dishonest.
+- **Refuse to extrapolate.** Outside the tested envelope the answer is "no evidence", never
+  an interpolated number. This is already the rule in the LaserTuner evidence schema and it
+  transfers unchanged.
+- **Grades never blend.** An A-grade measurement supersedes a C-grade prior. It is not
+  averaged with it.
+
+### 7.7 Operating window — slag and visible layering  *(blocked on 7.2)*
+
+The part that cannot be rendered, only bounded.
+
+Geometry can be drawn faithfully. Slag, discolouration and heat-affected zone cannot — they
+depend on assist gas, debris evacuation, ambient conditions and the specific alloy. If the
+render shows both with the same confidence, the tool has lied about one of them.
+
+So: record the settings where slag appeared on each coupon, mark the region of the settings
+space that produced clean cuts, and shade anything outside it as untested. **The seam
+between "computed" and "observed" must be visible in the UI**, not buried in a tooltip.
+
+- **Done when:** the preview marks regions whose settings sit outside anything measured, and
+  the report can name which coupon a clean-cut claim came from.
+
+### 7.8 Open question — where this documentation lives
+
+`docs/DEPTH-PREDICTION.md` is in DepthView, which is public and is where contributors land.
+The evidence store it draws on is LaserTuner, which carries the A–E grading scale in
+`Documentation/Evidence_Sources.md` and **has no git remote** — it is local-only, so no
+contributor can reach it today. Either the document stays here and references a repository
+nobody else can see, or LaserTuner gets published. Decide before asking anyone to
+contribute measurements.

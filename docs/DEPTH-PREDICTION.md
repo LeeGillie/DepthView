@@ -293,8 +293,18 @@ soft. So for this application:
 - **Do not use the heater.** Heat encourages oxide on brass and accelerates any chemical
   attack, for no benefit on contamination this loose. If it is used, let the coupon return to
   room temperature before weighing.
+- **Prefer a unit with a reduced-power or "gentle" mode.** Since erosion rather than
+  insufficiency is the failure mode here, the ability to turn the power *down* is worth more
+  than a higher rating. A built-in degas mode is a minor convenience — it automates the
+  pre-run described below, which can be done manually on any unit.
 - **The blank-coupon control above detects erosion directly.** That is now its most important
   function, not a formality.
+
+**Let the control decide the setting rather than guessing.** Run the blank coupon at full
+power first. If its mass is stable, full power is fine and gentle mode is unnecessary. If mass
+drops, switch to gentle and repeat until it does not. This is one coupon and twenty minutes,
+and it replaces an unanswerable question about how much cavitation brass tolerates with a
+measurement.
 
 **What actually matters in the specification is the timer.** A digital timer means every
 coupon gets an identical cycle, so debris removal is consistent between weighings. Consistency

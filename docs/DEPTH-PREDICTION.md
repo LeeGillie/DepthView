@@ -252,15 +252,31 @@ Easy to miss, and it changes how the coupon must be cut. Mass loss gives the **t
 from whatever you put on the pan. A wedge with ten zones at ten different powers, engraved in
 one job, yields one number — and one number cannot fit two constants across ten levels.
 
-Two ways out:
+Two ways out, and the choice is not close once the numbers are written down:
 
-1. **Sequential engrave-and-weigh.** Weigh the blank, cut zone 1, clean, weigh. Cut zone 2,
-   clean, weigh. Each difference is that zone's mass. Ten zones is eleven weighings and about
-   an hour, on a single coupon, and it is the method to prefer.
-2. **One coupon per power level.** Cleaner still, but ten coupons and ten times the material.
+1. **One small coupon per power level, all cut from the same plate.** Weigh, engrave, clean,
+   weigh. Ten coupons, twenty weighings, no ordering constraint. Cutting them from one plate
+   keeps alloy, temper and surface finish common, which was the only real argument for the
+   single-plate method.
+2. **Sequential engrave-and-weigh on one large plate.** Weigh, cut zone 1, clean, weigh, cut
+   zone 2… Works, but it is the weaker option.
 
-**Zone size is set by this, not by convenience.** Depth resolved per scale count, brass,
-0.001 g:
+**Why the small coupons win — signal against total mass.** The scale resolves 1 mg wherever
+it sits, but noise, drift and linearity all scale with load, and the ratio being asked for is
+what matters:
+
+| Approach | Coupon mass | Mass removed at 100 µm | Ratio |
+|---|---|---|---|
+| 100 × 75 × 3 mm plate, 15 × 15 mm zone | 191 g | 191 mg | 1 : 1000 |
+| **25 × 25 × 3 mm coupon, 15 × 15 mm zone** | **16 g** | **191 mg** | **1 : 83** |
+
+The same 191 mg signal, against an eighth of the load. A cheap scale asked for one part in a
+thousand will be fighting thermal drift across the session; one part in eighty-three is
+comfortable. The single plate also serialises the whole experiment — one botched zone and the
+ordering is compromised.
+
+**Zone size is set by the measurement, not by convenience.** Depth resolved per scale count,
+brass, 0.001 g:
 
 | Zone | Per count | ≥1 % precision above |
 |---|---|---|
@@ -273,6 +289,33 @@ So **zones must be at least 10 × 10 mm, and 15 × 15 mm is the sensible default
 throws away the scale's entire advantage over the dial indicator. This is a constraint on
 `--calibrate`, which currently sizes the wedge to fit the blank rather than to the measurement
 that has to be made from it.
+
+#### Buying the scale: capacity is the spec that bites
+
+Resolution alone does not choose a scale, and the obvious cheap one is the wrong one.
+
+The common inexpensive milligram scale is **20 g × 0.001 g**, sold for reloading. Twenty grams
+does not weigh a coupon:
+
+| Coupon | Mass |
+|---|---|
+| 25 × 25 × 3 mm brass | 16 g |
+| 40 mm × 3 mm brass coin blank | **32 g** |
+| 40 mm × 4 mm brass blank | **43 g** |
+| 50 × 50 × 3 mm brass | **64 g** |
+
+**Specify 0.001 g resolution and at least 50 g capacity**, ~$30–40. 100 g is better if it does
+not cost more. Also:
+
+- **Confirm a calibration weight is included**, or add one (~$10). A scale that cannot be
+  checked cannot be trusted.
+- **A draft shield is not optional at 1 mg.** Room air currents swamp the last digit. Most
+  scales at this resolution ship with a cover; use it.
+- **Keep a check mass on the bench** and weigh it at the start and end of every session.
+  Cheap scales drift with temperature, and a drift that develops mid-session otherwise looks
+  exactly like a depth measurement.
+- Read reviews for *repeatability* specifically. A displayed third decimal that is pure noise
+  is common in this price bracket.
 
 ### 5.2 Dial test indicator — step height, with a hard ceiling
 
@@ -486,8 +529,9 @@ depth `d`, viewed at `θ` from the surface normal, projects its riser to a later
 
 This is the same manoeuvre as the power ladder in reverse: **convert a measurement the
 instrument cannot make into one it makes easily.** No special microscope is needed — an angle
-block, a sine bar or a cheap tilting vice puts the coupon at a known angle under any vertical
-scope.
+block, a sine bar or a cheap tilting vice puts the coupon at an angle under any vertical
+scope. **A 3D-printed wedge is sufficient and costs nothing**, because the angle it actually
+holds does not need to be accurate — see below.
 
 And it is **self-calibrating**, which removes the need to trust the angle block at all. Tilt
 the calibration slide along with the coupon and the geometry measures itself:
@@ -636,18 +680,28 @@ Do it once per material to validate the cheap methods, not routinely.
 
 ### 5.6 Recommended contributor kit
 
-| Item | ~Cost | Buys you |
-|---|---|---|
-| Jeweller's scale, 0.001 g | $25 | Depth to sub-micron average |
-| LCD/USB microscope + **calibration slide** | $50 | Liu's D²: spot size and threshold |
-| Ultrasonic cleaner | $40 | Trustworthy mass readings |
-| Dial test indicator + stand *(optional)* | $60–150 | Step height, independent cross-check |
+| Item | ~Cost | Buys you | |
+|---|---|---|---|
+| Scale, **0.001 g × ≥50 g** | $30–40 | **Depth.** The primary instrument | Essential |
+| Stage micrometer | $16 | Scale, procedure check, tilt angle | Essential |
+| LCD/USB microscope | $40–200 | Spot size `w₀` only | Essential |
+| Brass/stainless stock for coupons | $20 | Something to cut | Essential |
+| Ultrasonic cleaner | $40 | Trustworthy mass readings | Strongly advised |
+| Calibration weight, if not bundled | $10 | A scale you can check | Strongly advised |
+| Clip-on LED ring | $15 | Even light for unbiased edges | Optional |
+| 3D-printed tilt wedge | — | Depth as a lateral measurement | Optional |
+| Dial test indicator + stand | $60–150 | Step height cross-check | Optional |
 
-**Under $120 gets a contributor to a real measurement.** That is the number to put in front
-of anyone who thinks this needs a metrology lab. The DTI is the one line that can be skipped
-entirely — it is the most expensive item and the least capable of the three, and a project
-already owning one should treat it as the cross-check rather than the reason not to buy the
-scale.
+**The two that get forgotten are the scale and the stock.** It is easy to buy the microscope,
+because it is the interesting object, and then discover that the microscope measures spot size
+while the *scale* measures depth — and depth is what the model is for. A kit with a microscope
+and no scale cannot complete step 7.2 at all.
+
+**About $130 of essentials gets a contributor to a real measurement** — scale, slide, the
+cheapest qualifying scope, and stock. That is the number to put in front of anyone who thinks
+this needs a metrology lab. The DTI is the line most safely skipped: the most expensive of the
+instruments and the least capable, and anyone who already owns one should treat it as the
+cross-check rather than as a reason not to buy the scale.
 
 ---
 

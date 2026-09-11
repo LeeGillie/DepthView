@@ -488,11 +488,19 @@ measurement and the entry path for it.
   repeatability, and only 0.76 mm of travel against a 1.1 mm coin target.
 - **A step wedge cannot be weighed in one go, and this changes the coupon.** Mass loss gives
   the total removed from whatever goes on the pan, so ten zones engraved in one job yield one
-  number. Cut them **sequentially, weighing between each** — eleven weighings for ten zones,
-  about an hour, one coupon. And **zones must be at least 10 × 10 mm, 15 × 15 mm by
-  preference**: at 5 × 5 mm a scale count is 4.7 µm and the scale's whole advantage over the
-  dial indicator is gone. `--calibrate` currently sizes the wedge to fit the blank rather than
-  to the measurement that must be made from it — **fix that before cutting anything.**
+  number, and one number cannot fit two constants across ten levels. Use **one small coupon
+  per power level, all cut from the same plate** — 25 × 25 × 3 mm carrying a single 15 × 15 mm
+  zone. That puts a 191 mg signal on a 16 g coupon (1:83) instead of on a 191 g plate
+  (1:1000), which is the difference between a comfortable reading and one fighting thermal
+  drift. **Zones must be at least 10 × 10 mm, 15 × 15 mm by preference**: at 5 × 5 mm a scale
+  count is 4.7 µm and the scale's whole advantage over the dial indicator is gone.
+  `--calibrate` currently sizes the wedge to fit the blank rather than to the measurement that
+  must be made from it — **fix that before cutting anything.**
+- **Scale spec: 0.001 g resolution and ≥50 g capacity.** The common cheap milligram scale is
+  20 g full scale, which will not weigh a 40 mm brass coin blank (32 g) let alone a 4 mm one
+  (43 g). Needs a calibration weight, a draft shield, and a check mass weighed at both ends of
+  every session — cheap scales drift with temperature, and mid-session drift looks exactly
+  like a depth measurement.
 - Record the **roll-off** deliberately. The log law fails as the pocket deepens — debris
   shielding, plasma absorption, the beam clipping its own wall. Where it fails is a result
   in its own right and is what item 1.4b was already circling.

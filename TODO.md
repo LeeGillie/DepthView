@@ -444,8 +444,22 @@ straight line: slope gives `2w₀²`, x-intercept gives `E_th`.
   to average along instead of one small disc. The threshold it returns is `F_th(N_eff)`, so
   carry the overlap count through the incubation relation — or vary overlap deliberately and
   **fit `S` from the same coupon**, which step 7.6 needs anyway.
+- **Split the two constants — they do not need the same instrument.** `F_th` can be had with
+  calipers: engrave a ladder of short segments at stepped power, find the first that marks at
+  all. Fifty steps gives 2 % resolution, read at millimetre scale rather than micron scale.
+  Only `w₀` actually needs the microscope, so a scope that qualifies poorly costs precision
+  on one constant instead of blocking the step. **Add this ladder to `--calibrate`** — it is
+  a near-trivial addition to the coupon that already exists.
 - **Done when:** `w₀` and `F_th` are written down with an R² for the fit and a stated pulse
   duration, source and lens. A number without those four qualifiers is not a result.
+
+**Kit decision, 2026-09-11.** Stage micrometer: WintopScope 4-scale, ~$16 — carries both the
+0.01 mm × 100 and 0.1 mm × 10 rulings plus 0.07 mm and 0.15 mm dots, and those dots are a
+round known-diameter object to validate the crater-measuring *procedure*, not just the scale.
+Microscope: buy the ~$40 coin scope and qualify it against the acceptance test in
+`docs/DEPTH-PREDICTION.md` §5.3 inside the return window, because no vendor at any price in
+this class publishes field of view. Do **not** buy up into a soldering microscope — their
+long working distance is bought at the cost of magnification.
 
 ### 7.2 Step-wedge coupon, measured by mass loss  *(bench, blocks 7.6 and 7.7)*
 

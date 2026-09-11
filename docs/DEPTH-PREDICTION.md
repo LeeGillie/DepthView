@@ -378,6 +378,32 @@ scan speed. Better still, vary the overlap deliberately and **fit `S` from the s
 experiment** — incubation is needed anyway for multi-pass depth prediction, so this is a
 measurement we would otherwise have to go and get separately.
 
+#### The threshold needs no microscope at all
+
+Worth stating plainly because it removes the microscope from the critical path: **`F_th` can
+be measured with calipers.**
+
+Engrave a ladder of short line segments at stepped power — say 50 segments two percent apart
+— and find the first segment that marks the surface at all. That position *is* the threshold,
+to within one step. The measurement is "which segment", read at millimetre scale, instead of
+"how wide is this crater", read at micron scale.
+
+This is the Vernier trick: **use a gradient to convert a measurement you cannot make into one
+you can.** The information was always there; a ladder just spreads it across 100 mm of coupon
+instead of compressing it into 8 µm of crater.
+
+Consequences worth being explicit about:
+
+- Resolution is set by step size, not by optics. Fifty steps gives 2 %; two hundred gives
+  0.5 %, and the coupon is still only a few centimetres long.
+- The result is a threshold **in commanded power**, not in J/cm². Converting needs the
+  power-versus-command curve for that source, which is a separate calibration — but one that
+  is needed for every other number in this document too, so it is not an extra debt.
+- It does **not** give spot size. `w₀` still needs the D² slope or a line width.
+
+So the microscope is required for one of the two constants, not both. A scope that turns out
+mediocre costs precision on `w₀` rather than blocking step 7.1 outright.
+
 #### Getting depth out of it — focus stepping against the indicator
 
 A microscope measures depth only through focus, and this one has no Z readout. It can borrow
@@ -392,6 +418,47 @@ again. The difference is the depth.
 - Worth knowing because it makes the indicator and the scope together do something neither
   does alone, and it needs no further purchase. It is a cross-check on mass loss, not a
   replacement for it.
+
+#### Choosing one, when the deciding specification is unpublished
+
+Surveyed across the price range in September 2026, and the result is consistent: **nobody
+publishes field of view.** Reviews of the $40 coin scopes say the magnification claim is
+"significantly overstated" and then decline to give a real figure. A $150 Andonstar ADSM302
+review has no field-of-view measurement either, and its "12 MP, 4032 × 3024" stills come off
+a stated **3 MP sensor** — interpolated pixels sold as resolution. Assume interpolation
+anywhere the photo resolution exceeds the sensor.
+
+Two conclusions follow.
+
+**Do not buy up into a soldering microscope.** The ADSM302's headline feature is a 114 mm
+working distance, so an iron fits underneath. Working distance trades directly against
+magnification. For crater work the requirement is the opposite — get the lens as close as the
+stand allows — so the cheap coin scope's short standoff is the feature, and the more
+expensive instrument is *worse* at this particular job.
+
+**Buy the cheap one and qualify it inside the return window.** Under unpublished specs, a
+return policy is the specification. Acceptance test, in order:
+
+1. Photograph the slide at maximum usable zoom, compute µm/px. **Target ≤1.5 µm/px; reject
+   above ~3.**
+2. Photograph the ruling centred, then at the frame edge. **Scale must agree within ~2 %**
+   across the middle third, or confine all measurement to the centre.
+3. Confirm PC capture delivers full sensor resolution rather than a downscaled preview
+   stream — compare a PC frame against a card still.
+4. Rack the stand away and back, re-shoot the slide. **Does the scale return?** A stand that
+   does not repeat means recalibrating every session.
+
+One thing relaxes the threshold: an edge can be fitted **sub-pixel**. Averaging a straight
+edge along its length reaches roughly 0.1 px on edge position — the same principle as
+slanted-edge MTF testing. A 5 px wide line is therefore measurable; a 2 px line is not. This
+is the reason the line-width variant matters more than the crater for a small spot.
+
+A caution on the Elikliv EDM4 specifically. Its sheet lists "Real Angle of View 16 degrees".
+If that is the field angle at maximum zoom then FOV ≈ 0.28 × working distance, so a 1 mm
+field needs the lens 3.6 mm off the surface. At a more plausible 10–20 mm standoff it is
+2.8–5.6 mm, or **2–4 µm/px rather than 0.78.** That single spec is not trustworthy enough to
+condemn the instrument, but it points the same way as everything else: **treat the 1 mm field
+of view assumed above as optimistic until measured.**
 
 ### 5.4 Known-depth reference plate — the cheapest comparator
 

@@ -106,3 +106,10 @@ artwork/banner/_tmp.html
 /.github/newnotes.tmp.md 
 /relbody.txt 
 /relcheck.txt 
+
+# Screenshots dropped into docs/images while researching purchases. They are not
+# documentation, and product-page captures routinely carry the buyer's delivery address in
+# the buy box. privacy-check.ps1 scans text and cannot see inside a JPEG, so this rule is
+# the only guard against `git add -A` publishing one. Same reasoning as the samples/
+# allow-list above: the repo is public.
+docs/images/Screenshot*

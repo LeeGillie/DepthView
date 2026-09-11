@@ -236,6 +236,55 @@ rather than only promised in an email.
 
 ---
 
+## Measurement and depth prediction (added 2026-09-11)
+
+`docs/DEPTH-PREDICTION.md` is the research document: the physics, published constants with
+grades, how to measure a test engraving without a laboratory, and a 26-step protocol in §5.7.
+`TODO.md` §7 is the stepwise plan. **Read those rather than re-deriving any of it.**
+
+The shape of the plan, because it is easy to get backwards: steps 7.3–7.5 (terrace width,
+noise floor, dither detection) need **no measured constant** and ship first. The depth model
+(7.6) waits on the two coupons that produce `δ` and `F_th`, because seeding it with invented
+constants makes a dishonest prediction indistinguishable from a fitted one.
+
+**Four retractions happened in one session, and the pattern matters more than the facts.**
+Every one was a confident number stated without checking, then corrected when checked:
+
+- Ultrasonic power was given as "50–100 W/L". The industry figure is **8–15 W/L**. Wrong by
+  5×, and the advice inverted with it: the risk is **cavitation erosion**, not insufficient
+  power, because eroded substrate is indistinguishable from engraved depth.
+- Field of view was inferred from a listing's "Real Angle of View: 16°". The field is junk —
+  a sibling product lists **178°**, which is an IPS panel viewing angle. Never reason from it.
+- Step-wedge zones were to be cut sequentially on one plate. **Separate small coupons win**:
+  the same 191 mg signal sits on 16 g rather than 191 g, so 1:83 instead of 1:1000.
+- Oxide was called a hazard. It is **0.4–1.4 mg** — under 1 %, about the same as a fingerprint.
+
+This is the same failure as the LightBurn 16-bit concession above, in a new domain: an
+authoritative-sounding number accepted without a source. **Check the figure before it goes in
+a document a contributor will follow.**
+
+Facts worth not re-deriving:
+
+- **Megapixel claims in this product class are interpolation.** Find the *video* resolution,
+  which cannot be faked upward. Silence about 4K is evidence against it.
+- **Mass loss is the primary depth instrument**, not any gauge: `depth = Δm / (ρ·A)`, 0.52 µm
+  per 1 mg count on a 15 × 15 mm brass zone. The microscope only measures spot size.
+- **`F_th` needs no microscope.** A ladder of short segments at stepped power, read at
+  millimetre scale — the first segment that marks is the threshold.
+- **Same-frame calibration** (the scale in the photograph with the subject) defeats autofocus
+  drift, stand repeatability and session drift at once. It also measures tilt angle, so a
+  3D-printed wedge needs no accuracy.
+- **"Accuracy" is usually the wrong spec.** Every measurement here is a *difference* taken
+  minutes apart on one instrument, so **repeatability governs**. This is why the Mitutoyo's
+  0.0002″ figure is usable — it is repeatability and hysteresis, not an accuracy claim,
+  whatever the retail listing calls it.
+- **Bonded recast stays on the coupon and is correctly counted.** Only loose debris must go.
+  The difference between a mass result and a profile result *is* the recast.
+- **Cleaning chemistry that etches produces fake depth.** Water and dish detergent only; no
+  ammonia on brass, no acids. The blank-coupon control detects a violation.
+
+---
+
 ## What is owed
 
 The calibration coupon (`--calibrate`) is built but has never been cut. Until it is
@@ -243,5 +292,12 @@ engraved on brass and stainless and measured, several defaults are honest admiss
 rather than knowledge — the rim ramp defaults to none for exactly this reason. Measurement
 entry and the inverse LUT are deliberately unbuilt: a form invented before the first coupon
 is a guess about what the numbers look like.
+
+**The measurement kit was ordered 2026-09-11** — 4K microscope, stage micrometer, ultrasonic
+cleaner, beakers; the milligram scale and dial indicator were already owned. So the coupon is
+no longer blocked on equipment. What blocks it now is `--calibrate` itself: it sizes the wedge
+to fit the blank, where the measurement needs **zones of at least 10 × 10 mm on separate
+25 × 25 mm coupons** (see TODO 7.2). **Fix that before cutting anything**, or the first
+coupon produces numbers the scale cannot resolve.
 
 `TODO.md` has the rest, with enough context to pick each item up cold.

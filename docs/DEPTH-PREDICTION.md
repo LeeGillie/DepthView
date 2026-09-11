@@ -486,12 +486,44 @@ edge along its length reaches roughly 0.1 px on edge position — the same princ
 slanted-edge MTF testing. A 5 px wide line is therefore measurable; a 2 px line is not. This
 is the reason the line-width variant matters more than the crater for a small spot.
 
-A caution on the Elikliv EDM4 specifically. Its sheet lists "Real Angle of View 16 degrees".
-If that is the field angle at maximum zoom then FOV ≈ 0.28 × working distance, so a 1 mm
-field needs the lens 3.6 mm off the surface. At a more plausible 10–20 mm standoff it is
-2.8–5.6 mm, or **2–4 µm/px rather than 0.78.** That single spec is not trustworthy enough to
-condemn the instrument, but it points the same way as everything else: **treat the 1 mm field
-of view assumed above as optimistic until measured.**
+**Do not try to infer field of view from the "Real Angle of View" row.** An earlier draft of
+this document did exactly that — the Elikliv EDM4 lists 16°, which if taken as a lens field
+angle implies 2–4 µm/px at any plausible standoff. The inference is unsound: the sibling
+EDM9 Max lists **178°** in the same field, which is an IPS panel viewing-angle specification
+and cannot be optics. The field is populated with whatever the vendor had to hand. Field of
+view remains simply **unknown**, and the acceptance test above is the only way to learn it.
+
+#### Reading the model range — resolution is the one axis that matters
+
+Sensor resolution is the spec that translates directly into measurement quality, and it is
+the one most consistently obscured. A worked example of decoding it, from one vendor's range
+in September 2026:
+
+| Model | Claimed stills | Actual video | Pixels across |
+|---|---|---|---|
+| EDM4 (4.3″) | — | 720p | 1280 |
+| EDM9 (7″) | 12 MP | **1080p** | 1920 |
+| EDM9 Pro (7″) | 16 MP | **1080p** | 1920 |
+| EDM9 Max (10.1″) | 20 MP | *unstated* | 1920 (inferred) |
+| EM4K-AF (8″) | 52 MP | **4K / 3840×2160** | 3840 |
+
+The pattern is plain once laid out. **The megapixel number escalates across a product line
+whose actual video resolution does not move**, because it is an interpolation factor rather
+than a sensor. The EDM9 Max declines to state a video resolution at all — but a 4K product
+puts "4K" and "3840P" in its title, and this one does not, while its immediate siblings say
+1080p outright.
+
+Two rules generalise from this:
+
+1. **A stated megapixel figure is worthless; find the video resolution.** Video cannot be
+   faked upward the way a still can, so it reveals the sensor.
+2. **Silence about a headline spec is evidence against it.** Vendors advertise 4K when they
+   have it.
+
+Consequence for spending: within such a range, the mid-price model is usually the worst value
+*for measurement*, because its premium buys screen size, stand quality and lighting rather
+than pixels. Those are real improvements to an instrument — but the ones that matter least
+here, especially once same-frame calibration has removed the stand-repeatability requirement.
 
 ### 5.4 Known-depth reference plate — the cheapest comparator
 

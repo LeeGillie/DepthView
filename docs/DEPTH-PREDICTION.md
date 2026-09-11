@@ -301,6 +301,35 @@ height must be locked and recorded for a measurement session.
 So **a calibration slide (~$10) is not an accessory, it is the thing that converts a toy into
 an instrument.** Without it the scope produces pictures; with it, measurements.
 
+#### What a calibration slide is
+
+A **stage micrometer**: a standard 25 × 75 mm glass microscope slide with a precisely ruled
+scale on it, normally 1 mm divided into 100 divisions of 0.01 mm (10 µm). Sold as "stage
+micrometer" or "microscope calibration slide 0.01mm", $8–20. The ruling is lithographic and
+accurate to a fraction of a micron — better than everything else in the chain by a wide
+margin, which is what makes it the reference.
+
+Using it takes five minutes, once per stand height:
+
+1. Set and **lock** the stand height you will use for the session.
+2. Photograph the slide through the PC connection.
+3. In ImageJ, count pixels spanning a known number of divisions. Twenty divisions across
+   256 px is 200 µm ÷ 256 px = **0.78 µm/px**.
+4. Record that figure alongside the stand height. Change the height, repeat step 1.
+
+Two practical traps, both specific to a top-lit coin scope:
+
+- **Lighting.** Most cheap stage micrometers are chrome ruling on clear glass, intended for
+  *transmitted* light. A coin scope lights from above with an LED ring, so the glass goes
+  dark and the chrome glares. Put black card underneath and take the LEDs off-axis; it works,
+  it just is not the intended mode. A reflective micrometer (chrome on an opaque substrate)
+  avoids the problem if one can be found at a sane price.
+- **Calibrate at the centre, then check the edge.** A $40 lens has barrel distortion, so the
+  scale near the frame edge is not the scale in the middle. Photograph the ruling centred and
+  again pushed to the edge. If they differ by more than a percent or two, confine every real
+  measurement to the middle third of the frame. **This is the step people skip**, and skipping
+  it biases every subsequent measurement in one direction rather than merely scattering it.
+
 The one specification that does constrain the result is sensor resolution. These units are
 **720p — 1280 pixels across, not 1920.** Resolution in the only units that matter:
 

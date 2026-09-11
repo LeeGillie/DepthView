@@ -392,14 +392,36 @@ does not weigh a coupon:
 not cost more. Also:
 
 - **Confirm a calibration weight is included**, or add one (~$10). A scale that cannot be
-  checked cannot be trusted.
-- **A draft shield is not optional at 1 mg.** Room air currents swamp the last digit. Most
-  scales at this resolution ship with a cover; use it.
+  checked cannot be trusted. Two weights are better than one — they check linearity at two
+  points, and one of them becomes the session check mass.
 - **Keep a check mass on the bench** and weigh it at the start and end of every session.
   Cheap scales drift with temperature, and a drift that develops mid-session otherwise looks
   exactly like a depth measurement.
 - Read reviews for *repeatability* specifically. A displayed third decimal that is pure noise
-  is common in this price bracket.
+  is common in this price bracket. Step 2 of the protocol measures it directly, so the
+  claim on the box does not have to be believed either way.
+
+**Operating a cheap scale at 1 mg — four things that are not in the manual.**
+
+1. **Place the coupon identically every time.** Single-point load cells have a corner-load
+   error: the reading depends on *where* on the pan the mass sits. Mark the pan and use the
+   same spot and orientation for both weighings, and the error cancels in the difference
+   rather than appearing as depth.
+2. **Still air.** At 1 mg a draught is a reading. Away from vents, doors and anything with a
+   fan. The flip-top lid on a pocket scale is a transit cover, not a draft shield — a
+   cardboard box over the whole scale works and costs nothing.
+3. **Let it warm up.** These drift for several minutes after power-on. Switch it on, leave it,
+   then calibrate.
+4. **Auto-off is an obstacle, not a feature.** A session is twenty weighings across an hour,
+   and every shutdown loses the zero and the thermal state. Disable it if possible; if not,
+   nudge the scale between weighings and re-check the calibration weight more often than
+   feels necessary.
+
+**Capacity constrains the coupon, so check the pairing.** A 50 g scale and the 25 × 25 × 3 mm
+coupon in §5.7 sit well together — 16 g is a third of full scale, comfortably inside the range
+where cheap load cells behave. It also covers a 40 mm × 3 mm coin blank at 32 g and a 4 mm one
+at 43 g, though the latter leaves little headroom. What a 50 g scale will *not* take is a
+50 × 50 mm plate at 64 g — another reason the protocol specifies small coupons.
 
 ### 5.2 Dial test indicator — step height, with a hard ceiling
 
@@ -796,12 +818,12 @@ so the reasoning has something concrete attached to it, not as endorsements.
 | **WintopScope stage micrometer**, ~$16 | 0.01 mm × 100 and 0.1 mm × 10 rulings, plus 0.07 and 0.15 mm dots. The dots validate the diameter-measuring procedure on a known circle, and measure tilt angle when the coupon is inclined. |
 | **VEVOR 2L ultrasonic**, 60 W, 40 kHz, ~$50 | Chosen over a 120 W / 3 L unit **because it turns down.** Erosion, not insufficiency, is the failure mode. Digital timer for cycle repeatability; 40 kHz avoids the harsher low-frequency cavitation. |
 | **Borosilicate beaker set**, 10–1000 mL, ~$17 | The 50 and 100 mL sizes take a 25 mm coupon. Fresh solution per coupon, suspended in the tank. |
-| **Scale, 0.001 g × ≥50 g** | Not a 20 g reloading scale — a 40 mm brass blank is 32 g. |
+| **Smart Weigh GEM 50**, 50 g × 0.001 g | Already owned. Meets the spec at its boundary: 50 g takes the 16 g coupon comfortably and a 40 mm blank at 32 g, but not a 50 × 50 mm plate. Ships two 20 g weights — linearity at two points, and one becomes the session check mass — plus tweezers. Ignore "microgram-level precision" on the box; it resolves milligrams. |
 | Mitutoyo 513-402-10E | Already owned. Cross-check only. |
 
-Total for the instruments is roughly $300, against the ~$130 floor in the table above. The
-difference is almost entirely the 4K microscope, which is the one place extra spending buys
-measurable capability rather than convenience.
+Total *bought* is roughly $280, against the ~$130 floor in the table above, with the scale and
+the indicator already to hand. The difference is almost entirely the 4K microscope, which is
+the one place extra spending buys measurable capability rather than convenience.
 
 **About $130 of essentials gets a contributor to a real measurement** — scale, slide, the
 cheapest qualifying scope, and stock. That is the number to put in front of anyone who thinks
@@ -817,8 +839,11 @@ that look exactly like results.**
 
 #### Once, before any measurement
 
-1. **◆ Calibrate the scale** with its weight. Set aside a check mass — any stable object of
-   roughly coupon weight — and keep it beside the scale.
+1. **◆ Calibrate the scale**, after letting it warm up for several minutes. Set aside a check
+   mass — a second calibration weight is ideal — and keep it beside the scale. Site the scale
+   in still air, on something solid, away from the laser and the ultrasonic bath. **Mark one
+   spot on the pan** and place every coupon there, in the same orientation: load cells read
+   differently off-centre, and consistent placement cancels that error in the difference.
 2. **◆ Establish the noise floor.** Weigh one coupon five times, lifting it off the pan
    between each. The spread is your resolution, whatever the display claims. Every later
    result is quoted against this number.

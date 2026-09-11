@@ -276,13 +276,42 @@ weigh it, run the complete cleaning and drying cycle, weigh it again. **If the m
 the process is removing substrate** and every depth figure derived from it is inflated. Run
 this before trusting any measurement, and again whenever the solution or routine changes.
 
-**Sizing the cleaner.** What matters is ultrasonic watts per litre, not the headline number —
-vendors routinely quote heater and ultrasonic power together. Target **50–100 W/L of
-ultrasonic power**, which for these coupons means a *small* tank is an advantage: 600 mL to 1 L
-at 50–60 W is comfortably in range, while the same 60 W spread over a 2 L tank is not. Heat
-helps cleaning slightly and encourages oxide slightly, so it is close to a wash; let the
-coupon return to room temperature before weighing either way. Running the filled tank for a
-few minutes before loading it degasses the water and measurably improves cavitation, for free.
+**Sizing the cleaner — and the risk runs the other way.** An earlier draft of this document
+said to target 50–100 W/L of ultrasonic power. **That figure was wrong by roughly 5×.**
+Industry guidance is **8–15 W/L of tank capacity**, and small benchtop units in practice run
+around 18 W/L. Almost any consumer cleaner clears that bar, so adequacy is not the question.
+
+The question is the opposite one. **Too much power causes cavitation erosion** — and on a
+mass-loss measurement, eroded substrate is indistinguishable from engraved depth. Brass is
+soft. So for this application:
+
+- Ultrasonic power is a **non-constraint**: do not pay for more of it.
+- **40 kHz is the right frequency.** Lower (25–28 kHz) cavitates more aggressively and erodes
+  more; higher (80 kHz+) is gentler but costs more and is unnecessary for loose debris.
+- **Keep cycles short** — minutes, not tens of minutes. We are lifting loose particulate off
+  a flat open surface, which is about the easiest job an ultrasonic cleaner is ever given.
+- **Do not use the heater.** Heat encourages oxide on brass and accelerates any chemical
+  attack, for no benefit on contamination this loose. If it is used, let the coupon return to
+  room temperature before weighing.
+- **The blank-coupon control above detects erosion directly.** That is now its most important
+  function, not a formality.
+
+**What actually matters in the specification is the timer.** A digital timer means every
+coupon gets an identical cycle, so debris removal is consistent between weighings. Consistency
+is the whole game here; raw power is not.
+
+Two points of technique worth more than any specification:
+
+- **Clean each coupon in a small beaker of solution standing in the tank**, rather than in the
+  tank itself. Fresh solution per coupon prevents debris from an earlier coupon redepositing
+  on a later one — at 1 mg resolution that is a real effect, not a theoretical one. It also
+  uses almost no detergent and keeps the tank as plain water. Suspend the beaker rather than
+  resting it on the tank floor.
+- **Run the filled tank for a few minutes before loading it.** Fresh water is saturated with
+  dissolved gas, which damps cavitation. Degassing costs nothing and measurably helps.
+
+A tank of 500 mL–1 L is all this task needs. A larger one is not worse for the measurement —
+the beaker makes tank volume irrelevant — it is simply more cleaner than the job requires.
 
 **Accuracy versus repeatability, again.** A £20 scale displaying 0.001 g typically has
 linearity error of several milligrams across its range. That does not matter here for the same
@@ -731,7 +760,8 @@ Do it once per material to validate the cheap methods, not routinely.
 | Stage micrometer | $16 | Scale, procedure check, tilt angle | Essential |
 | LCD/USB microscope | $40–200 | Spot size `w₀` only | Essential |
 | Brass/stainless stock for coupons | $20 | Something to cut | Essential |
-| Ultrasonic cleaner, **≤1 L** | $40 | Repeatable mass readings | Strongly advised |
+| Ultrasonic cleaner, **any size, with a timer** | $40–65 | Repeatable mass readings | Strongly advised |
+| Small glass beaker | $5 | Fresh solution per coupon | Strongly advised |
 | Calibration weight, if not bundled | $10 | A scale you can check | Strongly advised |
 | Dish detergent | — | The only cleaning chemistry allowed | Essential |
 | Tweezers or nitrile gloves | $5 | A fingerprint is 0.1–1 mg | Essential |

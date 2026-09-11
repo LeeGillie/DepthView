@@ -782,13 +782,115 @@ Do it once per material to validate the cheap methods, not routinely.
 **The two that get forgotten are the scale and the stock.** It is easy to buy the microscope,
 because it is the interesting object, and then discover that the microscope measures spot size
 while the *scale* measures depth — and depth is what the model is for. A kit with a microscope
-and no scale cannot complete step 7.2 at all.
+and no scale cannot complete step 7.2 at all. This is not a hypothetical failure mode; it
+happened while assembling the kit below, twice, with the omission caught at the checkout page.
+
+#### A worked example — one actual kit, September 2026
+
+Specific products date quickly and the specification above is what matters. These are recorded
+so the reasoning has something concrete attached to it, not as endorsements.
+
+| Bought | Why this one |
+|---|---|
+| **Elikliv EM4K**, 8″, ~$200 | 4K (3840 px) is the only spec that converts to measurement quality. Manual focus wheel, not the `-AF` autofocus sibling — autofocus changes image scale between calibration and measurement. |
+| **WintopScope stage micrometer**, ~$16 | 0.01 mm × 100 and 0.1 mm × 10 rulings, plus 0.07 and 0.15 mm dots. The dots validate the diameter-measuring procedure on a known circle, and measure tilt angle when the coupon is inclined. |
+| **VEVOR 2L ultrasonic**, 60 W, 40 kHz, ~$50 | Chosen over a 120 W / 3 L unit **because it turns down.** Erosion, not insufficiency, is the failure mode. Digital timer for cycle repeatability; 40 kHz avoids the harsher low-frequency cavitation. |
+| **Borosilicate beaker set**, 10–1000 mL, ~$17 | The 50 and 100 mL sizes take a 25 mm coupon. Fresh solution per coupon, suspended in the tank. |
+| **Scale, 0.001 g × ≥50 g** | Not a 20 g reloading scale — a 40 mm brass blank is 32 g. |
+| Mitutoyo 513-402-10E | Already owned. Cross-check only. |
+
+Total for the instruments is roughly $300, against the ~$130 floor in the table above. The
+difference is almost entirely the 4K microscope, which is the one place extra spending buys
+measurable capability rather than convenience.
 
 **About $130 of essentials gets a contributor to a real measurement** — scale, slide, the
 cheapest qualifying scope, and stock. That is the number to put in front of anyone who thinks
 this needs a metrology lab. The DTI is the line most safely skipped: the most expensive of the
 instruments and the least capable, and anyone who already owns one should treat it as the
 cross-check rather than as a reason not to buy the scale.
+
+### 5.7 The procedure, end to end
+
+Everything above is reasoning. This is the protocol, in order, so a contributor does not have
+to reassemble it from prose. **Steps marked ◆ are controls — skipping them produces numbers
+that look exactly like results.**
+
+#### Once, before any measurement
+
+1. **◆ Calibrate the scale** with its weight. Set aside a check mass — any stable object of
+   roughly coupon weight — and keep it beside the scale.
+2. **◆ Establish the noise floor.** Weigh one coupon five times, lifting it off the pan
+   between each. The spread is your resolution, whatever the display claims. Every later
+   result is quoted against this number.
+3. **◆ Blank-coupon control.** Weigh an unengraved coupon, run the complete cleaning and
+   drying cycle, weigh again. **The mass must not move.** If it drops, the process is eroding
+   substrate — reduce ultrasonic power or shorten the cycle and repeat until it holds.
+4. **◆ Qualify the microscope** against the four-point acceptance test in §5.3 — µm/px at
+   maximum zoom, centre-versus-edge scale agreement, full-resolution capture path, stand
+   repeatability. Do this inside the return window.
+5. **Establish the capture path.** Determine whether USB gives full sensor resolution or a
+   downscaled stream. If downscaled, use card stills or HDMI capture instead, and use that
+   path for everything thereafter.
+
+#### Preparing coupons
+
+6. **Cut N coupons from one plate** — 25 × 25 × 3 mm, one per power level. Common plate means
+   common alloy, temper and surface finish.
+7. **Deburr and degrease.** Any loose edge material will leave during cleaning and read as
+   depth.
+8. **Label by scribed mark or edge notch — never marker pen.** Ink is 0.1–1 mg of mass, and
+   detergent plus ultrasound will remove an unpredictable fraction of it between the two
+   weighings. A scribe removes its mass once, before weighing, and then stays put.
+9. **Weigh each coupon** and record as `m_before`. Tweezers or gloves from here on.
+
+#### Engraving
+
+10. **One power level per coupon**, a single 15 × 15 mm zone, centred with margin.
+11. **Record every setting**: power %, speed, pass count, line interval, frequency, pulse
+    width, focus offset, assist gas, ambient. A depth without its settings is not a
+    measurement of anything.
+12. Note that without a power meter the result is a threshold **in commanded power**, not in
+    J/cm². That is still a usable model; converting to fluence needs the power-versus-command
+    curve as a separate calibration.
+
+#### Cleaning and re-weighing
+
+13. **Degas** the filled tank for a few minutes before loading anything.
+14. **Beaker method**: water plus two drops of plain dish detergent in a 50–100 mL beaker,
+    coupon inside, beaker suspended in the tank rather than resting on its floor. Fresh
+    solution per coupon.
+15. **Fixed cycle time, identical for every coupon.** Three minutes is ample. Heater off.
+16. **Rinse** in clean water. If a solvent rinse is wanted, isopropyl in a *separate* beaker —
+    never in the tank.
+17. **Dry thoroughly**, then **let it reach room temperature.** A warm coupon reads light,
+    because convection lifts it off the pan. Fifteen minutes minimum.
+18. **Weigh** and record as `m_after`.
+19. **◆ Re-weigh the check mass** at the end of every session. Cheap scales drift with
+    temperature, and drift that develops mid-session looks exactly like a depth measurement.
+
+#### Computing
+
+20. `depth = (m_before − m_after) / (ρ · area)`. Brass C360 ρ = 8.50 g/cm³; stainless 304
+    ρ = 8.00; aluminium 2.70; copper 8.96.
+21. Plot depth against `ln(fluence)` — or against `ln(commanded power)` if no meter — and fit
+    `d = δ·ln(F/F_th)`. Slope gives `δ`, x-intercept gives `F_th`.
+22. **Record where the fit breaks.** The log law fails as the pocket deepens. The depth beyond
+    which it is not trusted is a result, not a failure.
+23. Quote every constant with its R², pulse duration, source and lens. A number without those
+    four qualifiers is not a result.
+
+#### Cross-checks, at least once per material
+
+24. **Tilt one coupon** on a wedge and measure a step laterally (§5.3). Independent geometry,
+    independent failure modes. **A 3D-printed wedge is fine** — 30° is a good compromise
+    between projection gain and occlusion. Print the sample face solid and flat, and do not
+    measure or trust the printed angle: tilt the calibration slide alongside the coupon and
+    read the angle off the ellipse the 0.15 mm dot images as. The wedge only has to be rigid.
+25. **Dial indicator** on the same coupon, if one is to hand. Expect disagreement with mass
+    loss — mass gives net material removed, a profile gives pocket geometry, and the
+    difference between them is recast. That difference is informative.
+26. **Cross-section** one coupon per material (§5.5) to validate the cheap methods against the
+    referee.
 
 ---
 

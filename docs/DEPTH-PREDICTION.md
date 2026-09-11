@@ -286,24 +286,83 @@ the primary instrument.
 Liu's D² needs crater **diameter**, not depth — which is fortunate, because lateral
 measurement is far cheaper than vertical.
 
-A ~$40 USB scope at roughly 200× real magnification on a 1080p sensor:
+The class of instrument in question is the ~$40 LCD "coin microscope" — the Elikliv EDM4 and
+its many clones. **Ignore every number on the box.** The "1000×" claim is meaningless: it is
+screen-diagonal magnification, it depends on how far the stand is racked, and reviews of the
+EDM4 say plainly that it is "significantly overstated" without anyone being willing to state
+what the real figure is. Nobody publishes working distance or field of view either.
 
-| Field of view | Resolution |
+None of that matters, and this is the point worth internalising: **a calibrated instrument
+does not need honest specifications.** Photograph a stage micrometer once at a fixed stand
+height, count pixels between rulings, and you have µm/pixel measured. Every claim on the box
+is then irrelevant. Change the stand height and you recalibrate — which is why the stand
+height must be locked and recorded for a measurement session.
+
+So **a calibration slide (~$10) is not an accessory, it is the thing that converts a toy into
+an instrument.** Without it the scope produces pictures; with it, measurements.
+
+The one specification that does constrain the result is sensor resolution. These units are
+**720p — 1280 pixels across, not 1920.** Resolution in the only units that matter:
+
+| Field of view (1280 px across) | Resolution |
 |---|---|
-| 1.0 mm | 0.52 µm/px |
-| 2.0 mm | 1.04 µm/px |
-| 4.0 mm | 2.08 µm/px |
+| 1.0 mm | 0.78 µm/px |
+| 2.0 mm | 1.56 µm/px |
+| 4.0 mm | 3.13 µm/px |
+| 8.0 mm | 6.25 µm/px |
 
-Against expected crater sizes:
+Two consequences:
 
-| Spot | Craters near threshold | Verdict |
-|---|---|---|
-| 7 µm (UV) | 7–21 µm | Tight but workable at 1 mm FOV |
-| 20–60 µm (fibre) | 20–180 µm | Comfortable |
+- **Measure on the PC, never off the LCD.** The 4.3″ screen cannot be measured; you need
+  pixel coordinates in something like ImageJ. "PC view compatible" is the load-bearing
+  feature on that listing, not the screen.
+- **The smallest achievable field of view is the unknown that decides everything**, and it is
+  not published. First thing on arrival: photograph a ruling at maximum zoom and measure the
+  FOV. That single number determines whether the instrument is fit for a given laser.
 
-**A calibration slide (~$10) is not optional** — the magnification printed on these scopes
-is fiction. Photograph a stage micrometer once, derive µm/pixel, and the measurement is
-then as good as the optics.
+Against expected crater sizes, assuming ~1 mm FOV is reachable:
+
+| Source | Spot | Craters near threshold | At 0.78 µm/px | Verdict |
+|---|---|---|---|---|
+| Fibre MOPA | 20–60 µm | 20–180 µm | 26–230 px | Comfortable |
+| Diode | 60–100 µm | 60–300 µm | 77–385 px | Easy |
+| UV galvo (Lumos) | 6–8 µm | 6–24 µm | 8–31 px | **Marginal** |
+
+**The awkward finding is that the marginal case is the one doing the coin work.** An 8-pixel
+crater cannot be measured to the few percent that a D² fit wants, and edge definition on a
+recast rim is poor at the best of times.
+
+#### The fix for a small spot: measure a line, not a crater
+
+Scan a single line instead of firing single pulses, and measure its **width**. The same
+functional form holds — the ablated width is where local peak fluence crosses threshold, so
+`W² = 2w₀²·ln(F₀/F_th)` — but a line gives you a long straight edge instead of one small
+circle. Sample the width at fifty points along it and average; fit the edge sub-pixel. A
+measurement that is hopeless on an 8-pixel disc is straightforward on an 8-pixel-wide,
+2000-pixel-long stripe.
+
+One caveat that must be carried through, because it changes what the number means:
+**a scanned line overlaps pulses, so the threshold it yields is `F_th(N_eff)`, not
+`F_th(1)`.** Recover the single-pulse value through the incubation relation
+`F_th(N) = F_th(1)·N^(S−1)`, where `N_eff` follows from spot size, pulse repetition rate and
+scan speed. Better still, vary the overlap deliberately and **fit `S` from the same
+experiment** — incubation is needed anyway for multi-pass depth prediction, so this is a
+measurement we would otherwise have to go and get separately.
+
+#### Getting depth out of it — focus stepping against the indicator
+
+A microscope measures depth only through focus, and this one has no Z readout. It can borrow
+one: mount the dial test indicator to read the stage's vertical travel, focus on the
+untouched surface, note the reading, rack up until the pocket floor is sharpest, note it
+again. The difference is the depth.
+
+- Resolution is set by **depth of field**, not by the indicator. At the modest real
+  magnification of a coin scope the DOF is large — expect tens of microns even with a
+  focus-measure algorithm (variance of Laplacian) picking the sharpest frame.
+- So it resolves a whole pocket, not individual terraces.
+- Worth knowing because it makes the indicator and the scope together do something neither
+  does alone, and it needs no further purchase. It is a cross-check on mass loss, not a
+  replacement for it.
 
 ### 5.4 Known-depth reference plate — the cheapest comparator
 
@@ -326,7 +385,7 @@ Do it once per material to validate the cheap methods, not routinely.
 | Item | ~Cost | Buys you |
 |---|---|---|
 | Jeweller's scale, 0.001 g | $25 | Depth to sub-micron average |
-| USB microscope + calibration slide | $50 | Liu's D²: spot size and threshold |
+| LCD/USB microscope + **calibration slide** | $50 | Liu's D²: spot size and threshold |
 | Ultrasonic cleaner | $40 | Trustworthy mass readings |
 | Dial test indicator + stand *(optional)* | $60–150 | Step height, independent cross-check |
 

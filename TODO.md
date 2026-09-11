@@ -428,12 +428,22 @@ present uncertainty. The Lumos spot is quoted somewhere between 6 and 8 µm; flu
 Everything downstream inherits it.
 
 Method: single pulses at a descending energy ladder, measure crater **diameter** — not
-depth, which is why a $40 USB scope is sufficient. Plot `D²` against `ln(E)`. It is a
+depth, which is why a $40 coin microscope is sufficient. Plot `D²` against `ln(E)`. It is a
 straight line: slope gives `2w₀²`, x-intercept gives `E_th`.
 
-- Needs: USB scope, calibration slide, a polished coupon. No scale, no indicator.
+- Needs: LCD/USB microscope, **calibration slide**, a polished coupon. No scale, no
+  indicator. The slide is the non-negotiable part — the magnification printed on these
+  scopes is fiction, and calibrating against a known ruling makes that irrelevant.
+- **Measure on the PC in ImageJ, not off the scope's LCD.** Lock and record the stand height
+  for the session; changing it invalidates the calibration.
 - Watch for incubation — `F_th(N) = F_th(1)·N^(S−1)`. Single pulses per site, spaced well
   apart, or the threshold you measure is not the one you think.
+- **Use the line-width variant for the UV galvo.** At a 6–8 µm spot a near-threshold crater
+  is about 8 px on a 720p sensor at 1 mm FOV, which will not fit to the few percent a D² fit
+  needs. A scanned line obeys the same form (`W² = 2w₀²·ln(F₀/F_th)`) and gives a long edge
+  to average along instead of one small disc. The threshold it returns is `F_th(N_eff)`, so
+  carry the overlap count through the incubation relation — or vary overlap deliberately and
+  **fit `S` from the same coupon**, which step 7.6 needs anyway.
 - **Done when:** `w₀` and `F_th` are written down with an R² for the fit and a stated pulse
   duration, source and lens. A number without those four qualifiers is not a result.
 

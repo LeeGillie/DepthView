@@ -131,3 +131,11 @@ are not dependencies of the application and are not present in a published binar
 - **Pillow** — MIT-CMU · <https://python-pillow.org>
 - **Playwright for Python** and **Chromium** — Apache 2.0 and BSD 3-Clause respectively
 - **Inter** (via `@fontsource/inter`) — SIL Open Font License 1.1, used to typeset the banner
+
+---
+
+## Brainstorm prototypes, not part of the application
+
+- **paper.js 0.12.18** — MIT · <http://paperjs.org> · Copyright (c) 2011 - 2020, Jürg Lehni &
+  Jonathan Puckey. Inlined in `brainstorm/stripfocus/prototype/StripFocus.html` for vector
+  clipping; its licence is alongside it in `paper.js-LICENSE.txt`.

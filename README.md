@@ -904,6 +904,13 @@ change to it, since a tag is easy to push and awkward to retract once people hav
 it up cold — the LightBurn slicing and calibration services, the orbiting 3D view, colour-map
 decoding, and the remaining format work.
 
+## Brainstorming
+
+[`brainstorm/`](brainstorm/) holds ideas that have been researched but not started as part of
+DepthView, each in a self-contained folder that can be shared on its own. The first is
+[StripFocus](brainstorm/stripfocus/): keeping a flat-bed galvo in focus on curved and irregular
+parts such as belt buckles and flasks, with a working browser prototype.
+
 ## Acknowledgements
 
 [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md) credits the people whose work shaped DepthView

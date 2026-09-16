@@ -62,9 +62,12 @@ also the difference between two height maps: the design, and the surface it's cu
 
 ## Try the prototype
 
-[`prototype/StripFocus.html`](prototype/StripFocus.html) is a single offline HTML file.
-Download it (use GitHub's **Download raw file** button) and open it in any browser. There's
-nothing to install.
+**[Open StripFocus in your browser](https://leegillie.github.io/DepthView/brainstorm/stripfocus/prototype/StripFocus.html)**.
+There's nothing to install, and nothing you load leaves your computer; the page does all its
+work locally.
+
+To use it offline, download [`prototype/StripFocus.html`](prototype/StripFocus.html) (GitHub's
+**Download raw file** button) and open it in any browser. It's one self-contained file.
 
 It handles **smooth curves in one direction** (X or Y):
 

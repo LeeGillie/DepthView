@@ -112,45 +112,33 @@ well* — are they evenly distributed, do they reach both ends of the range, is 
 detail clipped? DepthView reports exactly that: level occupancy, range utilisation, endpoint
 counts, and how much of the depth budget goes unused.
 
-**Through LightBurn — corrected 2026-09-19. This section used to say the opposite.**
+**Through LightBurn** — the Lumos Ultra's MOPA source physically uses galvo beam steering,
+but **that does not by itself make the machine a LightBurn "Galvo" device.** The Ultra
+currently communicates with LightBurn through a GRBL-style device path, while LightBurn's
+3D Sliced Image mode is restricted to its native Galvo device class — which covers
+[EZCAD2/EZCAD3 and BSL-class controllers](https://docs.lightburnsoftware.com/2.1/Guides/GalvoDriverInstallation/).
+So **a Lumos Ultra should not presently be assumed to have access to LightBurn's 3D Slice
+workflow merely because its MOPA optics are galvo-based.** The public LightBurn forum record
+is consistent with this: Lumos discussion sits under GRBL, and references the controller's
+GRBL-style `$I` response and serial buffer behaviour. If LightBurn support for the Ultra
+changes, this section will be updated accordingly.
 
-It previously read: *"3D Slice is galvo-only, which a MOPA Lumos Ultra is. This is the path
-where a genuine 16-bit map earns its keep."* **That was wrong**, and it is left here rather
-than quietly deleted because the mistake is a subtle one worth being able to recognise.
+**DepthView is useful for Lumos Ultra workflows either way.** With MakeIt it shows how
+effectively a depth map uses the available 256-layer range — level occupancy, range
+utilisation, endpoint counts. For native LightBurn Galvo workflows on supported machines, it
+determines whether a purported 16-bit depth map actually contains enough precision to benefit
+from higher pass counts. The band-spread argument below does not depend on a toolchain at all.
 
-Both halves of that sentence are true and the conclusion still does not follow, because
-"galvo" means two different things in them:
-
-- **3D Slice is galvo-only** — true, in the sense of LightBurn's *device class*. The feature
-  lives on the galvo code path, is documented under the galvo section, and the standing
-  feature request to open it to other lasers describes it as something you get "if you paid
-  for the galvo license."
-- **A MOPA Lumos Ultra is a galvo** — true, *physically*. It has a galvo head, an F-theta
-  lens and a MOPA source.
-
-But LightBurn offers galvo features on the strength of **how the device is configured in
-LightBurn**, not what the machine is made of. **The Lumos Ultra connects as a GRBL/GCode
-device**: it is driven by streamed G-code and has a serial buffer-size setting, which is a
-GCode-device concept that galvo devices do not have at all. That was established the hard way,
-during work with LightBurn's own staff on a buffer-size bug affecting this machine.
-
-So a galvo machine on the GCode path does not get galvo-only features, and **LightBurn is not
-a 16-bit relief route for the Lumos Ultra.** The device-class evidence, graded, lives in
-[WeCreat-Lumos-Ultra-LightBurn-Config](https://github.com/LeeGillie/WeCreat-Lumos-Ultra-LightBurn-Config),
-which lists 16-bit depth-map relief and K9 internal 3D engraving as out of reach through
-LightBurn today.
-
-**What is still true**, and is what DepthView was built for: on a machine LightBurn *does*
-treat as a galvo device — the JCZ-controller fibre galvos that make up most 3D Slice work —
-a genuine 16-bit map earns its keep exactly as described. LightBurn's docs recommend 16-bit
-for runs past 256 passes, a real 16-bit file keeps resolving new depths well beyond that, and
-an imposter stops dead at 256 however many passes you run. The pass-count table above is how
-you tell them apart before you cut. None of that depends on the Lumos Ultra; the band-spread
-argument below does not depend on a toolchain at all.
-
-The lesson, since it will recur: **a specification that sounds like a statement about
-hardware may be a statement about a software device profile.** Check which one before
-reasoning from it.
+> *Corrected 2026-09-19.* This section previously argued that 3D Slice is galvo-only, that a
+> MOPA Lumos Ultra is a galvo, and therefore that LightBurn was its 16-bit relief path. Both
+> premises are true and the conclusion is not, because **"galvo" means a physical
+> beam-steering method in one and a LightBurn device class in the other.** Recorded rather
+> than quietly deleted, because the equivocation is an easy one to repeat: *a specification
+> that sounds like a fact about hardware may be a fact about a software device profile.*
+> Caught by the graded device-class evidence in
+> [WeCreat-Lumos-Ultra-LightBurn-Config](https://github.com/LeeGillie/WeCreat-Lumos-Ultra-LightBurn-Config),
+> which lists 16-bit depth-map relief and K9 internal 3D engraving as out of reach through
+> LightBurn today.
 
 Either way, the practical workflow is the same. AI and relief generators (Sculptok and
 friends) emit 16-bit PNGs by default whether or not the content justifies it. Point DepthView

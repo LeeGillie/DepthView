@@ -146,7 +146,16 @@ LightBurn.
 
 Corrected in the README 2026-09-19, left visible rather than deleted. **Nothing else changes**
 — the 16-bit and band-spread arguments were never about the Lumos; they are about machines
-LightBurn treats as galvo devices, which is most 3D Slice work.
+LightBurn treats as galvo devices, which LightBurn documents as EZCAD2/EZCAD3 and BSL-class
+controllers, and which is most 3D Slice work.
+
+**A second lesson, about how to write a correction.** The first attempt led with the retracted
+sentence, quoted prominently, and explained why it was wrong underneath. Lee then read the
+updated README and reported the wrong claim as still live — **the author of the project
+misread his own corrected document.** A reader skimming before sharing it would do the same.
+So: **state the correct claim first and in full; put the retraction below it, short and
+clearly subordinate.** Publishing mistakes rather than hiding them is right, but a retraction
+that leads with the error is a retraction that re-publishes the error.
 
 The generalisable form: *a spec that sounds like a hardware fact may be a fact about a
 software device profile.* Also note this was caught by a second repository contradicting this

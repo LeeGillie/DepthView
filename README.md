@@ -97,12 +97,16 @@ WeCreat's own product page for the Lumos Ultra says its relief engraving "maps y
 into **256 depth layers**." That single number reframes the whole question, and it cuts both
 ways depending on which software you drive the machine with.
 
-> **What that number is.** 256 describes **what the toolchain carries to the machine**, and
-> toolchain ceilings are a software property — LightBurn's galvo path, for one, was 8-bit and
-> takes 16-bit depth maps as of 2.1. DepthView makes no claim about what any particular laser
-> could theoretically resolve, because nothing in a depth map can tell you that. It answers a
-> narrower and checkable question: **on the path you are actually using, how many levels are
-> available, and is your file using them?**
+> **What that number is.** WeCreat support confirmed it directly when asked (support ticket,
+> August 2026): *"our software uses **8-bit** processing, and it supports up to **256 layers**
+> for processing. The 256-layer setting refers to the number of processing layers available in
+> the software."*
+>
+> So 256 describes **what the toolchain carries**, and software ceilings do move — LightBurn's
+> galvo path was 8-bit and takes 16-bit depth maps as of 2.1. DepthView makes no claim about
+> what any particular laser could theoretically resolve, because nothing in a depth map can
+> tell you that. It answers a narrower, checkable question: **on the path you are actually
+> using, how many levels are available, and is your file using them?**
 
 **Through MakeIt** — 256 layers is the ceiling. A 16-bit depth map is over-spec for that path,
 so "is my file really 16-bit?" is the wrong question. The right one is *do my 256 levels land

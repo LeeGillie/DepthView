@@ -212,18 +212,37 @@ nothing should assume one convention again.
 40 mm coin blank, 4 mm thick, brass and stainless. Rim measured at slightly under 1 mm wide
 and 0.1 mm deep. At 4096 px across a 40 mm blank: 102.4 px/mm, 2601 dpi, 9.8 µm/pixel.
 WeCreat Lumos Ultra UV spot is 6–8 µm (the 1.9 µm figure sometimes quoted is motion
-accuracy, not spot size). The "256 depth layers" figure is an 8-bit software representation,
-not a controller limit.
+accuracy, not spot size). The "256 depth layers" figure is **a software figure** — WeCreat
+support states their software uses 8-bit processing and supports up to 256 processing layers.
 
-**Provenance note, because this file is public too.** That clarification and the UV spot-size
-correction both came from **vendor correspondence, not a published spec**. The facts are solid
-and worth relying on here; **the attribution must not appear in anything public.** The README
-used to read "WeCreat's support team have confirmed" and no longer does — it now makes only
-the narrower claim DepthView can stand behind unaided: 256 is what the toolchain carries, and
-the checkable question is whether a file uses the levels available on the path in use. Apply
-the same test to anything else learned from a vendor thread: **keep the fact, drop the
-attribution.** A useful independent project should not become entangled with someone else's
-confidentiality boundary by way of a citation.
+**Both came from WeCreat support, and both are publishable — check which stream a fact came
+from rather than treating "WeCreat" as uniformly restricted.** There are two:
+
+1. **Ordinary support correspondence** — `support@wecreat.com` via Zendesk, answering
+   questions anyone could ask. The 27 Aug 2026 reply carries both facts above and is the
+   source to cite. Allen's exact words: *"our software uses 8-bit processing, and it supports
+   up to 256 layers for processing. The 256-layer setting refers to the number of processing
+   layers available in the software."* And on the spot size: the published 0.0019 mm figure
+   *"was not the actual UV laser spot size, but rather a parameter describing the machine's
+   motion accuracy"*, with the real 355 nm spot *"approximately 6–8 µm"* — and WeCreat said
+   they would revise their materials. No confidentiality marking, no NDA, no embargo.
+2. **The private beta** — from 28 Aug 2026, the LightBurn test build, its link and its config
+   files. **That one is confidential and stays out of every public artefact.**
+
+The dates nearly touch, which is exactly why the distinction has to be checked rather than
+assumed. Note also that "let us keep discussion in this email thread" in that reply is channel
+consolidation — it appears immediately after Allen praises what Lee had already shared
+publicly — and is **not** a restriction on publishing.
+
+**This was got wrong once, in the cautious direction.** The attribution was stripped from the
+README on a guess that it might be beta-adjacent; reading the actual email showed it was not.
+Over-caution is the cheaper error but it is still an error: it cost a well-grounded citation
+and left a weaker unsourced claim in its place. **Read the source before deciding a fact is
+unpublishable.**
+
+One precision point worth keeping: Allen said 256 is a *software* figure. He did **not** say
+"not a controller limit" — he never addressed the controller. The README quotes him directly
+rather than paraphrasing, because the paraphrase was stronger than the source.
 
 ---
 

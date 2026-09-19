@@ -140,9 +140,11 @@ LightBurn grants galvo features by **device class in LightBurn**, not by what th
 physically made of. **The Lumos Ultra connects as a GRBL/GCode device** — streamed G-code, and
 a serial buffer-size setting, which is a GCode-device concept galvo devices do not have. That
 was established during work with LightBurn staff on a buffer-size bug on this exact machine,
-so it is first-party and not inference. `WeCreat-Lumos-Ultra-LightBurn-Config` carries the
-graded evidence and lists 16-bit relief and K9 internal engraving as out of reach through
-LightBurn.
+so it is first-party and not inference. The public citation is **LightBurn's own galvo driver
+documentation**, which separates GRBL-style devices from the native Galvo class (EZCad2/EZCad3
+and BSL boards). The sibling `WeCreat-Lumos-Ultra-LightBurn-Config` repo is where this was
+caught, but **do not cite it from here** — it may go private, and a public README must not
+depend on a repository that can disappear.
 
 Corrected in the README 2026-09-19, left visible rather than deleted. **Nothing else changes**
 — the 16-bit and band-spread arguments were never about the Lumos; they are about machines
@@ -211,7 +213,17 @@ nothing should assume one convention again.
 and 0.1 mm deep. At 4096 px across a 40 mm blank: 102.4 px/mm, 2601 dpi, 9.8 µm/pixel.
 WeCreat Lumos Ultra UV spot is 6–8 µm (the 1.9 µm figure sometimes quoted is motion
 accuracy, not spot size). The "256 depth layers" figure is an 8-bit software representation,
-not a controller limit — corrected by WeCreat support.
+not a controller limit.
+
+**Provenance note, because this file is public too.** That clarification and the UV spot-size
+correction both came from **vendor correspondence, not a published spec**. The facts are solid
+and worth relying on here; **the attribution must not appear in anything public.** The README
+used to read "WeCreat's support team have confirmed" and no longer does — it now makes only
+the narrower claim DepthView can stand behind unaided: 256 is what the toolchain carries, and
+the checkable question is whether a file uses the levels available on the path in use. Apply
+the same test to anything else learned from a vendor thread: **keep the fact, drop the
+attribution.** A useful independent project should not become entangled with someone else's
+confidentiality boundary by way of a citation.
 
 ---
 

@@ -97,14 +97,12 @@ WeCreat's own product page for the Lumos Ultra says its relief engraving "maps y
 into **256 depth layers**." That single number reframes the whole question, and it cuts both
 ways depending on which software you drive the machine with.
 
-> **What that number actually is.** WeCreat's support team have confirmed that the 256-layer
-> figure is an **8-bit software representation, not a controller limit** — it describes what
-> the toolchain carries, not what the machine is capable of — so the ceiling moves when the
-> software does. LightBurn 2.1 shows the general shape of it: its galvo path was 8-bit and
-> now takes 16-bit depth maps. **That is not an escape route for this particular machine**,
-> for reasons set out below — but it does show that 256 is a property of software rather than
-> of the laser, so where the Lumos Ultra's ceiling moves is a live question rather than a
-> settled limit.
+> **What that number is.** 256 describes **what the toolchain carries to the machine**, and
+> toolchain ceilings are a software property — LightBurn's galvo path, for one, was 8-bit and
+> takes 16-bit depth maps as of 2.1. DepthView makes no claim about what any particular laser
+> could theoretically resolve, because nothing in a depth map can tell you that. It answers a
+> narrower and checkable question: **on the path you are actually using, how many levels are
+> available, and is your file using them?**
 
 **Through MakeIt** — 256 layers is the ceiling. A 16-bit depth map is over-spec for that path,
 so "is my file really 16-bit?" is the wrong question. The right one is *do my 256 levels land
@@ -135,10 +133,9 @@ from higher pass counts. The band-spread argument below does not depend on a too
 > beam-steering method in one and a LightBurn device class in the other.** Recorded rather
 > than quietly deleted, because the equivocation is an easy one to repeat: *a specification
 > that sounds like a fact about hardware may be a fact about a software device profile.*
-> Caught by the graded device-class evidence in
-> [WeCreat-Lumos-Ultra-LightBurn-Config](https://github.com/LeeGillie/WeCreat-Lumos-Ultra-LightBurn-Config),
-> which lists 16-bit depth-map relief and K9 internal 3D engraving as out of reach through
-> LightBurn today.
+> The distinction is consistent with
+> [LightBurn's documented separation](https://docs.lightburnsoftware.com/2.1/Guides/GalvoDriverInstallation/)
+> between GRBL-style devices and its native Galvo device class.
 
 Either way, the practical workflow is the same. AI and relief generators (Sculptok and
 friends) emit 16-bit PNGs by default whether or not the content justifies it. Point DepthView

@@ -143,8 +143,10 @@ was established during work with LightBurn staff on a buffer-size bug on this ex
 so it is first-party and not inference. The public citation is **LightBurn's own galvo driver
 documentation**, which separates GRBL-style devices from the native Galvo class (EZCad2/EZCad3
 and BSL boards). The sibling `WeCreat-Lumos-Ultra-LightBurn-Config` repo is where this was
-caught, but **do not cite it from here** — it may go private, and a public README must not
-depend on a repository that can disappear.
+caught. **It went private on 2026-09-19, so never link it from here** — it is unreachable to
+every reader of this repo, and the README was cleaned of its one citation before the switch.
+The general rule stands beyond this instance: **a public README must not depend on a
+repository that can disappear**, and the sibling projects are exactly the kind that can.
 
 Corrected in the README 2026-09-19, left visible rather than deleted. **Nothing else changes**
 — the 16-bit and band-spread arguments were never about the Lumos; they are about machines

@@ -100,8 +100,11 @@ ways depending on which software you drive the machine with.
 > **What that number actually is.** WeCreat's support team have confirmed that the 256-layer
 > figure is an **8-bit software representation, not a controller limit** — it describes what
 > the toolchain carries, not what the machine is capable of — so the ceiling moves when the
-> software does. LightBurn 2.1 is an example of exactly that: its galvo path was 8-bit and
-> now takes 16-bit depth maps.
+> software does. LightBurn 2.1 shows the general shape of it: its galvo path was 8-bit and
+> now takes 16-bit depth maps. **That is not an escape route for this particular machine**,
+> for reasons set out below — but it does show that 256 is a property of software rather than
+> of the laser, so where the Lumos Ultra's ceiling moves is a live question rather than a
+> settled limit.
 
 **Through MakeIt** — 256 layers is the ceiling. A 16-bit depth map is over-spec for that path,
 so "is my file really 16-bit?" is the wrong question. The right one is *do my 256 levels land
@@ -109,12 +112,45 @@ well* — are they evenly distributed, do they reach both ends of the range, is 
 detail clipped? DepthView reports exactly that: level occupancy, range utilisation, endpoint
 counts, and how much of the depth budget goes unused.
 
-**Through LightBurn 2.1 or later** — the Lumos Ultra is listed as supporting both MakeIt and
-LightBurn, and 3D Slice is galvo-only, which a MOPA Lumos Ultra is. This is the path where a
-genuine 16-bit map earns its keep: LightBurn's docs recommend 16-bit specifically for runs
-past 256 passes, and a real 16-bit file keeps resolving new depths well beyond that, while an
-imposter stops dead at 256 no matter how many passes you run. That is the case DepthView was
-built for, and the pass-count table above is how you tell the two apart before you cut.
+**Through LightBurn — corrected 2026-09-19. This section used to say the opposite.**
+
+It previously read: *"3D Slice is galvo-only, which a MOPA Lumos Ultra is. This is the path
+where a genuine 16-bit map earns its keep."* **That was wrong**, and it is left here rather
+than quietly deleted because the mistake is a subtle one worth being able to recognise.
+
+Both halves of that sentence are true and the conclusion still does not follow, because
+"galvo" means two different things in them:
+
+- **3D Slice is galvo-only** — true, in the sense of LightBurn's *device class*. The feature
+  lives on the galvo code path, is documented under the galvo section, and the standing
+  feature request to open it to other lasers describes it as something you get "if you paid
+  for the galvo license."
+- **A MOPA Lumos Ultra is a galvo** — true, *physically*. It has a galvo head, an F-theta
+  lens and a MOPA source.
+
+But LightBurn offers galvo features on the strength of **how the device is configured in
+LightBurn**, not what the machine is made of. **The Lumos Ultra connects as a GRBL/GCode
+device**: it is driven by streamed G-code and has a serial buffer-size setting, which is a
+GCode-device concept that galvo devices do not have at all. That was established the hard way,
+during work with LightBurn's own staff on a buffer-size bug affecting this machine.
+
+So a galvo machine on the GCode path does not get galvo-only features, and **LightBurn is not
+a 16-bit relief route for the Lumos Ultra.** The device-class evidence, graded, lives in
+[WeCreat-Lumos-Ultra-LightBurn-Config](https://github.com/LeeGillie/WeCreat-Lumos-Ultra-LightBurn-Config),
+which lists 16-bit depth-map relief and K9 internal 3D engraving as out of reach through
+LightBurn today.
+
+**What is still true**, and is what DepthView was built for: on a machine LightBurn *does*
+treat as a galvo device — the JCZ-controller fibre galvos that make up most 3D Slice work —
+a genuine 16-bit map earns its keep exactly as described. LightBurn's docs recommend 16-bit
+for runs past 256 passes, a real 16-bit file keeps resolving new depths well beyond that, and
+an imposter stops dead at 256 however many passes you run. The pass-count table above is how
+you tell them apart before you cut. None of that depends on the Lumos Ultra; the band-spread
+argument below does not depend on a toolchain at all.
+
+The lesson, since it will recur: **a specification that sounds like a statement about
+hardware may be a statement about a software device profile.** Check which one before
+reasoning from it.
 
 Either way, the practical workflow is the same. AI and relief generators (Sculptok and
 friends) emit 16-bit PNGs by default whether or not the content justifies it. Point DepthView

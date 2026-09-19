@@ -132,6 +132,27 @@ The general lesson, which is the reason this is here: the *numbers* stayed on th
 of the file/material line, and the *language* did not. "Wasted", "fixing", "reclaiming" are
 physical claims dressed as file analysis. Watch for that wording creeping back.
 
+**"Galvo" is two different words, and the README equivocated between them.** The Lumos Ultra
+section argued: 3D Slice is galvo-only, a MOPA Lumos Ultra is a galvo, therefore LightBurn is
+its 16-bit relief path. Both premises are true. The conclusion is false.
+
+LightBurn grants galvo features by **device class in LightBurn**, not by what the machine is
+physically made of. **The Lumos Ultra connects as a GRBL/GCode device** — streamed G-code, and
+a serial buffer-size setting, which is a GCode-device concept galvo devices do not have. That
+was established during work with LightBurn staff on a buffer-size bug on this exact machine,
+so it is first-party and not inference. `WeCreat-Lumos-Ultra-LightBurn-Config` carries the
+graded evidence and lists 16-bit relief and K9 internal engraving as out of reach through
+LightBurn.
+
+Corrected in the README 2026-09-19, left visible rather than deleted. **Nothing else changes**
+— the 16-bit and band-spread arguments were never about the Lumos; they are about machines
+LightBurn treats as galvo devices, which is most 3D Slice work.
+
+The generalisable form: *a spec that sounds like a hardware fact may be a fact about a
+software device profile.* Also note this was caught by a second repository contradicting this
+one — **when two of these projects disagree, one of them is wrong and it is worth finding out
+which before either gets quoted.**
+
 **Floor polarity.** An early design assumed a white (untouched) floor. Lee's coins use a
 black floor — deepest, cut away. Both are supported now via the two level points, and
 nothing should assume one convention again.

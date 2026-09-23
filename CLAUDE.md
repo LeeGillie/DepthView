@@ -356,11 +356,20 @@ rather than knowledge — the rim ramp defaults to none for exactly this reason.
 entry and the inverse LUT are deliberately unbuilt: a form invented before the first coupon
 is a guess about what the numbers look like.
 
-**The measurement kit was ordered 2026-09-11** — 4K microscope, stage micrometer, ultrasonic
-cleaner, beakers; the milligram scale and dial indicator were already owned. So the coupon is
-no longer blocked on equipment. What blocks it now is `--calibrate` itself: it sizes the wedge
-to fit the blank, where the measurement needs **zones of at least 10 × 10 mm on separate
-25 × 25 mm coupons** (see TODO 7.2). **Fix that before cutting anything**, or the first
-coupon produces numbers the scale cannot resolve.
+**Status as of 2026-09-23: the microscope and calibration slides have been bought, and
+nothing has been measured.** The milligram scale and dial indicator were already owned. **No
+part of the measurement programme has started** — not the microscope acceptance test, not the
+noise floor, not the blank-coupon control, and no coupon has been cut. Every constant in
+`docs/DEPTH-PREDICTION.md` is still a published prior, not a measurement of this machine.
+
+So do not describe depth prediction as a capability, to anyone. The method is written up and
+the instruments are in hand; the calibration it depends on has not been done. **This project
+has repeatedly had to retract confident statements, and a vendor's engineering team acting on
+an overstated roadmap would be the most expensive version of that mistake yet.**
+
+The first code blocker is `--calibrate` itself: it sizes the wedge to fit the blank, where the
+measurement needs **zones of at least 10 × 10 mm on separate 25 × 25 mm coupons** (see TODO
+7.2). **Fix that before cutting anything**, or the first coupon produces numbers the scale
+cannot resolve.
 
 `TODO.md` has the rest, with enough context to pick each item up cold.

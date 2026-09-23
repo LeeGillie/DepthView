@@ -723,6 +723,13 @@ return policy is the specification. Acceptance test, in order:
    stream — compare a PC frame against a card still.
 4. Rack the stand away and back, re-shoot the slide. **Does the scale return?** A stand that
    does not repeat means recalibrating every session.
+5. **Check the optical axis is square to the stage** — and re-check it whenever the head is
+   moved. Any scope whose head tilts, or whose column is not truly vertical, foreshortens one
+   axis by `cos θ` without announcing it, and that is a systematic error in every diameter
+   measured afterwards. The calibration slide tests it for free: **a circular dot images as a
+   circle only when the axis is square.** Photograph the 0.15 mm dot, measure its major and
+   minor axes, and bring them within about 1 % of each other. This is the same geometry as the
+   deliberate-tilt method below, used here as a fault check rather than a measurement.
 
 One thing relaxes the threshold: an edge can be fitted **sub-pixel**. Averaging a straight
 edge along its length reaches roughly 0.1 px on edge position — the same principle as
@@ -735,6 +742,16 @@ angle implies 2–4 µm/px at any plausible standoff. The inference is unsound: 
 EDM9 Max lists **178°** in the same field, which is an IPS panel viewing-angle specification
 and cannot be optics. The field is populated with whatever the vendor had to hand. Field of
 view remains simply **unknown**, and the acceptance test above is the only way to learn it.
+
+**The general form: check whether a spec describes the sensor or the screen.** Listings in
+this class mix the two freely, and the screen's numbers are the flattering ones. The EM4K is
+advertised as covering "100% sRGB, 99% RGB, 400 HDR and 99% NTSC" — those are display panel
+figures (DisplayHDR 400 is a monitor certification; "99% RGB" is not a gamut standard at all),
+presented as though they described the microscope. Likewise "boosts image precision by 30%",
+which names no baseline and means nothing. **A spec that cannot be stated as a number with a
+unit is marketing.** For this work the only camera figures that matter are video resolution
+and the measured µm/px — and colour gamut is irrelevant regardless, since edge measurement
+happens on luminance.
 
 #### Reading the model range — resolution is the one axis that matters
 

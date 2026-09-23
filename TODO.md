@@ -566,6 +566,24 @@ drive the existing 3D relief renderer from the result. The surface then genuinel
 shape as a slider moves, because the realisable level count changes, not because the
 exaggeration factor changed.
 
+**Interface consequence, and it lands before the model does.** Once depth is predicted rather
+than described, **the depth map and the cut settings stop being independent.** The tuner will
+adjust total engraving depth and reshape the grey-to-depth correlation, and both of those
+change what settings are correct. A revised map sent back without its revised settings
+produces the wrong physical depth; revised settings without the map are equally wrong.
+
+So any external interface — the MakeIt CLI handshake under discussion, a LightBurn write-back,
+anything — **must carry settings in both directions from the start.** An image-only interface
+is not a smaller first version of the right interface; it is a different interface that has to
+be broken later. Designing for this now costs one JSON field list. Retrofitting it costs
+another round of vendor scheduling, with a different engineer who lacks the context.
+
+Parameters that have to travel, because each one moves predicted depth: power, speed, pass or
+layer count, line density or interval, pulse frequency, pulse width, focus offset, any
+per-layer Z descent, and the material. Plus, on the map itself: **its physical size in
+millimetres on the workpiece** — without that, no depth statement means anything — along with
+its bit depth and which operation it belongs to.
+
 Requirements that are easy to lose sight of once it starts working:
 
 - **Provenance on every number.** A prediction from an A-grade fit and a prediction seeded

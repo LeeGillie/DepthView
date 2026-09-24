@@ -217,6 +217,33 @@ WeCreat Lumos Ultra UV spot is 6–8 µm (the 1.9 µm figure sometimes quoted is
 accuracy, not spot size). The "256 depth layers" figure is **a software figure** — WeCreat
 support states their software uses 8-bit processing and supports up to 256 processing layers.
 
+**Measured through MakeIt 3.0.6, and it reframes what limits detail.** From a genuine 16-bit
+4096 × 4096 source with 61,898 distinct levels, on a 40 mm blank, what actually reaches the
+machine is:
+
+| | |
+|---|---|
+| Distinct S (power) values | **239** |
+| X samples | ~397, i.e. **0.1 mm pitch, 10/mm** |
+| Y scan lines | 1,195, i.e. **0.0333 mm pitch, 30/mm** |
+
+Two consequences, both counter to how this project has been framing things.
+
+1. **X and Y are not sampled equally**, and "Line density 300" — which is lines per
+   *centimetre*, not per inch or per mm — sets Y only. X appears fixed at 0.1 mm.
+2. So on this path **the binding constraint on detail is the 0.1 mm X sample pitch, not the
+   6–8 µm spot.** That is a factor of 12–16. "Is this map finer than my spot can cut" is the
+   right question for a galvo running its own slicer; through MakeIt the sampling runs out
+   first, by more than an order of magnitude.
+
+**Provisional.** Measured from one job's generated G-code, with settings written down before
+the file was read. Whether the X pitch is configurable was asked of WeCreat on 2026-09-14 and
+is unanswered. Do not bake it into analysis defaults until that comes back.
+
+Reading the generated G-code is a **documented, supported** user action, not a workaround:
+WeCreat's own KB gives `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS) → open G-code files → `.gc`.
+`src/DepthView/Integrations/WeCreat/Gcode/GcodeStream.cs` exists to read those files.
+
 **Both came from WeCreat support, and both are publishable — check which stream a fact came
 from rather than treating "WeCreat" as uniformly restricted.** There are two:
 

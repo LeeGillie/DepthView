@@ -409,8 +409,16 @@ Full reasoning, formulas, published constants and measurement methods are in
 `docs/DEPTH-PREDICTION.md`. This section is only the order of work and what "done" means
 for each step.
 
-**The handoff rule, and it is not negotiable.** Steps 1 and 2 produce the two constants
-(`δ` and `F_th`) that step 6 fits its model to. Doing 6 first means inventing them, which
+**The depth model changed on 2026-09-24.** Baseline research
+(`docs/research/laser-ablation-baselines.md`) found that the log law `d = δ·ln(F/F_th)` does not
+predict MOPA depth: published ns constants split ~10× apart, and neither regime reproduces depth
+rising with pulse width at fixed fluence. The model is now **`d_pass = η · P/(v·h)`** — area
+energy dose times a measured removal efficiency — with the log law kept only as a
+removal-onset gate. See `docs/DEPTH-PREDICTION.md` §2.0.
+
+**The handoff rule, and it is not negotiable.** Steps 1 and 2 produce the measured values
+(spot size and threshold for the onset gate; removal efficiency `η` for depth) that step 6
+runs on. Doing 6 first means inventing them, which
 defeats the entire point of the system — a model seeded with made-up constants looks
 exactly like a model fitted to measurements, and the tool would then be lying confidently.
 Anything that needs a constant waits for the coupon that produces it.
@@ -476,7 +484,13 @@ topography wants. The EM4K ships with flexible side lights only.
 
 ### 7.2 Step-wedge coupon, measured by mass loss  *(bench, blocks 7.6 and 7.7)*
 
-Fits the log ablation law `d = δ·ln(F/F_th)` and finds where it stops holding.
+Measures the removal efficiency `η` per material — `η = Δm / (ρ · P · t)`, directly from the
+scale, no depth measurement needed — and finds where depth per pass stops being constant.
+
+Stainless 304 first: it is the only metal with literature to check against
+(η ≈ 0.7–2.7 × 10⁻³ mm³/J depending on pulse energy). A 304 result far outside that range means
+suspect power calibration or focus before the physics. Brass, copper and aluminium have **no**
+measured η in the literature — these coupons produce the first numbers, not a check on them.
 
 `--calibrate` already emits the coupon (see 1.4 and 1.4b). What is missing is the
 measurement and the entry path for it.
@@ -501,11 +515,12 @@ measurement and the entry path for it.
   (43 g). Needs a calibration weight, a draft shield, and a check mass weighed at both ends of
   every session — cheap scales drift with temperature, and mid-session drift looks exactly
   like a depth measurement.
-- Record the **roll-off** deliberately. The log law fails as the pocket deepens — debris
-  shielding, plasma absorption, the beam clipping its own wall. Where it fails is a result
-  in its own right and is what item 1.4b was already circling.
-- **Done when:** `δ` and `F_th` are fitted per material with residuals, and the depth beyond
-  which the fit is not trusted is stated as a number.
+- Record the **roll-off** deliberately. Depth per pass falls as the pocket deepens — defocus,
+  debris and plasma shielding, the beam clipping its own wall. **No published depth-vs-passes
+  curve exists for these metals**, so a pass-count ladder (10/20/40/80/160, with and without a
+  Z step) is the only source. Where it rolls off is a result in its own right.
+- **Done when:** `η` is measured per material with its settings vector and a stated spread, and
+  the depth beyond which constant `d_pass` is not trusted is stated as a number.
 - Blocked on: brass and stainless coupons cut at the chosen pass count. Nothing else.
 
 ### 7.3 Terrace-width prediction  *(code only — ship this first)*
@@ -560,11 +575,43 @@ meaningless on a dithered input.
 
 **This is the one that was called the holy grail, and it is deliberately sixth.**
 
-Compute fluence from the settings the user actually types — wattage, power percent, speed,
-line interval, pass count, spot size — feed it through the fitted `d = δ·ln(F/F_th)`, and
-drive the existing 3D relief renderer from the result. The surface then genuinely changes
-shape as a slider moves, because the realisable level count changes, not because the
-exaggeration factor changed.
+**What it is.** While the 3D relief preview is showing, the user adjusts **the same settings
+they will type into MakeIt or LightBurn**, and the surface updates in real time to what the
+machine will cut — plus warnings for outcomes they will not want. Driven by measured tests,
+bootstrapped from the baseline research.
+
+**Model inputs.** Material (brass, copper, stainless 304, aluminium to start), laser source
+(MOPA 1064 nm, UV 355 nm, diode ~455 nm, CO2 10.6 µm), rated power, **lens**, and the cut
+settings: power %, speed, line density or interval, passes/layers, frequency, pulse width,
+focus offset, per-layer Z descent, crosshatch and cleaning passes.
+
+**Settings must be shown in each program's own units and names.** MakeIt's speed is mm/s but
+its G-code is mm/min; its "line density" is lines per *centimetre*. LightBurn uses line
+interval in mm. The simulator converts internally and never makes the user translate.
+
+**The lens is a first-class parameter, but the model uses what it measures, not its label.**
+The lens sets spot size — and fluence goes as 1/w², so it is the biggest single lever — and sets
+Rayleigh range, which governs how fast removal falls off with depth (~0.4–2 mm for the fibre
+lens, ~0.1 mm for UV). In `d_pass = η·P/(v·h)` the spot does not appear directly; it acts
+**through η** (pulse fluence, overlap) and through the defocus decay. So **η is calibrated per
+lens**, and the spot radius comes from test T0 / Liu's D², not the lens specification.
+
+**Pipeline, per pass:** `E_DA = P/(v·h)` → onset gate (is fluence above threshold at all?) →
+`d_pass = η(material, laser, lens, τ, f/f₀, overlap) · E_DA` → defocus decay using `w(z)` as the
+pocket deepens and Z descends → cumulative depth → quantise to the pass count → drive the
+existing relief renderer. The surface changes shape as a slider moves because the realisable
+depth genuinely changes, not because an exaggeration factor did.
+
+**Capability branch, before any number is shown.** Blue diode and CO2 on bare brass, copper and
+aluminium produce **no depth** — cold absorptivity is 1–3 % at 10.6 µm, and copper's
+conductivity holds a 10–40 W blue spot hundreds of kelvin below melting. On 304 they give an
+oxide/colour mark at ~zero depth. The simulator must say so plainly rather than predict a
+small number. UV 355 nm can remove metal but **no bulk-metal constants exist at all** — show it
+as uncalibrated, bounded by an energy-balance ceiling.
+
+**Only stainless ships with a working prior.** Brass, copper, aluminium and UV ship explicitly
+marked **uncalibrated**, with absolute depth hidden until the user's own tests exist. This is
+the rule below, applied: a seeded prediction must not look like a measured one.
 
 **Interface consequence, and it lands before the model does.** Once depth is predicted rather
 than described, **the depth map and the cut settings stop being independent.** The tuner will
@@ -607,8 +654,57 @@ So: record the settings where slag appeared on each coupon, mark the region of t
 space that produced clean cuts, and shade anything outside it as untested. **The seam
 between "computed" and "observed" must be visible in the UI**, not buried in a tooltip.
 
+**Flags with a published numeric onset** — only three, all from 316L stainless on a 100 W MOPA,
+used as proxies for 304 and as placeholders elsewhere:
+
+| Flag | Computed from | Onset |
+|---|---|---|
+| Blackening | area dose per pass `E_DA` | > 5.3 J/mm² |
+| Melt collapse (groove fills instead of clearing) | frequency at a given pulse width | 350 kHz @ 280 ns, 300 @ 380 ns, 250 @ 500 ns |
+| Roughness | pulse and line overlap | best removal-vs-roughness at ~50 % overlap; interlaced, angle-rotated scanning cut Sa 84 % |
+
+**Qualitative flags only, no numeric onset exists:** heat tint on 304 (keyed on the *final*
+pass, since deeper passes ablate earlier tint), visible crosshatch/layering (fixed hatch angle
+across many layers), slag accumulation (layers since last cleaning pass), recast cracking and
+porosity (pulse width ≥ 50 ns on 304), warp (high pulse energy on small fields), zinc loss in
+brass (long pulses, high dose), back-reflection on polished copper, aluminium and brass.
+
+**No evidence at all, so the tool must say "no evidence":** burr/rim height, cone structures on
+the pocket floor at ns, a back-reflection threshold, a dezincification onset.
+
 - **Done when:** the preview marks regions whose settings sit outside anything measured, and
   the report can name which coupon a clean-cut claim came from.
+
+### 7.7b Guided calibration — test setup and result entry  *(schema can start now)*
+
+The research fixed what a calibration result looks like, which answers the old objection that a
+form built before the first coupon is a guess. A result is: **the full settings vector, lens,
+source, material grade and surface state, `m_before`, `m_after`, beam-on time, photos under
+fixed lighting, and a defect classification.** Every result is stored as grade A and
+**overwrites** the matching prior — never averaged with it.
+
+The tests, in order (`docs/research/laser-ablation-baselines.md` §7 has the detail):
+
+| Test | Finds |
+|---|---|
+| T0 focus and spot | true focus, spot size, Rayleigh range for the fitted lens — **everything else depends on it** |
+| T1 power linearity | whether power % is linear in delivered power, in MakeIt and in LightBurn |
+| T2 frequency / pulse-width screen | the source's peak-output frequency `f₀` and the melt-collapse limit |
+| T3 η factorial | η and how pulse width, frequency and overlap move it — 304 first |
+| T4 depth-vs-passes ladder | roll-off and the value of a Z step |
+| T5 defect map | blackening, tint, slag and banding onsets; value of rotated or interlaced hatching |
+| T6 material transfer | η for brass, copper and aluminium |
+| T7 null and UV checks | confirm diode/CO2 produce no depth; bound UV |
+
+DepthView should **generate each test's coupon and its settings sheet**, then walk the user
+through entering results. Pocket size follows the scale, not the research's 5 × 5 mm suggestion:
+**15 × 15 mm zones on separate coupons**, because at 5 × 5 mm one milligram is 4.7 µm of brass.
+
+Build the data schema now. Build the entry UI after the first T0 and T3 coupons are cut, so it
+is shaped by real numbers.
+
+- **Done when:** DepthView can emit T0–T7 coupons with settings sheets, and a result entered
+  against one replaces its prior in the baseline table with provenance attached.
 
 ### 7.8 Open question — where this documentation lives
 

@@ -334,8 +334,29 @@ grades, how to measure a test engraving without a laboratory, and a 26-step prot
 
 The shape of the plan, because it is easy to get backwards: steps 7.3–7.5 (terrace width,
 noise floor, dither detection) need **no measured constant** and ship first. The depth model
-(7.6) waits on the two coupons that produce `δ` and `F_th`, because seeding it with invented
-constants makes a dishonest prediction indistinguishable from a fitted one.
+(7.6) waits on the coupons that measure it, because seeding it with invented constants makes a
+dishonest prediction indistinguishable from a fitted one.
+
+**The depth model is `d_pass = η · P/(v·h)`, not the log law** (changed 2026-09-24). Baseline
+research — `docs/research/laser-ablation-baselines.md`, five parallel literature sweeps — found:
+
+- Published ns ablation constants split into two regimes **~10× apart in threshold and ~400×
+  in slope**, and neither reproduces MOPA depth rising with pulse width at fixed fluence. Long
+  pulse MOPA removal is melt ejection; its efficiency must be measured. `F_th` survives only as
+  a removal-onset gate.
+- **Only MOPA on stainless has a usable prior** (η ≈ 2.2–2.7 × 10⁻³ mm³/J at long-pulse
+  settings). Brass, copper, aluminium and all UV cells are **uncalibrated** and ship that way.
+- **Diode and CO2 produce no depth on bare brass, copper or aluminium** — model it as a
+  branch, not a small number.
+- **The scale measures η directly**: `η = Δm / (ρ · P · t)`. Mass loss is not just the best
+  depth instrument; it measures the model's one parameter.
+- The lens is a simulator input, but **η is calibrated per lens** and spot size comes from a
+  test, not the lens label.
+
+**Two claims in circulation are untraceable and must not be reused as priors:** "brass ≈
+32 µm/pass, Raycus RFL-100M" — no such document could be found; and "S ≈ 0.8–0.9" as a ns
+incubation exponent — it is ultrafast-derived. Also regraded to E: "10–30 µm/pass on
+stainless" (OMG Laser) — no settings, and every measured value is 6–10 µm/pass.
 
 **Four retractions happened in one session, and the pattern matters more than the facts.**
 Every one was a confident number stated without checking, then corrected when checked:
@@ -358,7 +379,8 @@ Facts worth not re-deriving:
 - **Megapixel claims in this product class are interpolation.** Find the *video* resolution,
   which cannot be faked upward. Silence about 4K is evidence against it.
 - **Mass loss is the primary depth instrument**, not any gauge: `depth = Δm / (ρ·A)`, 0.52 µm
-  per 1 mg count on a 15 × 15 mm brass zone. The microscope only measures spot size.
+  per 1 mg count on a 15 × 15 mm brass zone, and `η = Δm / (ρ·P·t)` directly. The microscope
+  only measures spot size.
 - **`F_th` needs no microscope.** A ladder of short segments at stepped power, read at
   millimetre scale — the first segment that marks is the threshold.
 - **Same-frame calibration** (the scale in the photograph with the subject) defeats autofocus

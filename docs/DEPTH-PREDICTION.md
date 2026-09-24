@@ -17,7 +17,7 @@ what stops the tool being trusted about one thing and caught lying about another
 
 | Problem | Approach | Tractability |
 |---|---|---|
-| **Depth** — how deep will these settings cut | Physics, two measured constants | Good. Extrapolates. |
+| **Depth** — how deep will these settings cut | Energy dose × one measured efficiency (§2.0) | Fair. Stainless has literature anchors; everything else must be calibrated |
 | **Visible layering** — will the slices show as contour lines | Pure geometry, once depth is known | Already in reach |
 | **Slag, discolouration, texture** | Empirical only. No usable model exists | Interpolation inside tested ground only |
 
@@ -28,7 +28,47 @@ lied about the second one. The confidence must be visibly different.
 
 ## 2. Settled physics
 
-### 2.1 The logarithmic ablation law
+### 2.0 The depth model: energy dose × measured efficiency
+
+For a MOPA fibre source, depth per pass is best predicted from the energy delivered per unit
+area, multiplied by a removal efficiency that has to be measured:
+
+```
+E_DA   = P / (v · h)          area energy dose per pass, J/mm²
+d_pass = η · E_DA             η = volumetric removal efficiency, mm³/J
+```
+
+- `P` average power (W) — power % × rated power, **once the slider is shown to be linear**
+- `v` scan speed (mm/s), `h` hatch / line interval (mm)
+- `η` depends on material, laser, lens, pulse width, frequency relative to the source's
+  peak-output frequency, overlap and scan strategy. It is **the one number calibration exists
+  to find.**
+
+The best-documented case supports it. On stainless with long-pulse MOPA settings, two sources
+on machines five times apart in power converge on **η ≈ 2.2–2.7 × 10⁻³ mm³/J** (about
+370–450 J per mm³ removed), and the formula reproduces Trotec's measured 6.3–7.5 µm/pass to
+within its own scatter. Low-pulse-energy "quality" settings fall to about a third of that.
+Brass, copper and aluminium have **no** credible measured η with stated settings. Full
+tables, grades and sources: [`docs/research/laser-ablation-baselines.md`](research/laser-ablation-baselines.md).
+
+**Why this replaced the log law below as the primary model.** Published nanosecond ablation
+constants split into two regimes that disagree by ~10× in threshold (0.5–0.7 vs 4–5.5 J/cm²)
+and ~400× in slope (6 nm vs 2.4–2.8 µm). A 100 W MOPA at ~1 mJ into a 20 µm spot reaches
+~160 J/cm², above both. And neither reproduces what MOPA users observe: at fixed fluence depth
+*rises* with pulse width (2.3 → 4.2 µm going from 10 to 30 ns), which no fluence-only law can
+produce. Long-pulse MOPA removal is dominated by melt ejection, whose efficiency has to be
+measured, not derived from a threshold.
+
+**Mass loss measures η directly.** `η = Δm / (ρ · P · t)` — the scale in §5.1 yields the
+model's one parameter with no depth measurement at all. That is the strongest argument yet
+for mass loss as the primary instrument.
+
+> *Corrected 2026-09-24.* This section previously made `d = δ·ln(F/F_th)` (§2.1) the depth
+> model, with "two measured constants" that "extrapolate". The log law is now kept only as a
+> **removal-onset gate** — below roughly `F_th`, predict marking rather than depth. It does
+> not predict depth for this machine.
+
+### 2.1 The logarithmic ablation law — now the removal-onset gate only
 
 Depth removed per pulse on a metal, above threshold:
 
@@ -93,12 +133,17 @@ rather than in depth — which matters enormously for cost (§5).
 Threshold falls with accumulated pulses on the same spot:
 
 ```
-F_th(N) = F_th(1) · N^(S−1)        S ≈ 0.8–0.9 for many metals
+F_th(N) = F_th(1) · N^(S−1)
 ```
 
-Multi-pass engraving lives **entirely** in the incubated regime, so a single-pulse
-threshold is not the number that governs a real job. Most published incubation work is
-ultrafast rather than nanosecond; treat ns values as thinly supported.
+**No measured nanosecond value of `S` exists for brass, copper, stainless or aluminium.**
+Multi-pass engraving lives in the incubated regime, so the relation matters in principle, but
+there is nothing to parameterise it with. The only usable ns thresholds (Neuenschwander et al.,
+4 ns, 50 kHz) are **already multi-pulse**, so an incubation factor must not be applied on top of
+them. One ns study saw a roughly constant removal rate over 20 pulses.
+
+> *Corrected 2026-09-24.* This previously gave "S ≈ 0.8–0.9 for many metals". That range comes
+> from ultrafast (fs/ps) work and has no nanosecond support for these metals.
 
 ---
 
@@ -114,15 +159,28 @@ Nd:YAG, **4.5 ns** pulses, polished bare samples, 20 consecutive pulses:
 | Titanium | ~4.5 J/cm² | ~1.0 J/cm² |
 | Copper | ~5.5 J/cm² | ~8.0 J/cm² |
 
-Logarithmic coefficients **1.1–2.8 µm per ln unit**; optical depths `l_α` **6.7–14 nm**;
-thermal depths `l_th` **0.40–1.43 µm**.
+At **1064 nm** the logarithmic coefficients are **2.4 µm (Cu) and 2.8 µm (Al, Ti)** per ln unit;
+optical depths `l_α` are **13 nm (Cu), 10 nm (Al), 7.7 nm (Ti)**; thermal depths `l_th` are
+**0.40–1.43 µm at 4.5 ns only** — they scale as √τ, so at a MOPA's 100 ns copper's is ~6.8 µm.
+These thresholds are 20-pulse averages from extrapolating a log fit to zero depth, not
+single-pulse D² values, taken with a ~1.1 mm spot.
 
-> *The dependence of the ablation rate of metals on nanosecond laser fluence and
-> wavelength*, Journal of Optoelectronics and Advanced Materials.
+> Vladoiu, Stafe, Negutu & Popescu, *The dependence of the ablation rate of metals on
+> nanosecond laser fluence and wavelength*, J. Optoelectron. Adv. Mater. 10(12):3177, 2008.
 
-**Evidence grade: C.** Right physics, right wavelength, right pulse regime — wrong alloy,
-wrong pulse duration, wrong surface, and two orders of magnitude shallower than our target
-depth.
+> *Corrected 2026-09-24.* This previously gave "1.1–2.8 µm" and "6.7–14 nm" as 1064 nm ranges.
+> Both mixed wavelengths: 1.1 µm is Ti at 532 nm and 6.7 nm is Al at 532 nm. The `l_th` range
+> was stated without its pulse duration.
+
+**A second regime, ten times lower.** At 4 ns and 50 kHz with an 18 µm fibre spot — much closer
+to our geometry — Neuenschwander's group measured **F_th = 0.51 J/cm², δ = 5.92 nm (Cu)** and
+**0.69 J/cm², 5.98 nm (1.4301 = 304)**. The two sets cannot be reconciled with one law, which
+is the reason §2.0 exists.
+
+**Evidence grade: B** for the measurements themselves; **of little use for predicting depth on
+this machine** for the reasons above. Right wavelength — but wrong alloy, a pulse duration
+tens of times shorter than a MOPA runs, a different spot size, and two orders of magnitude
+shallower than our target depth.
 
 ### 3.2 First-principles estimate — available for any material
 
@@ -912,14 +970,20 @@ that look exactly like results.**
 
 #### Computing
 
-20. `depth = (m_before − m_after) / (ρ · area)`. Brass C360 ρ = 8.50 g/cm³; stainless 304
-    ρ = 8.00; aluminium 2.70; copper 8.96.
-21. Plot depth against `ln(fluence)` — or against `ln(commanded power)` if no meter — and fit
-    `d = δ·ln(F/F_th)`. Slope gives `δ`, x-intercept gives `F_th`.
-22. **Record where the fit breaks.** The log law fails as the pocket deepens. The depth beyond
-    which it is not trusted is a result, not a failure.
-23. Quote every constant with its R², pulse duration, source and lens. A number without those
-    four qualifiers is not a result.
+20. `depth = (m_before − m_after) / (ρ · area)`. Densities from the research tables: 304
+    7.89 g/cm³; C360 brass 8.50, C260 8.53; C110 copper 8.91; 6061 aluminium 2.70.
+21. **Compute η directly**: `η = (m_before − m_after) / (ρ · P · t)` in mm³/J, where `t` is the
+    total beam-on time for the zone. This is the model's one parameter (§2.0) and needs no
+    depth measurement at all. Cross-check it against `depth / (passes · E_DA)`.
+22. **Record how η moves** across the coupons that varied pulse width, frequency and overlap,
+    and **record where depth per pass stops being constant** as passes accumulate. The depth
+    beyond which the model is not trusted is a result, not a failure.
+23. Quote every η with its pulse width, frequency, overlap, lens, source and power setting.
+    A number without those qualifiers is not a result. For 304, a value far outside
+    0.7–2.7 × 10⁻³ mm³/J means suspect the power calibration or focus before the physics.
+
+> *Corrected 2026-09-24.* Steps 21–23 previously fitted `d = δ·ln(F/F_th)`. See §2.0 for why
+> the energy-dose model replaced it.
 
 #### Cross-checks, at least once per material
 

@@ -428,9 +428,10 @@ brass, 0.001 g:
 | 5 × 5 mm | 4.70 µm | 470 µm |
 
 So **zones must be at least 10 × 10 mm, and 15 × 15 mm is the sensible default.** A 5 mm zone
-throws away the scale's entire advantage over the dial indicator. This is a constraint on
-`--calibrate`, which currently sizes the wedge to fit the blank rather than to the measurement
-that has to be made from it.
+throws away the scale's entire advantage over the dial indicator. **`DepthView --calibrate
+--mass --material <metal>`** writes this coupon and its worksheet, and prints the sensitivity
+for the zone and material chosen. The original `--calibrate` wedge coupon is for a gauge or
+microscope; it cannot be weighed, since all its steps sit on one piece of metal.
 
 #### Buying the scale: capacity is the spec that bites
 

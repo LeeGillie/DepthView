@@ -177,7 +177,23 @@ internal static partial class Program
           so measuring one piece tells you the depth your settings actually reach, the
           steepest wall the machine will hold, and the finest detail its spot can resolve.
           The field is left uncut on purpose: the original surface is the datum you measure
-          depths against.
+          depths against. Measure it with a depth gauge or microscope, not a scale.
+
+        Mass-loss coupon (for a milligram scale: one setting per coupon, weigh each one)
+          DepthView --calibrate --mass [options]
+            --coupon <mm>       edge of the square coupon (default 25)
+            --zone <mm>         edge of the square zone engraved at one setting (default 15)
+            --thick <mm>        stock thickness, to check coupon mass against the scale (default 3)
+            --scale-g <g>       scale capacity in grams (default 50)
+            --rows <n>          coupons in the series, one worksheet row each (default 10)
+            --material <name>   brass, C360, copper, stainless/304, aluminium/6061/1050;
+                                sets the density used for depth and sensitivity
+            --machine <name>    stamped into the file and the worksheet
+            --out <file>        output PNG (default depthview-mass-coupon[-machine-material].png)
+          Writes one image to engrave on every coupon in a series, plus a worksheet with a
+          row per coupon for its settings and before/after weights. Each coupon's mass loss
+          gives the removal efficiency the depth model runs on. No labels are engraved:
+          anything engraved counts as removed mass.
 
         Exit codes: 0 all clean, 1 at least one file flagged as an imposter, 2 a file failed to load.
         """;
@@ -374,6 +390,8 @@ internal static partial class Program
     {
         AttachParentConsole();
 
+        if (rest.Contains("--mass")) return RunMassCoupon(rest);
+
         var spec = new CalibrationSpec();
         string? outPath = null;
 
@@ -412,6 +430,7 @@ internal static partial class Program
             File.WriteAllText(sheet, Worksheet(spec, pat));
 
             Console.WriteLine($"Calibration coupon -> {outPath}");
+            WriteWarnings(pat.Warnings);
             Console.WriteLine($"  blank           {spec.BlankDiameterMm:F1} mm, rim {spec.RimMm:F2} mm left untouched");
             Console.WriteLine($"  resolution      {pat.Width:N0} px, {pat.PixelsPerMm:F1} px/mm, "
                             + $"{pat.Dpi:F0} dpi, {1000 / pat.PixelsPerMm:F1} um/pixel");
@@ -443,6 +462,10 @@ internal static partial class Program
         sb.AppendLine($"Blank {spec.BlankDiameterMm:F1} mm, {pat.Width} px, {pat.PixelsPerMm:F1} px/mm, "
                     + $"{1000 / pat.PixelsPerMm:F1} um/pixel");
         sb.AppendLine();
+        AppendWarnings(sb, pat.Warnings);
+        sb.AppendLine("Measure this coupon with a depth gauge, microscope or tilted-coupon photograph.");
+        sb.AppendLine("Not with a scale: every feature weighs together. For mass loss, use --calibrate --mass.");
+        sb.AppendLine();
         sb.AppendLine("1. DEPTH  - measure each step against the unengraved field, in microns.");
         sb.AppendLine("   Step 1 is fully deep (black); the last step is untouched (white).");
         sb.AppendLine("   This is the one that matters most: metal does not ablate linearly as the");
@@ -464,12 +487,166 @@ internal static partial class Program
         sb.AppendLine("   That is the effective spot on this material, which is often not the");
         sb.AppendLine("   figure on the spec sheet.");
         sb.AppendLine();
-        foreach (double p in spec.CombPitchUm)
-            sb.AppendLine($"   {p,4:F0} um    resolved / merged   (circle one)");
+        for (int i = 0; i < spec.CombPitchUm.Length; i++)
+        {
+            double p = spec.CombPitchUm[i];
+            bool drawn = i < pat.CombPitchDrawnUm.Length && pat.CombPitchDrawnUm[i] > 0;
+            sb.AppendLine(drawn
+                ? $"   {p,4:F0} um    resolved / merged   (circle one)"
+                : $"   {p,4:F0} um    not drawn - finer than this resolution can represent");
+        }
         sb.AppendLine();
         sb.AppendLine("Notes:");
         sb.AppendLine("  ____________________________________________________________");
         sb.AppendLine("  ____________________________________________________________");
+        return sb.ToString();
+    }
+
+    private static void WriteWarnings(List<string> warnings)
+    {
+        foreach (string w in warnings) Console.WriteLine("  WARNING  " + w);
+        if (warnings.Count > 0) Console.WriteLine();
+    }
+
+    private static void AppendWarnings(StringBuilder sb, List<string> warnings)
+    {
+        if (warnings.Count == 0) return;
+        sb.AppendLine("WARNINGS - read before cutting");
+        foreach (string w in warnings) sb.AppendLine("  * " + w);
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Writes a mass-loss coupon and its worksheet.
+    ///
+    /// The worksheet is the substance here; the image is a plain square. It carries the
+    /// controls that stop a session producing numbers that only look like results, a row per
+    /// coupon, and the arithmetic from a weight difference to the removal efficiency the depth
+    /// model runs on - so none of it has to be looked up at the bench.
+    /// </summary>
+    private static int RunMassCoupon(string[] rest)
+    {
+        var spec = new MassCouponSpec();
+        string? outPath = null;
+
+        for (int i = 0; i < rest.Length; i++)
+        {
+            string a = rest[i];
+            string? Next() => i + 1 < rest.Length ? rest[++i] : null;
+            switch (a)
+            {
+                case "--out": outPath = Next(); break;
+                case "--coupon": if (double.TryParse(Next(), out double c)) spec.CouponMm = c; break;
+                case "--zone": if (double.TryParse(Next(), out double z)) spec.ZoneMm = z; break;
+                case "--thick": if (double.TryParse(Next(), out double t)) spec.ThicknessMm = t; break;
+                case "--scale-g": if (double.TryParse(Next(), out double g)) spec.ScaleCapacityG = g; break;
+                case "--rows": if (int.TryParse(Next(), out int rw)) spec.Rows = Math.Clamp(rw, 1, 60); break;
+                case "--material": spec.Material = Next() ?? ""; break;
+                case "--machine": spec.Machine = Next() ?? ""; break;
+            }
+        }
+
+        try
+        {
+            var pat = CalibrationPattern.BuildMassCoupon(spec);
+            string tag = string.Join("-", new[] { spec.Machine, spec.Material }
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s.Replace(' ', '-').ToLowerInvariant()));
+            outPath ??= $"depthview-mass-coupon{(tag.Length > 0 ? "-" + tag : "")}.png";
+
+            PngEncoder.WriteGrey(outPath, pat.Pixels, pat.Width, pat.Height, 8, pat.Dpi, new[]
+            {
+                ("Software", $"DepthView {BuildInfo.Version}"),
+                ("Comment", $"mass-loss coupon, {spec.CouponMm:F1} mm square, {pat.ZoneEdgeMm:F2} mm zone, " +
+                            $"machine={spec.Machine}, material={spec.Material}"),
+            });
+
+            string sheet = Path.ChangeExtension(outPath, null) + "-worksheet.txt";
+            File.WriteAllText(sheet, MassWorksheet(spec, pat));
+
+            Console.WriteLine($"Mass-loss coupon -> {outPath}");
+            WriteWarnings(pat.Warnings);
+            Console.WriteLine($"  image           {pat.Width:N0} px square, {pat.PixelsPerMm:F0} px/mm, {pat.Dpi:F0} dpi, 8-bit");
+            foreach (string line in pat.Legend) Console.WriteLine("  " + line);
+            Console.WriteLine($"  worksheet       {Path.GetFileName(sheet)}  ({spec.Rows} coupon rows)");
+            Console.WriteLine();
+            Console.WriteLine("  Engrave the same image on every coupon, changing one setting between them.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Mass coupon failed: " + ex.Message);
+            return 2;
+        }
+    }
+
+    private static string MassWorksheet(MassCouponSpec spec, CalibrationPattern.Result pat)
+    {
+        var mat = CouponMaterial.Lookup(spec.Material);
+        double area = pat.ZoneAreaMm2;
+        string Blank(string s, int w) => s.Length > 0 ? s : new string('_', w);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("DepthView mass-loss worksheet");
+        sb.AppendLine("=============================");
+        sb.AppendLine();
+        sb.AppendLine($"Machine   : {Blank(spec.Machine, 20)}");
+        sb.AppendLine(mat is { } m
+            ? $"Material  : {m.Name}, density {m.Density:0.###} g/cm3"
+            : $"Material  : {Blank(spec.Material, 20)}   density ________ g/cm3");
+        sb.AppendLine("Source    : ____________________   rated ______ W   Lens: ____________________");
+        sb.AppendLine("Software  : MakeIt / LightBurn (circle)          Date: ____________");
+        sb.AppendLine();
+        sb.AppendLine($"Coupon {spec.CouponMm:F1} mm square x {spec.ThicknessMm:F1} mm.  " +
+                      $"Zone {pat.ZoneEdgeMm:F2} x {pat.ZoneEdgeMm:F2} mm = {area:F1} mm2.");
+        if (mat is { } md)
+            sb.AppendLine($"One milligram = {1000.0 / (md.Density * area):F2} um of average depth over the zone.");
+        sb.AppendLine();
+        AppendWarnings(sb, pat.Warnings);
+
+        sb.AppendLine("BEFORE THE FIRST COUPON - skip these and the numbers below will look exactly");
+        sb.AppendLine("like results without being any. (docs/DEPTH-PREDICTION.md, section 5.7)");
+        sb.AppendLine();
+        sb.AppendLine("  [ ] Scale warmed up and calibrated.  Check mass: start ________ g   end ________ g");
+        sb.AppendLine("  [ ] Noise floor - one coupon weighed five times, lifted off the pan between:");
+        sb.AppendLine("        ________  ________  ________  ________  ________ g    spread ______ mg");
+        sb.AppendLine("  [ ] Blank-coupon control - an unengraved coupon through the whole clean/dry cycle:");
+        sb.AppendLine("        before ________ g   after ________ g        (must not move)");
+        sb.AppendLine("  [ ] Focus and spot (test T0) done: spot ______ um at focus with this lens");
+        sb.AppendLine();
+        sb.AppendLine("EACH COUPON: one setting. Engrave the zone only, clean, dry, let it reach room");
+        sb.AppendLine("temperature, weigh on the marked spot of the pan, same orientation every time.");
+        sb.AppendLine();
+        sb.AppendLine("  #  ID   power  speed   interval  freq  pulse  passes | before      after       | loss");
+        sb.AppendLine("          %      mm/s    mm        kHz   ns            | g           g           | mg");
+        for (int i = 1; i <= spec.Rows; i++)
+            sb.AppendLine($" {i,2}  ___  _____  ______  ________  ____  _____  ______ | ___________ ___________ | ______");
+        sb.AppendLine();
+        sb.AppendLine("Notes per coupon - colour, blackening, slag, visible hatch pattern, warp:");
+        for (int i = 1; i <= spec.Rows; i++)
+            sb.AppendLine($" {i,2}  ____________________________________________________________");
+        sb.AppendLine();
+
+        string dens = mat is { } mm ? mm.Density.ToString("0.###") : "density";
+        sb.AppendLine("WORKING IT OUT, per coupon");
+        sb.AppendLine();
+        sb.AppendLine("  loss (mg)         = (before - after) x 1000");
+        sb.AppendLine($"  volume (mm3)      = loss / {dens}        (g/cm3 is the same number as mg/mm3)");
+        sb.AppendLine($"  mean depth (um)   = volume / {area:F1} x 1000");
+        sb.AppendLine("  depth per pass    = mean depth / passes");
+        sb.AppendLine("  energy per pass   E_DA (J/mm2) = P / (speed x interval),  P = power% x rated W");
+        sb.AppendLine("  efficiency eta    (mm3/J) = depth per pass (mm) / E_DA");
+        sb.AppendLine("                    cross-check: volume / (P x beam-on seconds)");
+        sb.AppendLine();
+        sb.AppendLine("  Speed in mm/s, interval in mm. MakeIt's \"line density\" is lines per CENTIMETRE:");
+        sb.AppendLine("  interval = 10 / line density, so 300 -> 0.0333 mm.");
+        sb.AppendLine("  Power % is assumed linear in watts until test T1 shows otherwise.");
+        sb.AppendLine("  With crosshatch on, count each hatch direction as a pass - each one delivers E_DA.");
+        sb.AppendLine();
+        sb.AppendLine("  Stainless 304 check: published long-pulse settings give eta of about 0.7 to 2.7");
+        sb.AppendLine("  x 10^-3 mm3/J. Far outside that, suspect power calibration or focus before the");
+        sb.AppendLine("  physics. Brass, copper and aluminium have no published value to check against -");
+        sb.AppendLine("  these coupons produce the first numbers, not a check on anyone else's.");
         return sb.ToString();
     }
 

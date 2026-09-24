@@ -189,14 +189,22 @@ over a millimetre of deep cutting just to write the numbers.
 What remains here is not code: engrave it, look at it, measure it. Until then the ramp
 default stays "none", which is an honest admission rather than a guess.
 
-**Open: warn when the coupon is generated too small.** Found while rendering one for a
-post. At the 4096 px default a 40 mm coupon is 9.8 µm/pixel, so the finest comb pitch
-(25 µm) is 2.6 px and every pitch is representable. At `--size 1400` it is 28.6 µm/pixel,
-the 25 and 35 µm pairs fall below two pixels, and the comb silently becomes meaningless —
-it still renders, it just is not measuring anything. Nobody would notice until they had
-cut it. `--calibrate` should compute pitch-in-pixels for the finest comb and refuse, or at
-least warn loudly, when it drops below about 3 px. Same check would catch an over-large
-`--rim-mm` or a tiny `--blank`.
+~~**Open: warn when the coupon is generated too small.**~~ **Done 2026-09-24.** The comb
+now computes pixels per line pair for every cell. Under 2 px the cell is left uncut and
+labelled "-" instead of being drawn — and that fixed a real bug, not just a missing
+warning: the old code clamped an unrepresentable pitch up to 2 px **but kept the original
+label**, so a `--size 1400` coupon printed "25" over lines that were really 57 µm apart.
+Under 3 px the cell is drawn but warned as uneven. Warnings print first and head the
+worksheet.
+
+**One consequence to decide on.** The 25 µm cell is 2.56 px at the 4096 default, so **the
+default coupon now warns about its own finest cell.** The warning is true — bars alternate
+1 and 2 px — but a warning on every default run teaches people to ignore warnings. Either
+raise the default `--size` (4800 gives 3.0 px, 6400 gives the 4 px needed for bars at
+least 2 px wide) or accept it. Not changed unilaterally: 4096 is also the project's
+standard depth-map width and appears in README and CLAUDE.md figures.
+
+Not done: the same check for an over-large `--rim-mm` or a tiny `--blank`.
 
 ### 1.5 Focus-stepping schedule
 
@@ -508,8 +516,12 @@ measurement and the entry path for it.
   (1:1000), which is the difference between a comfortable reading and one fighting thermal
   drift. **Zones must be at least 10 × 10 mm, 15 × 15 mm by preference**: at 5 × 5 mm a scale
   count is 4.7 µm and the scale's whole advantage over the dial indicator is gone.
-  `--calibrate` currently sizes the wedge to fit the blank rather than to the measurement that
-  must be made from it — **fix that before cutting anything.**
+  **Done 2026-09-24: `--calibrate --mass`** writes exactly this coupon — a single uniform zone,
+  15 mm on 25 mm by default, no engraved labels (they would count as removed mass), 8-bit, with
+  a worksheet carrying the controls, a row per coupon and the arithmetic to η. It warns on a
+  zone under 10 mm, a border under 2 mm, a coupon heavier than the scale, and an unknown
+  material. The original wedge coupon is unchanged but now says it is for a gauge or
+  microscope, not the scale.
 - **Scale spec: 0.001 g resolution and ≥50 g capacity.** The common cheap milligram scale is
   20 g full scale, which will not weigh a 40 mm brass coin blank (32 g) let alone a 4 mm one
   (43 g). Needs a calibration weight, a draft shield, and a check mass weighed at both ends of

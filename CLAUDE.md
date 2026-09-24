@@ -416,9 +416,11 @@ the instruments are in hand; the calibration it depends on has not been done. **
 has repeatedly had to retract confident statements, and a vendor's engineering team acting on
 an overstated roadmap would be the most expensive version of that mistake yet.**
 
-The first code blocker is `--calibrate` itself: it sizes the wedge to fit the blank, where the
-measurement needs **zones of at least 10 × 10 mm on separate 25 × 25 mm coupons** (see TODO
-7.2). **Fix that before cutting anything**, or the first coupon produces numbers the scale
-cannot resolve.
+The coupon side is no longer blocked in code. **`--calibrate --mass`** (added 2026-09-24)
+writes the mass-loss coupon the scale needs: one uniform 15 mm zone on a 25 mm square, no
+engraved labels, a worksheet with the controls and the arithmetic to η. **Two coupon kinds,
+two instruments**: the `--calibrate` wedge is measured with a gauge or microscope; the
+`--mass` coupon is weighed. Do not blur them — the wedge cannot be weighed, because every step
+sits on one piece of metal.
 
 `TODO.md` has the rest, with enough context to pick each item up cold.

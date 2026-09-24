@@ -618,3 +618,67 @@ The evidence store it draws on is LaserTuner, which carries the A–E grading sc
 contributor can reach it today. Either the document stays here and references a repository
 nobody else can see, or LaserTuner gets published. Decide before asking anyone to
 contribute measurements.
+
+---
+
+## 8. WeCreat MakeIt integration — proposed 2026-09-24, awaiting reply
+
+**State: ball is in WeCreat's court.** They approached us — "after further evaluation by our
+software team, we would like to move forward with the collaboration on Depth View" — and asked
+whether they should study integration themselves or be guided. A full proposal went back on
+2026-09-24. Expect a slow reply; do not chase it.
+
+### What was proposed
+
+Their team said MakeIt's framework is Electron.js and asked how to integrate DepthView into it.
+**DepthView is .NET 8 + Avalonia and cannot be embedded in an Electron app** — correcting that
+premise was the first thing in the reply, because everything downstream of it was wasted effort.
+
+Three options offered, A recommended and named as the one to pick if only one is done:
+
+- **A — a command-line handshake.** MakeIt gains two commands: export a project's depth map
+  plus the settings of the operation it belongs to; import a revised map and revised settings
+  back. Settings as JSON, image as a PNG file beside it (never base64 — a 4096² 16-bit image
+  bloats badly). **The argument that makes this better than what we first asked for: WeCreat
+  never opens the `.wws` format, and MakeIt stays the only program that writes it**, so a bug
+  on our side yields a rejected import rather than a corrupted project. Either program can
+  drive; we offered to build whichever side they prefer.
+- **B — document the `.wws` depth-map structures.** The original ask, now the fallback.
+- **C — WeCreat reimplements the analysis in MakeIt.** MIT permits it outright; DepthView
+  becomes their reference implementation. The only route that literally puts it inside Electron.
+
+We also flagged that **we do not know whether MakeIt has any command-line surface at all**, and
+that if not, A is a larger piece of work than it sounds.
+
+### Open questions to WeCreat, none answered
+
+1. **Does an export give the map as the user imported it, or after MakeIt's own reduction?**
+   This decides whether A is worth building at all — tuning a map whose precision has already
+   gone is the exact failure the tool exists to catch.
+2. **Is the X sample pitch configurable?** (asked 2026-09-14) Measured at 0.1 mm against
+   0.0333 mm in Y, and line density appears not to affect it. See CLAUDE.md — if this stands,
+   sampling rather than spot size is what limits detail through MakeIt.
+3. **What decides whether a multi-layer job expands into the G-code?** (asked 2026-09-14) One
+   60-layer job staged as a single layer; an earlier one expanded to 11.2 M lines.
+
+### What to build, and when
+
+**Nothing yet for A, B or C — all three are blocked on their reply, and all three imply
+different work.** Do not speculatively build an interface to a spec that does not exist.
+
+**One thing is not blocked.** `Integrations/WeCreat/Gcode/GcodeStream.cs` was added and
+**nothing consumes it.** Reading the generated `.gc` is a documented, supported user action
+(`Ctrl+Shift+P` per WeCreat's own KB), needs no vendor cooperation, and yields the ground
+truth: distinct S values, X and Y sample pitch, layer structure — what the machine was actually
+sent rather than what the project file claims. That is a real analysis feature on its own and
+it is the only way to verify that any future round trip preserves precision. **Build the
+consumer.**
+
+### Standing constraints on this thread
+
+- `.wws` protection is **never** to be defeated. Stated in the reader, in `CONTRIBUTING.md`,
+  and now in writing to WeCreat. Pull requests that reverse-engineer it are declined.
+- **Depth prediction must not be described as a capability.** It is not built. The reply said
+  so plainly, which is why it can be trusted on everything else.
+- Support correspondence is citable; the private beta stream is not. See CLAUDE.md — the dates
+  nearly touch, so check which stream a fact came from rather than assuming.

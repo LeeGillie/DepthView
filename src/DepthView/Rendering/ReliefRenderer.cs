@@ -12,7 +12,12 @@ public sealed class ReliefOptions
     public double LightAzimuthDeg = 315;
     public double LightElevationDeg = 42;
 
-    /// <summary>Vertical exaggeration. Laser relief is very shallow, so 1.0 is already boosted.</summary>
+    /// <summary>
+    /// The renderer's internal height ratio: the full black-to-white range is drawn
+    /// field-width / 8 times this, which has no physical meaning. Never expose it to a user -
+    /// convert from millimetres with <see cref="ZScale.RendererExaggeration"/>, where true
+    /// scale is a depth in the same units as X and Y.
+    /// </summary>
     public double Exaggeration = 1.0;
 
     public double AoStrength = 1.0;

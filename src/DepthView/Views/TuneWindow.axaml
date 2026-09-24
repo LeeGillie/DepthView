@@ -155,9 +155,15 @@
                                  ToolTip.Tip="How deep, in millimetres, you intend the deepest cut to be - the full black-to-white range. Nothing in this program knows how deep your laser actually reaches, so this is your figure until you cut the calibration coupon and measure it. Purely a viewing setting: it changes the picture and nothing that gets written." />
                 </Grid>
 
-                <TextBlock Classes="label" x:Name="ReliefExagLabel" Margin="0,9,0,0" Text="Vertical exaggeration" />
+                <Grid ColumnDefinitions="*,Auto" Margin="0,9,0,0">
+                  <TextBlock Grid.Column="0" Classes="label" x:Name="ReliefExagLabel" Text="Vertical exaggeration" />
+                  <Button Grid.Column="1" x:Name="ReliefTrueScaleButton" Content="True scale" Padding="8,3"
+                          VerticalAlignment="Top"
+                          ToolTip.Tip="Put the exaggeration back to 1:1, so Z is drawn in the same millimetres as X and Y. This is the only setting that shows how the piece will really look." />
+                </Grid>
                 <Slider x:Name="ReliefExagSlider" Minimum="-8" Maximum="6" Value="0" TickFrequency="1"
-                        ToolTip.Tip="Doublings above or below the target depth. 0 draws the relief at the depth you entered; each step up doubles it and each step down halves it, to a completely flat surface at the bottom of the travel. Real laser relief is shallow enough that true scale can be hard to read, which is what this is for." />
+                        ToolTip.Tip="Doublings above or below the target depth. 0 is true scale - Z matches X and Y - and the slider is green there. Each step up doubles the drawn depth, turning yellow then red, to magnify terracing and noise; each step down halves it, to a completely flat surface at the bottom of the travel. Judge problems exaggerated, then judge whether they matter at true scale." />
+                <TextBlock Classes="note" x:Name="ReliefExagVerdict" Margin="0,0,0,8" />
 
                 <TextBlock Classes="label" x:Name="ReliefLightLabel" Text="Light direction" />
                 <Slider x:Name="ReliefLightSlider" Minimum="0" Maximum="359" Value="315"

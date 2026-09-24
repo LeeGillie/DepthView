@@ -33,6 +33,12 @@ internal static partial class Program
     public static double? StartupBlankMm, StartupRimMm, StartupRampMm;
     public static int? StartupPasses;
 
+    /// <summary>
+    /// Target depth (mm) and exaggeration (stops, 0 = true scale) to open either relief view
+    /// with, from --depth-mm and --exag. Same meaning as in --render.
+    /// </summary>
+    public static double? StartupDepthMm, StartupExagStops;
+
     /// <summary>Fit policy to open the tuning dialog with, from the same --fit flag as --tune.</summary>
     public static FitPolicy StartupFit = FitPolicy.None;
 
@@ -68,6 +74,8 @@ internal static partial class Program
           DepthView <image> --tune-ui     also open the tuning dialog, optionally already set
                                           up: --blank <mm> --rim-mm <mm> --ramp-mm <mm>
                                           --passes <n>
+                                          Either relief view also takes --blank <mm>,
+                                          --depth-mm <mm> and --exag <stops>, as in --render
           DepthView --about               open the About box: version, platforms, credits
           DepthView --licence             open the About box on its licence page
           DepthView <image> --screenshot <out.png> [--relief] [--delay <ms>]
@@ -93,7 +101,13 @@ internal static partial class Program
             --texrot <deg>      texture rotation
             --albstr <0..1>     colour texture strength
             --micstr <0..3>     surface relief strength
-            --exag <n>          vertical exaggeration (default 1)
+            --blank <mm>        blank diameter the short side spans (default 40)
+            --depth-mm <mm>     target depth of the deepest cut (default 0.40)
+            --exag <stops>      vertical exaggeration in doublings around the target
+                                depth: 0 (the default) is true scale, Z in the same
+                                mm as X and Y; 3 draws it 8x deep to hunt terracing;
+                                -8 is flat. Up to 1.3.0 this was a raw ratio where 1
+                                drew about 5 mm on a 40 mm blank
             --light <az> <el>   light bearing and elevation in degrees (default 315 42)
             --orbit <yaw> <el>  render in 3D from this camera bearing and elevation
                                 (elevation 90 looks straight down; default 0 62)
@@ -229,9 +243,12 @@ internal static partial class Program
         StartupFile = args.FirstOrDefault(a => !a.StartsWith('-') && File.Exists(a));
         StartupRelief = args.Any(a => a is "--relief" or "-3d");
         StartupTune = args.Any(a => a is "--tune-ui");
+        // Read whatever opens a relief view: --relief, --tune-ui, or --orbit further down.
+        StartupBlankMm = Flag(args, "--blank");
+        StartupDepthMm = Flag(args, "--depth-mm");
+        StartupExagStops = Flag(args, "--exag");
         if (StartupTune)
         {
-            StartupBlankMm = Flag(args, "--blank");
             StartupRimMm = Flag(args, "--rim-mm");
             StartupRampMm = Flag(args, "--ramp-mm");
             StartupPasses = Flag(args, "--passes") is double p && p >= 2 ? (int)p : null;
@@ -911,7 +928,8 @@ internal static partial class Program
         string? input = null, outPath = null, materialName = "polished brass";
         string? albedo = null, micro = null, generated = null;
         bool brushed = false, orbit = false;
-        double exag = 1, az = 315, el = 42, ao = 1, yaw = 0, pitch = 62, zoomMul = 1;
+        double exagStops = 0, az = 315, el = 42, ao = 1, yaw = 0, pitch = 62, zoomMul = 1;
+        double blankMm = Rendering.ZScale.DefaultBlankMm, depthMm = Rendering.ZScale.DefaultTargetMm;
         double texScale = double.NaN, texRot = double.NaN, albStr = double.NaN, micStr = double.NaN;
         int slices = 0, size = 900;
 
@@ -934,7 +952,9 @@ internal static partial class Program
                 case "--texrot": texRot = D(rest, ref i, 0); break;
                 case "--albstr": albStr = D(rest, ref i, 1); break;
                 case "--micstr": micStr = D(rest, ref i, 1); break;
-                case "--exag": exag = D(rest, ref i, 1); break;
+                case "--exag": exagStops = D(rest, ref i, 0); break;
+                case "--blank": blankMm = D(rest, ref i, blankMm); break;
+                case "--depth-mm": depthMm = D(rest, ref i, depthMm); break;
                 case "--ao": ao = D(rest, ref i, 1); break;
                 case "--slices": slices = (int)D(rest, ref i, 0); break;
                 case "--size": size = (int)D(rest, ref i, 900); break;
@@ -984,7 +1004,8 @@ internal static partial class Program
                 LightAzimuthDeg = az,
                 LightElevationDeg = el,
                 AoStrength = ao,
-                Exaggeration = exag,
+                Exaggeration = Rendering.ZScale.RendererExaggeration(
+                    Rendering.ZScale.DrawnDepthMm(depthMm, exagStops), blankMm, fw, fh),
                 SliceCount = slices,
                 Zoom = Math.Min((double)w / fw, (double)h / fh) * Math.Clamp(zoomMul, 0.05, 20),
                 Quality = 1,
@@ -1011,6 +1032,11 @@ internal static partial class Program
             if (m.TextureError is { } te) Console.Error.WriteLine(te);
 
             Console.WriteLine($"{m.Name}: {w}x{h} in {sw.ElapsedMilliseconds} ms -> {outPath}");
+
+            // A PNG carries no badge, so the console says what scale it was drawn at.
+            double drawn = Rendering.ZScale.DrawnDepthMm(depthMm, exagStops);
+            Console.WriteLine($"{Rendering.ZScale.BadgeText(exagStops)}: {depthMm:0.00#} mm target " +
+                              $"drawn {drawn:0.00#} mm deep on a {blankMm:0.#} mm blank");
             return 0;
         }
         catch (Exception ex)

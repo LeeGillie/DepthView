@@ -236,8 +236,13 @@ Tier 2 (orbit, tilt, zoom, pan with real geometry) are both **built**. Deferred:
 - **Shadows.** Occlusion is baked from the height field and does not depend on the light, so
   a low sun does not throw a long shadow. A height-field ray march per pixel toward the light
   would fix it, and could reuse the same max-height pyramid a proper raycaster would need.
-- **True scale mode.** Enter physical width and depth in mm and drop the exaggeration
-  slider, so the preview shows the honest 4% aspect ratio rather than a flattering one.
+- ~~**True scale mode.**~~ Done 2026-09-24. Blank diameter + target depth in mm, exaggeration
+  in stops with 0 = true scale, in the Tune panes, the standalone relief window and
+  `--render` alike (shared `Rendering/ZScale.cs`). The slider, its text and an on-picture badge
+  shade green → yellow (2x) → red (8x+, "inspection only"). Up to 1.3.0 the relief window and
+  `--exag` used a raw ratio where 1.0 drew ~5 mm on a 40 mm blank; the 1.3.0 release notes
+  said this was fixed, but only the Tune window had been. Correct that note when the next
+  release goes out. `--exag` values change meaning - call it out in the release notes.
 - **A/B compare** raw versus sliced, side by side or on a toggle.
 - Directional/rim light as a second source.
 - **Texture minification.** Textures are sampled with a single bilinear tap, so a texture

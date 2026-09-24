@@ -12,6 +12,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using DepthView.Controls;
 using DepthView.Imaging;
 using DepthView.Rendering;
 
@@ -33,9 +34,13 @@ public partial class ReliefWindow : Window
     private bool _lightDrag, _panDrag, _orbitDrag;
     private double _dragAz, _dragEl, _dragPanX, _dragPanY, _dragYaw, _dragPitch;
 
+    private readonly ZScaleHint _zHint;
+
     public ReliefWindow(ImageData image, string caption)
     {
         InitializeComponent();
+
+        _zHint = new ZScaleHint(ExagSlider, ExagLabel, ExagVerdict);
 
         _caption = caption;
         var field = ReliefRenderer.BuildHeights(image, 1400, out _fw, out _fh);
@@ -51,7 +56,15 @@ public partial class ReliefWindow : Window
         AzSlider.PropertyChanged += OnSliderChanged;
         ElSlider.PropertyChanged += OnSliderChanged;
         AoSlider.PropertyChanged += OnSliderChanged;
-        ExagSlider.PropertyChanged += OnSliderChanged;
+        ExagSlider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != RangeBase.ValueProperty) return;
+            if (_zHint.Snap()) return;
+            Change();
+        };
+        TrueScaleButton.Click += (_, _) => _zHint.ToTrueScale();
+        BlankBox.ValueChanged += (_, _) => Change();
+        TargetDepthBox.ValueChanged += (_, _) => Change();
         SliceSlider.PropertyChanged += OnSliderChanged;
         TexScaleSlider.PropertyChanged += OnSliderChanged;
         TexRotSlider.PropertyChanged += OnSliderChanged;
@@ -126,6 +139,13 @@ public partial class ReliefWindow : Window
         Opened += (_, _) =>
         {
             if (MaterialLibrary.LoadError is { } err) TextureError.Text = err;
+
+            if (Program.StartupBlankMm is double blank && blank > 0)
+                BlankBox.Value = (decimal)Math.Clamp(blank, 1, 500);
+            if (Program.StartupDepthMm is double depth && depth > 0)
+                TargetDepthBox.Value = (decimal)Math.Clamp(depth, 0.01, 5);
+            if (Program.StartupExagStops is double stops)
+                ExagSlider.Value = Math.Clamp(stops, ZScale.MinStops, ZScale.MaxStops);
 
             if (Program.StartupYaw is { } y0 && Program.StartupPitch is { } p0)
             {
@@ -305,12 +325,26 @@ public partial class ReliefWindow : Window
         _settle.Start();
     }
 
+    private double BlankMm => (double)(BlankBox.Value ?? (decimal)ZScale.DefaultBlankMm);
+
+    private double TargetMm => (double)(TargetDepthBox.Value ?? (decimal)ZScale.DefaultTargetMm);
+
+    /// <summary>What actually gets drawn: the target depth scaled by the exaggeration stops.</summary>
+    private double DrawnDepthMm => ZScale.DrawnDepthMm(TargetMm, ExagSlider.Value);
+
     private void UpdateLabels()
     {
         AzLabel.Text = $"Light direction   {AzSlider.Value:F0} deg";
         ElLabel.Text = $"Light elevation   {ElSlider.Value:F0} deg";
         AoLabel.Text = $"Ambient occlusion   {AoSlider.Value:F2}";
-        ExagLabel.Text = $"Vertical exaggeration   {ExagSlider.Value:F2}x";
+        double stops = ExagSlider.Value;
+        double drawn = DrawnDepthMm;
+        ExagLabel.Text = $"Vertical exaggeration   {ZScale.FactorText(stops)}\n" +
+                         (ZScale.IsFlat(stops) ? "no depth at all"
+                                               : $"{drawn:0.00#} mm deep on a {BlankMm:0.#} mm blank");
+        ExagVerdict.Text = ZScale.Verdict(stops);
+        _zHint.Paint();
+        ZBadge.Update(stops);
         SliceLabel.Text = SliceCheck.IsChecked == true
             ? $"Steps   {SliceSlider.Value:F0}"
             : "Steps   (continuous)";
@@ -385,7 +419,9 @@ public partial class ReliefWindow : Window
             LightAzimuthDeg = AzSlider.Value,
             LightElevationDeg = ElSlider.Value,
             AoStrength = AoSlider.Value,
-            Exaggeration = ExagSlider.Value,
+            // The blank spans the short side of the field, which is what makes the drawn depth
+            // the same millimetres as X and Y at true scale.
+            Exaggeration = ZScale.RendererExaggeration(DrawnDepthMm, BlankMm, _fw, _fh),
             InvertHeight = InvertCheck.IsChecked == true,
             SliceCount = SliceCheck.IsChecked == true ? (int)SliceSlider.Value : 0,
             Zoom = _zoom / q,
@@ -438,7 +474,7 @@ public partial class ReliefWindow : Window
         StatusText.Text =
             $"{_caption}   |   height field {_fw} x {_fh}   |   render {bw} x {bh} " +
             $"{(fast ? "(draft)" : "(full)")} in {sw.ElapsedMilliseconds} ms   |   " +
-            $"zoom {_zoom:F2}x   |   {cam}   |   {slices}   |   {tex}";
+            $"zoom {_zoom:F2}x   |   {ZScale.BadgeText(ExagSlider.Value)}   |   {cam}   |   {slices}   |   {tex}";
     }
 
     // ------------------------------------------------------------------ input
@@ -561,7 +597,11 @@ public partial class ReliefWindow : Window
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save relief render",
-            SuggestedFileName = "relief-preview.png",
+            // The badge is an overlay and does not go into the PNG, so a render that is not to
+            // scale says so in its name instead.
+            SuggestedFileName = ZScale.IsTrueScale(ExagSlider.Value)
+                ? "relief-preview-true-scale.png"
+                : $"relief-preview-z{ZScale.FactorText(ExagSlider.Value).Replace('/', '-')}.png",
             DefaultExtension = "png",
             FileTypeChoices = new[] { new FilePickerFileType("PNG image") { Patterns = new[] { "*.png" } } }
         });

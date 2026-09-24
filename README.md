@@ -418,8 +418,13 @@ The rest of the preview:
   the light is how you check that a shape reads from every direction.
 * **Ambient occlusion** — computed from the height field itself. This is what makes relief
   read as depth rather than as a grey gradient.
-* **Vertical exaggeration** — 1.1 mm on a 25 mm coin is a 4% aspect ratio, so an honest render
-  looks nearly flat. Exaggerate to judge form, drop back to check reality.
+* **True scale and vertical exaggeration** — enter the blank diameter and the depth you intend
+  to cut, and the preview opens at true scale: Z drawn in the same millimetres as X and Y. That
+  is honest but shallow (1.1 mm on a 25 mm coin is a 4% aspect ratio), so the exaggeration
+  slider doubles the drawn depth per step to magnify terracing and noise. The slider, its text
+  and a badge on the picture shade from green at true scale through yellow to red, so a
+  magnified view is never mistaken for the real thing. Find problems exaggerated; judge whether
+  they matter at true scale. Nothing here changes the file.
 * **Quantise to steps** — the useful one. Quantises the height field to a fixed number of
   depth steps, which is what a layered engraving actually produces. Slide the step count and
   watch for the point where visible contour lines appear. That is your terracing threshold,
@@ -690,7 +695,7 @@ candidates or a sweep of materials, light angles and slice counts:
 ```
 DepthView --render depth.png --material Oak --albedo oak.jpg --micro oak-bump.png
 DepthView --render depth.png --material "Brushed brass" --brushed --micstr 1.3
-DepthView --render depth.png --slices 40 --light 300 25 --exag 2 --out terrace-check.png
+DepthView --render depth.png --slices 40 --light 300 25 --depth-mm 1.1 --blank 40 --exag 3 --out terrace-check.png
 ```
 
 Exit codes: `0` all clean, `1` at least one file flagged as an imposter, `2` a

@@ -41,6 +41,12 @@ public sealed class ReliefViewSettings
     /// <summary>Diameter of the blank the map is drawn on, which the short side spans.</summary>
     public double BlankMm = 40.0;
 
+    /// <summary>
+    /// The exaggeration, in stops, that produced <see cref="ApparentDepthMm"/>. Carried only so
+    /// each pane can badge itself; the depth above is what actually gets drawn.
+    /// </summary>
+    public double ZStops;
+
     /// <summary>0 = continuous surface. Above 0, quantise to this many steps.</summary>
     public int SliceCount;
 
@@ -114,9 +120,14 @@ public class ReliefPreview : UserControl
     /// re-render the other pane too.</summary>
     public event EventHandler? ViewChanged;
 
+    private readonly ZScaleBadge _badge = new() { IsVisible = false };
+
     public ReliefPreview()
     {
-        Content = _image;
+        var host = new Grid();
+        host.Children.Add(_image);
+        host.Children.Add(_badge);
+        Content = host;
         ClipToBounds = true;
         Focusable = false;
 
@@ -148,12 +159,14 @@ public class ReliefPreview : UserControl
     {
         _scene = null;
         _image.Source = null;
+        _badge.IsVisible = false;
     }
 
     /// <summary>Queue a render. <paramref name="fast"/> draws draft quality now and schedules a
     /// full-quality pass once the user stops moving.</summary>
     public void Request(bool fast)
     {
+        _badge.Update(Settings.ZStops);
         RequestCore(fast);
         if (fast)
         {
@@ -253,25 +266,15 @@ public class ReliefPreview : UserControl
         _image.Width = bw * q;
         _image.Height = bh * q;
         _image.Source = bmp;
+        _badge.IsVisible = true;
     }
 
     /// <summary>
-    /// Millimetres of wanted depth into the renderer's own exaggeration figure.
-    ///
-    /// The renderer draws the full height range as field-width / 8 multiplied by that figure,
-    /// which is a ratio to the picture and has no physical meaning at all - on a 40 mm blank
-    /// its 1.0 draws a relief 5 mm deep, deeper than the blank is thick. Inverting it here is
-    /// what lets the dialog talk in millimetres, and it has to be done per pane because the
-    /// blank spans the short side of whatever canvas that pane ended up with.
+    /// Millimetres of wanted depth into the renderer's own exaggeration figure. Done per pane
+    /// because the blank spans the short side of whatever canvas that pane ended up with.
     /// </summary>
     private double ExaggerationForDepth(ReliefViewSettings s)
-    {
-        if (s.ApparentDepthMm <= 0 || s.BlankMm <= 0 || _fw <= 0 || _fh <= 0) return 0;
-
-        double mmPerFieldPixel = s.BlankMm / Math.Min(_fw, _fh);
-        double wantedPixels = s.ApparentDepthMm / mmPerFieldPixel;
-        return wantedPixels / (_fw / 8.0);
-    }
+        => ZScale.RendererExaggeration(s.ApparentDepthMm, s.BlankMm, _fw, _fh);
 
     // ------------------------------------------------------------------ input
 

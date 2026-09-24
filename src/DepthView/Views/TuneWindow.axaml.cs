@@ -60,6 +60,8 @@ public partial class TuneWindow : Window
 
     private readonly ReliefViewSettings _relief = new();
 
+    private ZScaleHint? _zHint;
+
     private const int PreviewEdge = 560;
 
     /// <summary>
@@ -189,6 +191,10 @@ public partial class TuneWindow : Window
     private void ApplyStartupOverrides()
     {
         if (Program.StartupBlankMm is double blank && blank > 0) BlankBox.Value = (decimal)blank;
+        if (Program.StartupDepthMm is double depth && depth > 0)
+            TargetDepthBox.Value = (decimal)Math.Clamp(depth, 0.01, 5);
+        if (Program.StartupExagStops is double stops)
+            ReliefExagSlider.Value = Math.Clamp(stops, ZScale.MinStops, ZScale.MaxStops);
         if (Program.StartupRampMm is double ramp && ramp >= 0) RampBox.Value = (decimal)ramp;
         if (Program.StartupPasses is int passes && passes >= 2) PassBox.Value = passes;
 
@@ -241,12 +247,15 @@ public partial class TuneWindow : Window
             RefreshRelief();
         };
 
+        _zHint = new ZScaleHint(ReliefExagSlider, ReliefExagLabel, ReliefExagVerdict);
         ReliefExagSlider.PropertyChanged += (_, e) =>
         {
             if (e.Property != RangeBase.ValueProperty) return;
+            if (_zHint.Snap()) return;
             SyncReliefDepth();
             RefreshRelief();
         };
+        ReliefTrueScaleButton.Click += (_, _) => _zHint.ToTrueScale();
 
         TargetDepthBox.ValueChanged += (_, _) => { SyncReliefDepth(); RefreshRelief(); };
 
@@ -277,35 +286,38 @@ public partial class TuneWindow : Window
 
     /// <summary>
     /// Turn the target depth and the exaggeration stops into one drawn depth, and say plainly
-    /// what that depth is.
+    /// what that depth is - in words, and in the green-to-red colour of the slider and the badge
+    /// on each pane.
     ///
     /// Stops rather than a multiplier because the interesting range spans three orders of
     /// magnitude - a coin relief is tenths of a millimetre and the old default was drawing five
     /// - and a linear multiplier over that span is unusable at the shallow end, which is the end
     /// that matters. 0 is the depth the user entered, so "no exaggeration" finally means
-    /// something a caliper could check.
+    /// something a caliper could check. The arithmetic lives in <see cref="ZScale"/>, shared with
+    /// the standalone relief window and --render so the three cannot drift apart again.
     /// </summary>
     private void SyncReliefDepth()
     {
         double stops = ReliefExagSlider.Value;
-        double target = (double)(TargetDepthBox.Value ?? 0.40m);
-        double blank = (double)(BlankBox.Value ?? 40);
+        double target = (double)(TargetDepthBox.Value ?? (decimal)ZScale.DefaultTargetMm);
+        double blank = (double)(BlankBox.Value ?? (decimal)ZScale.DefaultBlankMm);
 
         // The bottom of the travel is a hard zero rather than another halving. Somewhere to put
         // the slider that answers "is this shape in the map at all, or am I looking at shading?"
-        bool flat = stops <= ReliefExagSlider.Minimum + 1e-9;
-        double depth = flat ? 0 : target * Math.Pow(2, stops);
+        bool flat = ZScale.IsFlat(stops);
+        double depth = ZScale.DrawnDepthMm(target, stops);
 
         _relief.ApparentDepthMm = depth;
         _relief.BlankMm = blank;
+        _relief.ZStops = stops;
 
-        string factor = flat ? "flat"
-                      : Math.Abs(stops) < 1e-9 ? "true scale"
-                      : stops > 0 ? $"{Math.Pow(2, stops):0.#}x"
-                      : $"1/{Math.Pow(2, -stops):0.#}";
+        string factor = ZScale.FactorText(stops);
 
         string shown = flat ? "no depth at all"
                      : $"{depth:0.00#} mm deep on a {blank:0.#} mm blank";
+
+        _zHint?.Paint();
+        ReliefExagVerdict.Text = ZScale.Verdict(stops);
 
         // Broken deliberately rather than left to wrap: the factor and the millimetres are two
         // separate facts and the panel is narrow enough that the wrap point moves as you drag.

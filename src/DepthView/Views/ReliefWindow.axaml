@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="using:DepthView.Controls"
         x:Class="DepthView.Views.ReliefWindow"
         Title="DepthView - relief preview"
         Icon="/Assets/depthview-icon-256.png"
@@ -32,9 +33,12 @@
   <Grid ColumnDefinitions="*,296" RowDefinitions="*,Auto">
 
     <Border Grid.Row="0" Grid.Column="0" x:Name="PreviewHost" Background="#0A0C0E" ClipToBounds="True">
-      <Image x:Name="Preview" Stretch="Fill"
-             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-             ToolTip.Tip="Drag with the left button to move the light. Mouse wheel zooms. Drag with the right button to pan. This is a shading preview of the height field, not a process simulation." />
+      <Grid>
+        <Image x:Name="Preview" Stretch="Fill"
+               HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+               ToolTip.Tip="Drag with the left button to move the light. Mouse wheel zooms. Drag with the right button to pan. This is a shading preview of the height field, not a process simulation." />
+        <ctl:ZScaleBadge x:Name="ZBadge" Margin="12" />
+      </Grid>
     </Border>
 
     <Border Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
@@ -122,11 +126,32 @@
                   ToolTip.Tip="Darkens pockets and crevices using the height field itself. This is what makes relief read as depth rather than as a grey gradient. Set it to zero to see pure directional shading." />
 
           <TextBlock Classes="section" Text="Height"
-                     ToolTip.Tip="Laser relief is very shallow, so an honest render looks almost flat. Exaggerate to judge form, then drop back to check the real thing." />
+                     ToolTip.Tip="Laser relief is very shallow: 1 mm across a 40 mm blank is 2.5 percent. The preview starts at true scale, where Z is drawn in the same millimetres as X and Y. Exaggerate to find terracing and noise, then come back to true scale to judge whether they matter. None of this changes the file." />
 
-          <TextBlock Classes="cap" x:Name="ExagLabel" Text="Vertical exaggeration" />
-          <Slider x:Name="ExagSlider" Minimum="0.05" Maximum="12" Value="1.0"
-                  ToolTip.Tip="Multiplies the surface slope. 1.0 is already boosted relative to true scale, because 1.1 mm of depth on a 25 mm coin is a 4 percent aspect ratio and would be nearly invisible." />
+          <Grid ColumnDefinitions="*,8,*" Margin="0,2,0,0">
+            <StackPanel Grid.Column="0">
+              <TextBlock Classes="cap" Text="Blank diameter mm" />
+              <NumericUpDown x:Name="BlankBox" Minimum="1" Maximum="500" Increment="1"
+                             FormatString="0.0" Value="40" FontSize="12"
+                             ToolTip.Tip="The diameter of the blank the map is engraved on. The short side of the image spans it. This is what turns pixels into millimetres, so the depth below can be drawn to the same scale." />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+              <TextBlock Classes="cap" Text="Target depth mm" />
+              <NumericUpDown x:Name="TargetDepthBox" Minimum="0.01" Maximum="5" Increment="0.05"
+                             FormatString="0.00" Value="0.40" FontSize="12"
+                             ToolTip.Tip="How deep you intend the deepest (black) cut to be. The depth map itself has no units - how deep it goes is set by your laser settings - so this is your figure. Purely a viewing setting: it changes the picture and nothing else." />
+            </StackPanel>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+            <TextBlock Grid.Column="0" Classes="cap" x:Name="ExagLabel" Text="Vertical exaggeration" TextWrapping="Wrap" />
+            <Button Grid.Column="1" x:Name="TrueScaleButton" Content="True scale" Padding="8,3"
+                    VerticalAlignment="Top"
+                    ToolTip.Tip="Put the exaggeration back to 1:1, so Z is drawn in the same millimetres as X and Y. This is the only setting that shows how the piece will really look." />
+          </Grid>
+          <Slider x:Name="ExagSlider" Minimum="-8" Maximum="6" Value="0" TickFrequency="1"
+                  ToolTip.Tip="Doublings above or below the target depth. 0 is true scale - Z matches X and Y - and the slider is green there. Each step up doubles the drawn depth, turning yellow then red, to magnify terracing and noise; each step down halves it, to a completely flat surface at the bottom of the travel." />
+          <TextBlock x:Name="ExagVerdict" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6" />
 
           <CheckBox x:Name="InvertCheck" Content="Invert height" Margin="0,8,0,0"
                     Foreground="#B7BEC8" FontSize="12"

@@ -406,7 +406,9 @@ looking at the terracing you will actually get, not a smooth idealisation of it:
 |---|---|
 | ![Continuous relief](docs/images/relief-continuous.png) | ![Terraced relief](docs/images/relief-terraced.png) |
 
-Same depth map, same material, same light. The right-hand image is what 16 passes produces.
+Same depth map, same material, same light, all three drawn at 4× the 1.1 mm target depth so the
+form reads at this size (the badge in the window says so). The right-hand image is what 16
+passes produces.
 Slide the count until the contour lines disappear and you have found the pass count that
 particular map actually needs — without burning a blank to find out.
 

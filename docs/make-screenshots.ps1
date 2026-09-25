@@ -44,6 +44,7 @@ Write-Host "Capturing window screenshots..." -ForegroundColor Cyan
 Capture @("$fix\imposter_x257.png", '--screenshot', "$img\analysis-imposter.png") 10
 Capture @("$fix\true16.png",        '--screenshot', "$img\analysis-genuine.png")  10
 Capture @("$fix\relief_demo.png", '--orbit', '24', '42',
+          '--blank', '40', '--thick', '4', '--depth-mm', '1.1', '--exag', '2',
           '--screenshot', "$img\relief-preview.png") 14
 
 # The tuning dialog, opened with a rim already configured. The flags are how the rim case
@@ -58,7 +59,9 @@ Capture @('--about', '--delay', '900', '--screenshot', "$img\about.png") 8
 
 Write-Host "Rendering relief art..." -ForegroundColor Cyan
 $demo = "$fix\relief_demo.png"
-$common = @('--exag', '1.6', '--size', '1100', '--material', 'Polished brass',
+# --exag is doublings around --depth-mm (0 = true scale): 2 draws the 1.1 mm relief 4x deep.
+$common = @('--blank', '40', '--thick', '4', '--depth-mm', '1.1', '--exag', '2',
+            '--size', '1100', '--material', 'Polished brass',
             '--orbit', '26', '40', '--zoom', '0.86')
 
 Start-Process -Wait -NoNewWindow -FilePath $exe -ArgumentList (
@@ -78,7 +81,8 @@ foreach ($pad in 'background', 'untouched') {
     Start-Process -Wait -NoNewWindow -FilePath $exe -ArgumentList (
         @('--tune', $coin) + $fitCommon + @('--pad', $pad, '--out', $tuned))
     Start-Process -Wait -NoNewWindow -FilePath $exe -ArgumentList (
-        @('--render', $tuned, '--material', 'Polished brass', '--exag', '1.4',
+        @('--render', $tuned, '--material', 'Polished brass',
+          '--blank', '40', '--thick', '4', '--depth-mm', '1.1', '--exag', '2',
           '--size', '560', '--out', "$img\fit-pad-$pad.png"))
 }
 

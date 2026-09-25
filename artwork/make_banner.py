@@ -14,9 +14,14 @@ Requirements beyond the repo:
 Steps:
     python make_hero.py
     ..\\src\\DepthView\\bin\\Debug\\net8.0\\DepthView.exe --render banner\\hero-source.png ^
-        --material "Polished brass" --orbit 18 40 --exag 1.6 --size 1600 --zoom 0.74 ^
+        --material "Polished brass" --orbit 18 40 --blank 40 --depth-mm 1.1 --exag 2.9 ^
+        --size 1600 --zoom 0.74 ^
         --light 305 40 --out banner\\h-brass2.png
     python make_banner.py
+
+The hero is deliberately exaggerated (--exag 2.9 is about 7x the 1.1 mm target) - it is
+artwork, not a preview. Before 1.4.0 the same render was "--exag 1.6", a raw ratio.
+The version badge is read from the csproj.
 """
 
 import base64
@@ -41,6 +46,19 @@ TAGLINE = ("Depth Maps", "Bit Depth", "Grey Levels", "Imposter Detection",
            "Histograms", "3D Relief", "Cross-Platform")
 TAGLINE_SHORT = ("Bit Depth", "Grey Levels", "Imposter Detection", "Histograms", "3D Relief")
 CREDIT = 'An <b>Isotope NW</b> tool'
+
+
+def version_badge():
+    """"v1.4" from the csproj, the single source of truth for the version. The badge was once
+    typed into this file and the banner went on saying v1.0 three releases later."""
+    import re
+    csproj = os.path.join(HERE, "..", "src", "DepthView", "DepthView.csproj")
+    with open(csproj, encoding="utf-8") as fh:
+        m = re.search(r"<Version>([^<]+)</Version>", fh.read())
+    v = m.group(1).strip() if m else "0.0.0"
+    while v.endswith(".0") and v.count(".") > 1:
+        v = v[:-2]
+    return "v" + v
 
 
 def b64(path, mime):
@@ -180,7 +198,7 @@ def build_wide(faces, hero, icon):
 <div class="grid"></div><div class="heroglow"></div>
 <img class="hero" src="%(hero)s"><div class="vig"></div>
 <div class="lock"><img class="icon" src="%(icon)s"><div class="word">DEPTHVIEW</div>
-  <div class="badge">v1.0</div></div>
+  <div class="badge">%(badge)s</div></div>
 <div class="rule"></div><div class="tag">%(tag)s</div>
 <div class="blurb">Tells you what a depth map <em>actually contains</em> &mdash; not what its
 header claims. Catches 8-bit data hiding in a 16-bit file before it reaches the laser.</div>
@@ -196,7 +214,7 @@ header claims. Catches 8-bit data hiding in a 16-bit file before it reaches the 
 <div class="foot">Windows<span>&bull;</span>macOS<span>&bull;</span>Linux<span>&bull;</span>
   one self-contained executable, nothing to install</div>
 <div class="credit">%(credit)s</div>
-""" % dict(hero=hero, icon=icon, bars=bars, comb=comb, credit=CREDIT,
+""" % dict(hero=hero, icon=icon, bars=bars, comb=comb, credit=CREDIT, badge=version_badge(),
            tag='<b>&bull;</b>'.join(TAGLINE))
     return "<!doctype html><html><head><meta charset='utf-8'><style>%s%s</style></head>" \
            "<body>%s</body></html>" % (faces, css, body)
@@ -228,7 +246,7 @@ def build_compact(faces, hero, icon):
 <div class="grid"></div><div class="heroglow"></div>
 <img class="hero" src="%(hero)s"><div class="vig"></div>
 <div class="lock"><img class="icon" src="%(icon)s"><div class="word">DEPTHVIEW</div>
-  <div class="badge">v1.0</div></div>
+  <div class="badge">%(badge)s</div></div>
 <div class="rule"></div><div class="tag">%(tag)s</div>
 <div class="blurb">Tells you what a depth map <em>actually contains</em> &mdash; not what its
 header claims.</div>
@@ -242,7 +260,7 @@ header claims.</div>
 <div class="footrule"></div>
 <div class="foot">Windows<span>&bull;</span>macOS<span>&bull;</span>Linux</div>
 <div class="credit">%(credit)s</div>
-""" % dict(hero=hero, icon=icon, bars=bars, comb=comb, credit=CREDIT,
+""" % dict(hero=hero, icon=icon, bars=bars, comb=comb, credit=CREDIT, badge=version_badge(),
            tag='<b>&bull;</b>'.join(TAGLINE_SHORT))
     return "<!doctype html><html><head><meta charset='utf-8'><style>%s%s</style></head>" \
            "<body>%s</body></html>" % (faces, css, body)
@@ -250,10 +268,12 @@ header claims.</div>
 
 if __name__ == "__main__":
     print("Building DepthView banner")
-    if not os.path.exists(RENDER):
+    # The keyed hero is committed; the raw render it comes from is not. Re-key only when a
+    # fresh render is present, so a version bump can rebuild the banner without re-rendering.
+    if os.path.exists(RENDER):
+        key_background(RENDER, KEYED)
+    elif not os.path.exists(KEYED):
         sys.exit("Missing %s - render the hero first (see the note at the top)." % RENDER)
-
-    key_background(RENDER, KEYED)
     faces = font_faces()
     hero = b64(KEYED, "image/png")
     icon = b64(ICON, "image/png")

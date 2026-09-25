@@ -2,94 +2,62 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.3.0 — the project, not just the picture
+## What's new in 1.4.0 — install it once, and it keeps itself current
 
-A depth map on its own cannot tell you how big it will be. Forty millimetres or four
-hundred, the PNG is identical — so "is this map finer than my spot can cut" has had no
-answer, only an assumption. That answer lives in the laser project.
+**Every platform now downloads as one zip.** Unzip it and there is a `DepthView` folder: the
+program, a `README.txt` that walks through starting, updating and removing it, and the licence.
+On a Mac the program is a proper `DepthView.app`, built and signed on a Mac so Apple silicon
+will run it. On Linux there is an optional script that adds DepthView to your application menu.
+No more `chmod +x`, no more bare files named after their platform.
 
-**DepthView now opens LightBurn `.lbrn2` projects.** Drop one on the window and it pulls out
-the depth map, analyses it exactly as it would the image alone, and keeps what only the
-project knows:
+**DepthView now updates itself.** Once a day it asks GitHub whether a newer release exists, and
+if one does, a green bar says so. **Update now** downloads the zip for your computer, checks it
+against the SHA-256 GitHub publishes for it, starts the new copy once to make sure it runs and
+reports the right version, and only then replaces the program and restarts. If any check fails,
+nothing is changed. **Skip this version** hides the bar until the next one; *About → Check for
+updates* asks straight away, and the switch beside it turns checking off. Nothing is sent but the
+request itself.
 
-```
-LightBurn project, 1 layer(s)  |  layer 0 Image, passes not stated  |  40 × 40 mm on the blank
-```
-
-Every layer's cut settings are read — speed, power, passes, interval, image mode — and
-**every one of them is allowed to be absent**. LightBurn omits any parameter sitting at its
-default, so a missing pass count is not a layer that runs zero passes. The report prints `-`
-rather than a number nobody wrote, because a pass count is what every depth figure gets
-quoted against.
-
-### What it cannot do yet
-
-**Nothing is written back.** You can load a project, tune the depth map inside it, and save
-the corrected greyscale image — that is the whole workflow today. DepthView cannot write a
-new `.lbrn2`, and it cannot change a layer's speed, power or pass count.
-
-That is deliberate rather than unfinished. Reading came first because a wrong read costs you
-a misleading message, and a wrong write costs you your project file. Editing cut settings
-and writing projects back is the plan; it is not in this release, and this page will say so
-until it is.
-
-### WeCreat `.wws`
-
-Recognised, not parsed. The container opens with a four-byte `WWS2` magic and everything
-after it is opaque — no field names, no XML, no JSON, no archive directory anywhere in three
-megabytes — so it is compressed, encrypted, or both. **DepthView will not attempt to defeat
-that**, and that decision is written into the code rather than merely promised here.
-
-Going further needs WeCreat's help: how to find the depth-map object in a project, which
-operation is bound to it, how to read its parameters, and how to write a change back leaving
-everything else untouched. That has been requested from WeCreat support. **There has been no
-answer yet**, and this section will be updated honestly either way. The reader sits behind
-the same interface as the LightBurn one, so a schema drops straight in.
-
-Until then: export the depth map from MakeIt and open the image directly. Every analysis and
-tuning feature works on it.
+**1.3.0 and earlier cannot update themselves** — they have no updater. Download this release by
+hand once; from here on, updates come to you. Your saved pass count carries over.
 
 ---
 
-## Lit 3D relief while you tune
+## True scale, everywhere
 
-The tuning dialog now shows both panes as a lit surface instead of grey, sharing one camera
-and one light — so any difference you see between them is the tuning and nothing else. No
-more saving a file and reloading it somewhere to find out what a change did.
+The 3D relief window and `--render` now draw depth the same way the tuning dialog does: a blank
+diameter and a target depth in millimetres, with exaggeration in doublings around it, opening at
+**true scale** — Z in the same millimetres as X and Y. The slider, its label and a badge on the
+picture shade from green at true scale through yellow (2×) to red (8× and beyond, "inspection
+only"), so a magnified view is never mistaken for the real thing.
 
-**Both panes terrace, and both say so.** The pass count belongs to the job rather than to the
-tuning, so it slices whichever file you send — the untuned one included. The headers read
-*"Original, cut at 64 passes"* and *"Tuned, cut at 64 passes"*, and each pane reports how many
-steps it actually gets. On the sample map that is 22 against 64 at the same pass count, which
-is the argument this program exists to make, drawn rather than tabulated.
+*Correction to the 1.3.0 notes, which said the old exaggeration had been fixed: only the tuning
+dialog had been. The relief window and `--exag` still drew about 5 mm of relief on a 40 mm blank
+and called it 1.0. They are fixed now.* **Scripts that pass `--exag` change meaning:** it is now
+doublings, so `--exag 2` draws 4×, and 0 is true scale.
 
-**Depth is now stated in millimetres.** Enter the depth you intend the deepest cut to reach,
-and exaggeration becomes doublings around *that* — `true scale`, `4x`, `1/16`, down to a flat
-surface at the bottom of the travel. The old default drew a 40 mm blank with 5 mm of relief,
-deeper than the blank is thick, and labelled it `1.00x`.
+## Your blank, once
 
-Nothing in that section changes the file. The grey levels written when you save are identical
-whatever the preview is doing, and the panel says so above every control in it.
+Blank diameter, **thickness** and target depth are now one set of numbers shared by every
+window: change one in the tuning dialog or the relief window and both move, and they are
+remembered between runs. Target depth starts at 18% of the thickness and follows it until you
+type your own; it warns when little floor would be left under the deepest cut. The tuning card
+adds **depth per pass** — the target depth over your pass count — and the 3D view stands the
+relief on a slab of the real thickness.
+
+## A mass-loss calibration coupon
+
+`DepthView --calibrate --mass` writes a coupon for anyone with a milligram scale: one uniform
+zone per coupon, no engraved labels (anything engraved counts as removed mass), and a worksheet
+with the controls and the arithmetic from weight lost to removal per joule. The depth-wedge
+coupon's comb no longer draws gaps finer than the image can represent under a label that claims
+they are there; it leaves them blank and says what size would draw them.
 
 ## Smaller things
 
-- The pass count is **remembered between runs**, defaulting to 256.
-- `DepthView --project <file>` reports a project's layers from the command line.
-- `DepthView --lb <command>` drives a running copy of LightBurn over its UDP interface.
-
-## Fixed
-
-- Redirecting the CLI to a file produced an empty file. A windowed executable starts with no
-  valid standard handles, so .NET bound console output to a discarding writer before the
-  console was attached.
-- Embedded bitmaps opened upside down. LightBurn stores them bottom-up, its bed having Y
-  increasing upward. Undone by reordering rows — never resampling, because resampling a depth
-  map invents grey levels that were never in it.
-- The relief preview box-averaged its height field, which turned a one-pixel terrace riser
-  into a three-pixel ramp. Shading follows slope, so averaging was erasing the staircase the
-  view exists to show — worst at low pass counts, where terracing matters most.
-- Opening a project from the command line stranded the window open instead of reporting the
-  problem.
+- `DepthView --version`, `--check-update` and `--update` from a terminal.
+- `--thick` alongside `--blank` and `--depth-mm` for `--render`, `--relief` and `--tune-ui`.
+- The Visual Studio solution now shows the docs, workflows, packaging and tests.
 
 ---
 

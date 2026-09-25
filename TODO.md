@@ -3,6 +3,24 @@
 Everything discussed and consciously set aside, with enough context to pick it up cold.
 Ordered by my estimate of value per unit of work, not by size.
 
+### Resume here (paused 2026-09-25, after 1.4.0)
+
+1.4.0 is released: true-scale relief, one program-wide blank, zip installers and the in-place
+updater. `main` and the `v1.4.0` tag are on GitHub; nothing is waiting to be pushed. Next up,
+roughly in order:
+
+- **Listen for Mac and Linux reports** on the 1.4.0 zips - only CI has run them (§6).
+- **§7.3-7.5** (terrace width, noise floor, dither detection) need no measured constant and
+  can ship before any coupon is cut.
+- **§7.9** target-vs-simulated depth comparison and the suggested Z advance with an override
+  warning - designed, not built.
+- **G-code capture watcher** (planned `GcodeCapture.cs`, `CaptureArchive.cs` - not yet
+  written; `Integrations/WeCreat/Gcode/GcodeStream.cs` is the reader they build on) and the
+  segmenter that would sit on it; the segmenter waits on WeCreat (§8).
+- Decide the `--calibrate` default `--size`.
+- **The measurement programme has not started** - no coupon cut, nothing weighed. Depth
+  prediction is not a capability yet; see CLAUDE.md, What is owed.
+
 ---
 
 ## 1. LightBurn workflow services
@@ -241,8 +259,8 @@ Tier 2 (orbit, tilt, zoom, pan with real geometry) are both **built**. Deferred:
   `--render` alike (shared `Rendering/ZScale.cs`). The slider, its text and an on-picture badge
   shade green → yellow (2x) → red (8x+, "inspection only"). Up to 1.3.0 the relief window and
   `--exag` used a raw ratio where 1.0 drew ~5 mm on a 40 mm blank; the 1.3.0 release notes
-  said this was fixed, but only the Tune window had been. Correct that note when the next
-  release goes out. `--exag` values change meaning - call it out in the release notes.
+  said this was fixed, but only the Tune window had been. Corrected in the 1.4.0 release
+  notes, which also call out that `--exag` values changed meaning (now stops).
 - **A/B compare** raw versus sliced, side by side or on a toggle.
 - Directional/rim light as a second source.
 - **Texture minification.** Textures are sampled with a single bilinear tap, so a texture
@@ -382,28 +400,30 @@ repository would find absent, ordered by how much each one costs the project's c
   problem usually says nothing, and silence is indistinguishable from nobody having tried.
 - Still no `CONTRIBUTING.md` or `CHANGELOG.md`. Only worth writing if contributions arrive;
   the release notes carry the changelog's job for now.
-- No versioning policy or git tags. The version lives in one place in the csproj and is
-  reported by the About box; nothing yet ties it to a tag.
+- Versioning: `<Version>` in the csproj is the one source, and a `v<version>` tag pushed in
+  the same commit publishes the release (see CLAUDE.md, Releasing). The tag format is now a
+  contract with the updater, so it cannot change casually.
 - **The acknowledgements link may point inside a private Facebook group.** If so it 404s for
   everyone outside the group and publishes a pointer into a private space. Check before going
   public; a name without a link is fine.
 
 ## 6. Housekeeping
 
-- ~~**Installers and in-place updates.**~~ **Built 2026-09-25, not yet released.** Carried
+- ~~**Installers and in-place updates.**~~ **Released in 1.4.0 (2026-09-25).** Carried
   over from LUOM What's New: per-platform zips (one `DepthView/` folder: program, README.txt,
   LICENSE.txt; a signed-ad-hoc `DepthView.app` on macOS; a menu-entry script on Linux) from
   `packaging/make_bundle.py`, and `Updates/UpdateService.cs` - daily GitHub check, green bar,
   Skip this version, About > Check for updates, and a verified install (digest or
-  SHA256SUMS, `--version` of the new copy, rename-aside swap, rollback). Before and at the
-  first release that carries it:
-  - Run the release workflow with `dry_run` first. The macOS jobs now run on a macOS runner
-    for the first time, and `codesign --verify` plus `--version` on osx-arm64 is the check.
-  - **1.3.0 and earlier cannot update themselves** - they have no updater. Everyone on them
-    downloads the zip once by hand; the release notes should say so plainly.
-  - Test a real update end to end once there are two releases with zips: install the older
-    zip, let it find the newer, and watch it restart - on Windows especially, where the
-    running .exe is renamed aside and only deleted on the next start.
+  SHA256SUMS, `--version` of the new copy, rename-aside swap, rollback).
+  - Done: release `dry_run` all green (macOS `codesign --verify` and `--version` on
+    osx-arm64, Linux smoke); the 1.4.0 notes tell 1.3.0 users to download once by hand;
+    a real update from a 1.3.0-numbered build to the published 1.4.0 on Windows, including
+    the renamed-aside .exe being cleaned up on the next start.
+  - **Still open: the Mac and Linux zips have only been run in CI**, never on a user's
+    machine. First real report from either platform is worth reading closely - Gatekeeper
+    wording, the quarantine/"damaged" path in README.txt, and the menu-entry script.
+  - The first true two-release update (1.4.0 zip -> 1.4.1 zip) has not happened yet. Watch
+    it on whichever platform ships next.
   - Still unsigned in the paid sense: SmartScreen and Gatekeeper still ask once. Notarisation
     would remove the macOS prompt and costs an Apple Developer membership.
 

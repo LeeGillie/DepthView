@@ -130,7 +130,14 @@
                    with the reasoning, the header states the convention, and the histogram
                    strip states the gesture; a third copy here only pushed the rim controls
                    below the fold on a 900px window. -->
-              <TextBlock Classes="section" Text="PREVIEW" Margin="0,8,0,7" />
+              <!-- The blank comes first because everything below is quoted against it: the
+                   preview is drawn to its depth, the rim is measured on its diameter, and the
+                   depth per pass divides its target depth. It is one program-wide blank - the
+                   relief window shows the same three boxes and they move together. -->
+              <TextBlock Classes="section" Text="BLANK" Margin="0,8,0,7" />
+              <ctl:BlankEditor x:Name="BlankPanel" />
+
+              <TextBlock Classes="section" Text="PREVIEW" />
 
               <CheckBox x:Name="ReliefCheck"
                         Content="Show both panes as lit 3D relief"
@@ -142,17 +149,10 @@
                      among controls that do change the file is exactly the thing a user will later
                      swear they set correctly. -->
                 <TextBlock Classes="note" Margin="24,4,0,0" TextWrapping="Wrap"
-                           Text="Nothing in this section changes the file. Depth and exaggeration only scale how the surface is drawn, so the relief can be seen at all - the grey levels written when you save are identical either way." />
+                           Text="Nothing in this section changes the file. The panes are drawn to the target depth above, and exaggeration only scales how the surface is drawn - the grey levels written when you save are identical either way." />
                 <Grid ColumnDefinitions="86,*" Margin="0,8,0,0">
                   <TextBlock Grid.Column="0" Classes="label" Text="Material" />
                   <ComboBox Grid.Column="1" x:Name="ReliefMaterialBox" HorizontalAlignment="Stretch" />
-                </Grid>
-
-                <Grid ColumnDefinitions="86,*" Margin="0,9,0,0">
-                  <TextBlock Grid.Column="0" Classes="label" Text="Target depth" />
-                  <NumericUpDown Grid.Column="1" x:Name="TargetDepthBox" Minimum="0.01" Maximum="5"
-                                 Increment="0.05" FormatString="0.00" Value="0.40"
-                                 ToolTip.Tip="How deep, in millimetres, you intend the deepest cut to be - the full black-to-white range. Nothing in this program knows how deep your laser actually reaches, so this is your figure until you cut the calibration coupon and measure it. Purely a viewing setting: it changes the picture and nothing that gets written." />
                 </Grid>
 
                 <Grid ColumnDefinitions="*,Auto" Margin="0,9,0,0">
@@ -218,17 +218,12 @@
                         ToolTip.Tip="For a coin blank with a raised rim. Measured in millimetres, because that is how a rim is known: with calipers." />
 
               <Grid ColumnDefinitions="112,*" Margin="0,9,0,0">
-                <TextBlock Grid.Column="0" Classes="label" Text="Blank diameter" />
-                <NumericUpDown Grid.Column="1" x:Name="BlankBox" Minimum="1" Maximum="500"
-                               Increment="1" FormatString="0.0" Value="40" />
-              </Grid>
-              <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
                 <TextBlock Grid.Column="0" Classes="label" Text="Rim width mm" />
                 <NumericUpDown Grid.Column="1" x:Name="RimBox" Minimum="0" Maximum="50"
                                Increment="0.1" FormatString="0.00" Value="1.00" />
               </Grid>
-              <!-- Fit sits directly under the two measurements it depends on, and above the
-                   refinements, because it is the one decision here that changes how much of
+              <!-- Fit sits directly under the rim width, the measurement it depends on along with
+                   the blank diameter at the top, and above the refinements, because it is the one decision here that changes how much of
                    the coin the design gets. Burying it under ramp and spot size put it below
                    the fold on a 900px window, where nobody would find it. -->
               <CheckBox x:Name="FitCheck"

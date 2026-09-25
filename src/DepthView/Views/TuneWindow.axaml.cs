@@ -127,9 +127,11 @@ public partial class TuneWindow : Window
         OutlineCheck.IsCheckedChanged += (_, _) => Queue();
         DpiCheck.IsCheckedChanged += (_, _) => Queue();
 
-        // The blank diameter is what turns the drawn depth into millimetres, so the 3D panes
-        // have to follow it as well as the rim geometry.
-        BlankBox.ValueChanged += (_, _) => { SyncReliefDepth(); RefreshRelief(); Queue(); };
+        // The blank is shared with every other window, so it is listened to rather than owned:
+        // a change made in the relief window lands here too. Diameter turns the drawn depth into
+        // millimetres and sets the rim geometry; target depth is what the depth-per-pass figure
+        // divides; thickness sets the slab the 3D panes stand on.
+        Blank.Current.Changed += OnBlankChanged;
         RimBox.ValueChanged += (_, _) => Queue();
         RampBox.ValueChanged += (_, _) => Queue();
         SpotBox.ValueChanged += (_, _) => Queue();
@@ -153,6 +155,11 @@ public partial class TuneWindow : Window
         // typed and then thought better of never becomes the one you inherit.
         Closed += (_, _) =>
         {
+            // The blank outlives this window. Leaving the handler attached would keep the closed
+            // dialog alive and recomputing every time another window touched the blank.
+            Blank.Current.Changed -= OnBlankChanged;
+            Blank.Current.SaveIfChanged();
+
             int passes = (int)(PassBox.Value ?? _defaultPasses);
             if (passes == Preferences.Current.DefaultPasses) return;
 
@@ -190,9 +197,8 @@ public partial class TuneWindow : Window
     /// </summary>
     private void ApplyStartupOverrides()
     {
-        if (Program.StartupBlankMm is double blank && blank > 0) BlankBox.Value = (decimal)blank;
-        if (Program.StartupDepthMm is double depth && depth > 0)
-            TargetDepthBox.Value = (decimal)Math.Clamp(depth, 0.01, 5);
+        // --blank, --thick and --depth-mm were applied to the shared blank before any window
+        // opened, so there is nothing to copy here.
         if (Program.StartupExagStops is double stops)
             ReliefExagSlider.Value = Math.Clamp(stops, ZScale.MinStops, ZScale.MaxStops);
         if (Program.StartupRampMm is double ramp && ramp >= 0) RampBox.Value = (decimal)ramp;
@@ -257,8 +263,6 @@ public partial class TuneWindow : Window
         };
         ReliefTrueScaleButton.Click += (_, _) => _zHint.ToTrueScale();
 
-        TargetDepthBox.ValueChanged += (_, _) => { SyncReliefDepth(); RefreshRelief(); };
-
         ReliefLightSlider.PropertyChanged += (_, e) =>
         {
             if (e.Property != RangeBase.ValueProperty) return;
@@ -299,8 +303,8 @@ public partial class TuneWindow : Window
     private void SyncReliefDepth()
     {
         double stops = ReliefExagSlider.Value;
-        double target = (double)(TargetDepthBox.Value ?? (decimal)ZScale.DefaultTargetMm);
-        double blank = (double)(BlankBox.Value ?? (decimal)ZScale.DefaultBlankMm);
+        double target = Blank.Current.TargetDepthMm;
+        double blank = Blank.Current.DiameterMm;
 
         // The bottom of the travel is a hard zero rather than another halving. Somewhere to put
         // the slider that answers "is this shape in the map at all, or am I looking at shading?"
@@ -310,6 +314,7 @@ public partial class TuneWindow : Window
         _relief.ApparentDepthMm = depth;
         _relief.BlankMm = blank;
         _relief.ZStops = stops;
+        _relief.SlabRatio = Blank.Current.ThicknessMm / target;
 
         string factor = ZScale.FactorText(stops);
 
@@ -325,6 +330,13 @@ public partial class TuneWindow : Window
     }
 
     private bool ReliefOn => ReliefCheck.IsChecked == true;
+
+    private void OnBlankChanged(object? sender, EventArgs e)
+    {
+        SyncReliefDepth();
+        RefreshRelief();
+        Queue();
+    }
 
     private void ReliefModeChanged()
     {
@@ -574,7 +586,6 @@ public partial class TuneWindow : Window
         MaskCheck.IsChecked = false;
         OutlineCheck.IsChecked = false;
         DpiCheck.IsChecked = false;
-        BlankBox.Value = 40;
         RimBox.Value = 1.00m;
         RampBox.Value = 0.00m;
         SpotBox.Value = 7;
@@ -604,7 +615,8 @@ public partial class TuneWindow : Window
             Slices = SliceCheck.IsChecked == true ? passes : 0,
             Dither = DitherCheck.IsChecked == true,
             OutputBitDepth = BitBox.SelectedIndex == 1 ? 8 : 16,
-            BlankDiameterMm = (double)(BlankBox.Value ?? 40),
+            BlankDiameterMm = Blank.Current.DiameterMm,
+            TargetDepthMm = Blank.Current.TargetDepthMm,
         };
 
         if (RimCheck.IsChecked == true)
@@ -704,6 +716,12 @@ public partial class TuneWindow : Window
             // two together would let a rim that is eating the artwork hide inside a number the
             // reader attributes to the level points.
             $"Levels absorbed        {flattened:N0} px black, {lifted:N0} px white",
+            // The one row quoted against the blank rather than the file: the target depth
+            // spread over the pass count is what each pass has to remove at the deepest point,
+            // the number a cut test will confirm or refute. It is not a Z advance - that has to
+            // come from the removal model, because focus changes how much each pass removes.
+            $"Depth per pass         {Blank.Current.TargetDepthMm / Math.Max(1, passes) * 1000:0.0} um  "
+                + $"({Blank.Current.TargetDepthMm:0.00} mm over {passes:N0})",
         }.Concat(RimLines(rep, full)));
 
         UpdateStatus(full);

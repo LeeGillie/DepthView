@@ -63,8 +63,14 @@ public partial class ReliefWindow : Window
             Change();
         };
         TrueScaleButton.Click += (_, _) => _zHint.ToTrueScale();
-        BlankBox.ValueChanged += (_, _) => Change();
-        TargetDepthBox.ValueChanged += (_, _) => Change();
+        // The blank belongs to the whole program. Listen for it, and let go on close so a
+        // shut window is not kept alive and redrawn by edits made somewhere else.
+        Blank.Current.Changed += OnBlankChanged;
+        Closed += (_, _) =>
+        {
+            Blank.Current.Changed -= OnBlankChanged;
+            Blank.Current.SaveIfChanged();
+        };
         SliceSlider.PropertyChanged += OnSliderChanged;
         TexScaleSlider.PropertyChanged += OnSliderChanged;
         TexRotSlider.PropertyChanged += OnSliderChanged;
@@ -140,10 +146,6 @@ public partial class ReliefWindow : Window
         {
             if (MaterialLibrary.LoadError is { } err) TextureError.Text = err;
 
-            if (Program.StartupBlankMm is double blank && blank > 0)
-                BlankBox.Value = (decimal)Math.Clamp(blank, 1, 500);
-            if (Program.StartupDepthMm is double depth && depth > 0)
-                TargetDepthBox.Value = (decimal)Math.Clamp(depth, 0.01, 5);
             if (Program.StartupExagStops is double stops)
                 ExagSlider.Value = Math.Clamp(stops, ZScale.MinStops, ZScale.MaxStops);
 
@@ -325,9 +327,11 @@ public partial class ReliefWindow : Window
         _settle.Start();
     }
 
-    private double BlankMm => (double)(BlankBox.Value ?? (decimal)ZScale.DefaultBlankMm);
+    private void OnBlankChanged(object? sender, EventArgs e) => Change();
 
-    private double TargetMm => (double)(TargetDepthBox.Value ?? (decimal)ZScale.DefaultTargetMm);
+    private static double BlankMm => Blank.Current.DiameterMm;
+
+    private static double TargetMm => Blank.Current.TargetDepthMm;
 
     /// <summary>What actually gets drawn: the target depth scaled by the exaggeration stops.</summary>
     private double DrawnDepthMm => ZScale.DrawnDepthMm(TargetMm, ExagSlider.Value);
@@ -422,6 +426,7 @@ public partial class ReliefWindow : Window
             // The blank spans the short side of the field, which is what makes the drawn depth
             // the same millimetres as X and Y at true scale.
             Exaggeration = ZScale.RendererExaggeration(DrawnDepthMm, BlankMm, _fw, _fh),
+            SlabRatio = Blank.Current.ThicknessMm / TargetMm,
             InvertHeight = InvertCheck.IsChecked == true,
             SliceCount = SliceCheck.IsChecked == true ? (int)SliceSlider.Value : 0,
             Zoom = _zoom / q,

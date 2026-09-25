@@ -59,6 +59,11 @@ About box. Bump it in the same commit as the tag.
 - **Black is deepest, white is untouched.** LightBurn's 3D Slice default and MakeIt's too.
   `--invert` exists for art authored the other way round.
 - **Never write over the original.** Every tuning path produces a new file. No exceptions.
+- **One blank, program-wide.** Diameter, thickness and target depth live in `Blank.Current`
+  and are edited through `Controls/BlankEditor`. Never give a window its own copy of any of
+  them - the point is that the same number shows everywhere and an edit anywhere moves it
+  everywhere. Target depth follows thickness (18%) until typed; command-line values apply to
+  the run only and are not saved.
 - **Never resample a depth map.** Interpolation invents grey levels that were not in the
   file, which is the exact fault this program exists to detect. Fitting artwork inside a
   rim grows the canvas by padding instead — see `DepthCanvas`.

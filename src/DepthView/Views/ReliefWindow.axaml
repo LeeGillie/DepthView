@@ -128,20 +128,9 @@
           <TextBlock Classes="section" Text="Height"
                      ToolTip.Tip="Laser relief is very shallow: 1 mm across a 40 mm blank is 2.5 percent. The preview starts at true scale, where Z is drawn in the same millimetres as X and Y. Exaggerate to find terracing and noise, then come back to true scale to judge whether they matter. None of this changes the file." />
 
-          <Grid ColumnDefinitions="*,8,*" Margin="0,2,0,0">
-            <StackPanel Grid.Column="0">
-              <TextBlock Classes="cap" Text="Blank diameter mm" />
-              <NumericUpDown x:Name="BlankBox" Minimum="1" Maximum="500" Increment="1"
-                             FormatString="0.0" Value="40" FontSize="12"
-                             ToolTip.Tip="The diameter of the blank the map is engraved on. The short side of the image spans it. This is what turns pixels into millimetres, so the depth below can be drawn to the same scale." />
-            </StackPanel>
-            <StackPanel Grid.Column="2">
-              <TextBlock Classes="cap" Text="Target depth mm" />
-              <NumericUpDown x:Name="TargetDepthBox" Minimum="0.01" Maximum="5" Increment="0.05"
-                             FormatString="0.00" Value="0.40" FontSize="12"
-                             ToolTip.Tip="How deep you intend the deepest (black) cut to be. The depth map itself has no units - how deep it goes is set by your laser settings - so this is your figure. Purely a viewing setting: it changes the picture and nothing else." />
-            </StackPanel>
-          </Grid>
+          <!-- The same program-wide blank the tuning dialog shows: edit it in either window and
+               both move. -->
+          <ctl:BlankEditor x:Name="BlankPanel" Margin="0,2,0,0" />
 
           <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
             <TextBlock Grid.Column="0" Classes="cap" x:Name="ExagLabel" Text="Vertical exaggeration" TextWrapping="Wrap" />

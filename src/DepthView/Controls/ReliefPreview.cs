@@ -47,6 +47,9 @@ public sealed class ReliefViewSettings
     /// </summary>
     public double ZStops;
 
+    /// <summary>Blank thickness over target depth, for drawing the slab. 0 draws a token edge.</summary>
+    public double SlabRatio;
+
     /// <summary>0 = continuous surface. Above 0, quantise to this many steps.</summary>
     public int SliceCount;
 
@@ -239,6 +242,7 @@ public class ReliefPreview : UserControl
             LightElevationDeg = s.LightElevationDeg,
             AoStrength = s.AoStrength,
             Exaggeration = ExaggerationForDepth(s),
+            SlabRatio = s.SlabRatio,
             SliceCount = s.SliceCount,
             Zoom = fit * s.ZoomMul / q,
             PanX = s.PanX,

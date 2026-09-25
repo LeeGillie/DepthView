@@ -732,6 +732,40 @@ contributor can reach it today. Either the document stays here and references a 
 nobody else can see, or LaserTuner gets published. Decide before asking anyone to
 contribute measurements.
 
+### 7.9 Target depth against simulated depth, and a suggested Z advance  *(design, 2026-09-25)*
+
+**The blank comes first (done 2026-09-25).** Diameter, thickness and target depth are one
+program-wide `Blank`, shown in the tuning dialog and the relief window and moving together.
+Target depth defaults to 18% of thickness (Lee's range: 15–20%) until typed, with an Auto
+button to hand it back; past 30% of thickness it says how little floor is left, and past 100%
+that the cut would go through. The tuning card quotes depth per pass against it, and the 3D
+view stands the relief on a slab of the real thickness.
+
+**Target versus simulated must be obvious.** When 7.6 exists, the two tuning panes are the
+comparison: left = the map drawn at target depth, right = what the simulator predicts these
+settings cut. Plus one line - "target 1.10 mm, predicted 0.86 mm, 22% short" - and a
+depth-by-pass chart with the target as a horizontal line. Never only a number.
+
+**Z advance is an output, not an input.** Removal per pass depends on how far the floor is
+out of focus, and how far out of focus it is depends on how much has been removed - so they
+are solved together, pass by pass, and the suggested Z advance is the step that keeps focus
+on the descending floor. It is not "target depth ÷ passes": when removal and Z advance are
+mismatched the floor drifts out of focus, removal falls, and the error compounds in both
+directions (too little advance leaves focus above the floor; too much puts it below).
+
+- **Overriding it warns with the consequence, not a word.** e.g. "At 0.020 mm per pass focus
+  is 0.4 mm below the floor by pass 50; predicted depth 0.71 mm against 1.10 mm target."
+- **Scale the warning to the lens.** Fibre Rayleigh range is ~0.4–2 mm, so a 1.1 mm relief
+  may stay inside the depth of focus with little or no advance - say so and do not nag. UV at
+  ~0.1 mm is where it matters. Deeper cuts make it matter for fibre too.
+- **Allow deliberate defocus.** Running slightly out of focus for a smoother floor is a real
+  technique; the override can be marked intentional and the warning then stays quiet.
+- **Needs a test:** a focus ladder - identical settings at several Z offsets - added to the
+  7.7b sequence, so the defocus falloff is measured per lens rather than assumed.
+- MakeIt's "descent per layer" and LightBurn's per-slice Z step are both a single constant,
+  so the suggestion is a constant; if removal varies enough across the depth that no constant
+  keeps focus, say that too.
+
 ---
 
 ## 8. WeCreat MakeIt integration — proposed 2026-09-24, awaiting reply

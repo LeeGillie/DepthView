@@ -30,6 +30,17 @@ public sealed class Preferences
     /// </summary>
     public int DefaultPasses { get; set; } = 256;
 
+    /// <summary>The blank last worked on - see <see cref="Blank"/>. Remembered because the same
+    /// stock gets cut again and again, and retyping it every session invites a stale number.</summary>
+    public double BlankDiameterMm { get; set; } = Blank.DefaultDiameterMm;
+    public double BlankThicknessMm { get; set; } = Blank.DefaultThicknessMm;
+
+    /// <summary>Target depth as a percentage of thickness, while it is following thickness.</summary>
+    public double DepthPercent { get; set; } = Blank.DefaultDepthPercent;
+
+    /// <summary>A depth typed by hand, or null while depth follows thickness.</summary>
+    public double? TargetDepthMm { get; set; }
+
     // ------------------------------------------------------------------ storage
 
     private const int MinPasses = 2;

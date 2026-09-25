@@ -34,10 +34,11 @@ internal static partial class Program
     public static int? StartupPasses;
 
     /// <summary>
-    /// Target depth (mm) and exaggeration (stops, 0 = true scale) to open either relief view
-    /// with, from --depth-mm and --exag. Same meaning as in --render.
+    /// Target depth and thickness (mm) and exaggeration (stops, 0 = true scale) to open either
+    /// relief view with, from --depth-mm, --thick and --exag. Same meaning as in --render. The
+    /// three blank figures go straight into the shared <see cref="Blank"/> for this run only.
     /// </summary>
-    public static double? StartupDepthMm, StartupExagStops;
+    public static double? StartupDepthMm, StartupThickMm, StartupExagStops;
 
     /// <summary>Fit policy to open the tuning dialog with, from the same --fit flag as --tune.</summary>
     public static FitPolicy StartupFit = FitPolicy.None;
@@ -75,7 +76,8 @@ internal static partial class Program
                                           up: --blank <mm> --rim-mm <mm> --ramp-mm <mm>
                                           --passes <n>
                                           Either relief view also takes --blank <mm>,
-                                          --depth-mm <mm> and --exag <stops>, as in --render
+                                          --thick <mm>, --depth-mm <mm> and --exag <stops>,
+                                          as in --render
           DepthView --about               open the About box: version, platforms, credits
           DepthView --licence             open the About box on its licence page
           DepthView <image> --screenshot <out.png> [--relief] [--delay <ms>]
@@ -101,8 +103,12 @@ internal static partial class Program
             --texrot <deg>      texture rotation
             --albstr <0..1>     colour texture strength
             --micstr <0..3>     surface relief strength
-            --blank <mm>        blank diameter the short side spans (default 40)
-            --depth-mm <mm>     target depth of the deepest cut (default 0.40)
+            --blank <mm>        blank diameter the short side spans
+            --thick <mm>        blank thickness; the 3D view stands on a slab this thick
+            --depth-mm <mm>     target depth of the deepest cut
+                                These three default to the blank last saved in the
+                                window (40 mm, 4 mm, 18% of thickness until changed).
+                                Target depth follows thickness unless given
             --exag <stops>      vertical exaggeration in doublings around the target
                                 depth: 0 (the default) is true scale, Z in the same
                                 mm as X and Y; 3 draws it 8x deep to hunt terracing;
@@ -245,8 +251,10 @@ internal static partial class Program
         StartupTune = args.Any(a => a is "--tune-ui");
         // Read whatever opens a relief view: --relief, --tune-ui, or --orbit further down.
         StartupBlankMm = Flag(args, "--blank");
+        StartupThickMm = Flag(args, "--thick");
         StartupDepthMm = Flag(args, "--depth-mm");
         StartupExagStops = Flag(args, "--exag");
+        Blank.Current.ApplyTransient(StartupBlankMm, StartupThickMm, StartupDepthMm);
         if (StartupTune)
         {
             StartupRimMm = Flag(args, "--rim-mm");
@@ -929,7 +937,7 @@ internal static partial class Program
         string? albedo = null, micro = null, generated = null;
         bool brushed = false, orbit = false;
         double exagStops = 0, az = 315, el = 42, ao = 1, yaw = 0, pitch = 62, zoomMul = 1;
-        double blankMm = Rendering.ZScale.DefaultBlankMm, depthMm = Rendering.ZScale.DefaultTargetMm;
+        double? blankArg = null, thickArg = null, depthArg = null;
         double texScale = double.NaN, texRot = double.NaN, albStr = double.NaN, micStr = double.NaN;
         int slices = 0, size = 900;
 
@@ -953,8 +961,9 @@ internal static partial class Program
                 case "--albstr": albStr = D(rest, ref i, 1); break;
                 case "--micstr": micStr = D(rest, ref i, 1); break;
                 case "--exag": exagStops = D(rest, ref i, 0); break;
-                case "--blank": blankMm = D(rest, ref i, blankMm); break;
-                case "--depth-mm": depthMm = D(rest, ref i, depthMm); break;
+                case "--blank": blankArg = D(rest, ref i, 0); break;
+                case "--thick": thickArg = D(rest, ref i, 0); break;
+                case "--depth-mm": depthArg = D(rest, ref i, 0); break;
                 case "--ao": ao = D(rest, ref i, 1); break;
                 case "--slices": slices = (int)D(rest, ref i, 0); break;
                 case "--size": size = (int)D(rest, ref i, 900); break;
@@ -966,6 +975,13 @@ internal static partial class Program
                     break;
             }
         }
+
+        // Through the shared blank rather than around it, so a render and the windows agree on
+        // what an omitted flag means - including depth following a --thick that was given.
+        Blank.Current.ApplyTransient(blankArg, thickArg, depthArg);
+        double blankMm = Blank.Current.DiameterMm;
+        double depthMm = Blank.Current.TargetDepthMm;
+        double thickMm = Blank.Current.ThicknessMm;
 
         if (input is null || !File.Exists(input))
         {
@@ -1006,6 +1022,7 @@ internal static partial class Program
                 AoStrength = ao,
                 Exaggeration = Rendering.ZScale.RendererExaggeration(
                     Rendering.ZScale.DrawnDepthMm(depthMm, exagStops), blankMm, fw, fh),
+                SlabRatio = thickMm / depthMm,
                 SliceCount = slices,
                 Zoom = Math.Min((double)w / fw, (double)h / fh) * Math.Clamp(zoomMul, 0.05, 20),
                 Quality = 1,
@@ -1036,7 +1053,7 @@ internal static partial class Program
             // A PNG carries no badge, so the console says what scale it was drawn at.
             double drawn = Rendering.ZScale.DrawnDepthMm(depthMm, exagStops);
             Console.WriteLine($"{Rendering.ZScale.BadgeText(exagStops)}: {depthMm:0.00#} mm target " +
-                              $"drawn {drawn:0.00#} mm deep on a {blankMm:0.#} mm blank");
+                              $"drawn {drawn:0.00#} mm deep on a {blankMm:0.#} x {thickMm:0.0#} mm blank");
             return 0;
         }
         catch (Exception ex)

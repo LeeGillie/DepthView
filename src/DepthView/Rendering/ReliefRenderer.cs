@@ -20,6 +20,13 @@ public sealed class ReliefOptions
     /// </summary>
     public double Exaggeration = 1.0;
 
+    /// <summary>
+    /// Blank thickness divided by the target depth. The orbit view stands the surface on a slab
+    /// this many target depths thick, scaled in Z exactly like the relief, so at true scale the
+    /// relief is seen against the real stock. 0 keeps the old token edge.
+    /// </summary>
+    public double SlabRatio;
+
     public double AoStrength = 1.0;
     public double Zoom = 1.0;
     public double PanX, PanY;
@@ -315,8 +322,15 @@ public static class ReliefRenderer
             }
         });
 
-        // Skirt: without it the workpiece is a sheet of paper at any grazing angle.
-        double baseZ = -Math.Max(zk * 0.06, fwi * 0.012);
+        // Skirt: without it the workpiece is a sheet of paper at any grazing angle. The top of the
+        // range (height 1, untouched) sits at zk, so with a known thickness the bottom of the
+        // blank is SlabRatio target depths below it. Capped at a quarter of the width, because
+        // an 8x inspection view of 4 mm stock would otherwise stand the coin on a 32 mm plinth
+        // and push the surface out of frame; floored so a flat or cut-through view still has an
+        // edge. Neither limit applies at true scale on ordinary stock.
+        double baseZ = o.SlabRatio > 0
+            ? Math.Clamp(zk * (1 - o.SlabRatio), -fwi * 0.25, -fwi * 0.004)
+            : -Math.Max(zk * 0.06, fwi * 0.012);
 
         void Base(int slot, int src)
         {

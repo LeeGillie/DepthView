@@ -425,6 +425,11 @@ The rest of the preview:
   and a badge on the picture shade from green at true scale through yellow to red, so a
   magnified view is never mistaken for the real thing. Find problems exaggerated; judge whether
   they matter at true scale. Nothing here changes the file.
+* **One blank everywhere** — diameter, thickness and target depth are shared by the relief
+  window and the tuning dialog: change one in either and both move, and they are remembered
+  between sessions. Target depth starts at 18% of the thickness and follows it until you type
+  your own; it warns when little floor would be left under the deepest cut. The 3D view stands
+  the relief on a slab of the real thickness.
 * **Quantise to steps** — the useful one. Quantises the height field to a fixed number of
   depth steps, which is what a layered engraving actually produces. Slide the step count and
   watch for the point where visible contour lines appear. That is your terracing threshold,

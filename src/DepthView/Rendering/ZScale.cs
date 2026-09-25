@@ -24,9 +24,6 @@ public static class ZScale
     /// <summary>Within this many stops of zero counts as true scale, so a slider can land on it.</summary>
     public const double Detent = 0.1;
 
-    public const double DefaultTargetMm = 0.40;
-    public const double DefaultBlankMm = 40.0;
-
     /// <summary>The bottom of the travel draws no depth at all, rather than one more halving.</summary>
     public static bool IsFlat(double stops) => stops <= MinStops + 1e-9;
 

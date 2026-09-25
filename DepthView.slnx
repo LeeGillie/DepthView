@@ -1,5 +1,83 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitattributes" />
+    <File Path=".gitignore" />
+    <File Path="ACKNOWLEDGEMENTS.md" />
+    <File Path="CLAUDE.md" />
+    <File Path="CONTRIBUTING.md" />
+    <File Path="index.html" />
+    <File Path="LICENSE" />
+    <File Path="publish.ps1" />
+    <File Path="publish.sh" />
+    <File Path="README.md" />
+    <File Path="THIRD-PARTY-NOTICES.md" />
+    <File Path="TODO.md" />
+  </Folder>
+  <Folder Name="/.github/">
+    <File Path=".github/RELEASE_TEMPLATE.md" />
+  </Folder>
+  <Folder Name="/.github/ISSUE_TEMPLATE/">
+    <File Path=".github/ISSUE_TEMPLATE/bug.yml" />
+    <File Path=".github/ISSUE_TEMPLATE/config.yml" />
+    <File Path=".github/ISSUE_TEMPLATE/platform-test.yml" />
+  </Folder>
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/build.yml" />
+    <File Path=".github/workflows/release.yml" />
+  </Folder>
+  <Folder Name="/artwork/">
+    <File Path="artwork/make_banner.py" />
+    <File Path="artwork/make_hero.py" />
+    <File Path="artwork/make_icon.py" />
+  </Folder>
+  <Folder Name="/brainstorm/">
+    <File Path="brainstorm/index.html" />
+    <File Path="brainstorm/README.md" />
+  </Folder>
+  <Folder Name="/brainstorm/stripfocus/">
+    <File Path="brainstorm/stripfocus/DESIGN.md" />
+    <File Path="brainstorm/stripfocus/index.html" />
+    <File Path="brainstorm/stripfocus/README.md" />
+    <File Path="brainstorm/stripfocus/RESEARCH.md" />
+    <File Path="brainstorm/stripfocus/SURFACE-INPUT.md" />
+  </Folder>
+  <Folder Name="/brainstorm/stripfocus/prototype/">
+    <File Path="brainstorm/stripfocus/prototype/index.html" />
+    <File Path="brainstorm/stripfocus/prototype/paper.js-LICENSE.txt" />
+    <File Path="brainstorm/stripfocus/prototype/StripFocus.html" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/DEPTH-PREDICTION.md" />
+    <File Path="docs/make-screenshots.ps1" />
+  </Folder>
+  <Folder Name="/docs/research/">
+    <File Path="docs/research/laser-ablation-baselines.md" />
+  </Folder>
+  <Folder Name="/packaging/">
+    <File Path="packaging/install-menu-entry.sh" />
+    <File Path="packaging/make_bundle.py" />
+    <File Path="packaging/README.txt" />
+  </Folder>
+  <Folder Name="/samples/">
+    <File Path="samples/make_samples.py" />
+    <File Path="samples/README.md" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/DepthView/DepthView.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <File Path="tests/check_fit.py" />
+    <File Path="tests/check_lbcontrol.ps1" />
+    <File Path="tests/check_report.py" />
+    <File Path="tests/extract-lbrn-image.ps1" />
+    <File Path="tests/fake-lightburn.ps1" />
+    <File Path="tests/make_fixtures.py" />
+    <File Path="tests/make_textures.py" />
+    <File Path="tests/peek-lbrn.ps1" />
+    <File Path="tests/peek-wws.ps1" />
+    <File Path="tests/privacy-check.ps1" />
+    <File Path="tests/shot-open.ps1" />
+    <File Path="tests/splice-notes.ps1" />
+    <Project Path="tests/updater/updater-tests.csproj" />
   </Folder>
 </Solution>

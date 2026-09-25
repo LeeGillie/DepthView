@@ -85,6 +85,11 @@ internal static partial class Program
                                           (used to keep the README images reproducible)
           DepthView --window <w> <h>      open the window at this size, to check the
                                           layout at screen sizes you do not own
+          DepthView --version             print the version and exit
+          DepthView --check-update        ask GitHub whether a newer release exists
+          DepthView --update              download, verify and install it in place (a copy
+                                          unpacked from a release zip only). Nothing is
+                                          replaced unless every check passes
           DepthView --report <path...>    write a text analysis instead of opening a window
           DepthView --report <dir>        analyse every image in a folder
 
@@ -228,6 +233,21 @@ internal static partial class Program
             return 0;
         }
 
+        if (args.Any(a => a is "--version" or "-V"))
+        {
+            // One line, last token the bare version: the updater runs a freshly downloaded copy
+            // with this flag and refuses to install it unless the number is the one it expected.
+            AttachParentConsole();
+            Console.WriteLine($"DepthView {BuildInfo.Version}");
+            return 0;
+        }
+
+        int fidx = Array.IndexOf(args, "--update-feed");
+        if (fidx >= 0 && fidx + 1 < args.Length) Updates.UpdateService.FeedOverride = args[fidx + 1];
+
+        if (args.Any(a => a is "--check-update")) return RunCheckUpdate(install: false);
+        if (args.Any(a => a is "--update")) return RunCheckUpdate(install: true);
+
         int cidx = Array.FindIndex(args, a => a is "--calibrate");
         if (cidx >= 0) return RunCalibrate(args.Skip(cidx + 1).ToArray());
 
@@ -246,7 +266,8 @@ internal static partial class Program
         int idx = Array.FindIndex(args, a => a is "-r" or "--report");
         if (idx >= 0) return RunReport(args.Skip(idx + 1).ToArray());
 
-        StartupFile = args.FirstOrDefault(a => !a.StartsWith('-') && File.Exists(a));
+        StartupFile = args.Where((a, i) => i == 0 || args[i - 1] != "--update-feed")
+                          .FirstOrDefault(a => !a.StartsWith('-') && File.Exists(a));
         StartupRelief = args.Any(a => a is "--relief" or "-3d");
         StartupTune = args.Any(a => a is "--tune-ui");
         // Read whatever opens a relief view: --relief, --tune-ui, or --orbit further down.
@@ -255,6 +276,12 @@ internal static partial class Program
         StartupDepthMm = Flag(args, "--depth-mm");
         StartupExagStops = Flag(args, "--exag");
         Blank.Current.ApplyTransient(StartupBlankMm, StartupThickMm, StartupDepthMm);
+
+        // An update renames the old program aside because a running file cannot be replaced on
+        // Windows. This start is the first moment it can be deleted; a few seconds later, so the
+        // process it belonged to has certainly gone.
+        _ = System.Threading.Tasks.Task.Delay(4000).ContinueWith(_ => Updates.UpdateService.CleanupLeftovers(),
+            System.Threading.Tasks.TaskScheduler.Default);
         if (StartupTune)
         {
             StartupRimMm = Flag(args, "--rim-mm");
@@ -300,6 +327,43 @@ internal static partial class Program
         }
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
+    }
+
+    /// <summary>
+    /// --check-update and --update: the same check and install the window offers, from a
+    /// terminal. --update installs but does not restart anything - whoever ran it is in charge
+    /// of what runs next. Exit codes: 0 up to date or installed, 1 newer but not installable
+    /// here, 2 the check or the install failed.
+    /// </summary>
+    private static int RunCheckUpdate(bool install)
+    {
+        AttachParentConsole();
+        var info = Updates.UpdateService.CheckAsync(force: true).GetAwaiter().GetResult();
+        if (info.Error is not null) { Console.Error.WriteLine(info.Error); return 2; }
+
+        Console.WriteLine($"This copy:  DepthView {info.Current} ({Updates.UpdateService.CurrentRid() ?? "unknown platform"})");
+        Console.WriteLine($"Latest:     DepthView {info.Latest}   {info.NotesUrl}");
+        if (!info.Newer) { Console.WriteLine("Up to date."); return 0; }
+        if (!info.CanInstall) { Console.WriteLine("Cannot update in place: " + info.InstallBlocker); return 1; }
+        if (!install) { Console.WriteLine("A newer version is available. Run with --update to install it."); return 0; }
+
+        var layout = Updates.UpdateService.CurrentLayout()!;
+        string last = "";
+        var progress = new Progress<(string Stage, double? Fraction)>(p =>
+        {
+            if (p.Stage != last) { Console.WriteLine(p.Stage + " ..."); last = p.Stage; }
+        });
+        try
+        {
+            var changed = Updates.UpdateService.InstallAsync(info, layout, progress).GetAwaiter().GetResult();
+            Console.WriteLine($"Installed DepthView {info.Latest}: {string.Join(", ", changed)}");
+            return 0;
+        }
+        catch (Updates.UpdateException ex)
+        {
+            Console.Error.WriteLine("Not installed: " + ex.Message + " Nothing was changed.");
+            return 2;
+        }
     }
 
     /// <summary>Value of a "--flag &lt;number&gt;" pair, or null when it is not there.</summary>

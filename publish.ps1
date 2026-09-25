@@ -1,6 +1,9 @@
-# Builds self-contained single-file DepthView binaries for every desktop target.
+# Builds self-contained single-file DepthView binaries for every desktop target, then
+# packs each into the zip a user downloads (dist\DepthView-<version>-<rid>.zip) with
+# packaging\make_bundle.py - the same step the release workflow runs. Needs Python 3.
 # Nothing needs to be installed on the target machine - the .NET runtime is inside
-# the executable. All targets cross-compile from this one machine.
+# the executable. All targets cross-compile from this one machine, but a macOS zip
+# built here is unsigned and will not start on Apple silicon; release those from CI.
 #
 #   powershell -ExecutionPolicy Bypass -File publish.ps1
 #   powershell -ExecutionPolicy Bypass -File publish.ps1 -Rids win-x64,linux-x64
@@ -17,7 +20,10 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $proj = Join-Path $root 'src\DepthView\DepthView.csproj'
 $out  = Join-Path $root 'publish'
 
-Write-Host "DepthView publish -> $out" -ForegroundColor Cyan
+$version = ([xml](Get-Content $proj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+$python = if (Get-Command py -ErrorAction SilentlyContinue) { 'py' } else { 'python' }
+$dist = Join-Path $root 'dist'
+Write-Host "DepthView $version publish -> $out, zips -> $dist" -ForegroundColor Cyan
 
 foreach ($rid in $Rids) {
     $dest = Join-Path $out $rid
@@ -39,7 +45,10 @@ foreach ($rid in $Rids) {
     Get-ChildItem $dest -File |
         Where-Object { $_.Extension -in '', '.exe' } |
         ForEach-Object { "  {0,-16} {1,10:N1} MB" -f $_.Name, ($_.Length / 1MB) }
+
+    $bin = Join-Path $dest $(if ($rid -like 'win-*') { 'DepthView.exe' } else { 'DepthView' })
+    & $python (Join-Path $root 'packaging\make_bundle.py') --rid $rid --version $version --binary $bin --dist $dist
+    if ($LASTEXITCODE -ne 0) { throw "bundling failed for $rid" }
 }
 
-Write-Host "`nDone. Hand a user the single file from publish\<their platform>\." -ForegroundColor Green
-Write-Host "On macOS and Linux they will need: chmod +x DepthView" -ForegroundColor DarkGray
+Write-Host "`nDone. Hand a user the zip for their platform from dist\." -ForegroundColor Green

@@ -52,8 +52,10 @@
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <!-- header -->
-    <Border Grid.Row="0" Background="#171A1F" BorderBrush="#262B33" BorderThickness="0,0,0,1" Padding="16,10">
+    <!-- header, and under it the update bar. They share row 0 so the bar costs no layout
+         when there is nothing to say, and every other row keeps its number. -->
+    <StackPanel Grid.Row="0">
+    <Border Background="#171A1F" BorderBrush="#262B33" BorderThickness="0,0,0,1" Padding="16,10">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Grid.Column="0" Spacing="2">
           <TextBlock Text="DepthView" FontSize="17" FontWeight="SemiBold" Foreground="#EDF1F6"
@@ -68,10 +70,35 @@
                      ToolTip.Tip="How long the last decode and analysis pass took." />
           <Button x:Name="AboutButton" Content="About" Padding="10,5" FontSize="11"
                   VerticalAlignment="Center"
-                  ToolTip.Tip="Version number, the platforms DepthView runs on, everyone who made it, and the licence terms." />
+                  ToolTip.Tip="Version number, the platforms DepthView runs on, everyone who made it, the licence terms, and the update settings." />
         </StackPanel>
       </Grid>
     </Border>
+
+    <!-- update bar: hidden unless GitHub has a newer release, or an update is being installed -->
+    <Border x:Name="UpdateBar" IsVisible="False" Background="#14261B" BorderBrush="#2F6B45"
+            BorderThickness="0,0,0,1" Padding="16,7">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" x:Name="UpdateText" VerticalAlignment="Center" FontSize="12"
+                   Foreground="#CFEBD7" TextWrapping="Wrap" Margin="0,0,12,0" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <ProgressBar x:Name="UpdateProgress" Width="160" Minimum="0" Maximum="1" IsVisible="False"
+                       VerticalAlignment="Center" />
+          <Button x:Name="UpdateNotesButton" Content="What's new" Padding="10,5" FontSize="11"
+                  ToolTip.Tip="Open the release notes for the new version in your web browser." />
+          <Button x:Name="UpdateSkipButton" Content="Skip this version" Padding="10,5" FontSize="11"
+                  ToolTip.Tip="Hide this bar until a later version comes out. About - Check for updates still shows it." />
+          <Button x:Name="UpdateInstallButton" Content="Update now" Padding="10,5" FontSize="11"
+                  Background="#2A6B45" BorderBrush="#3C8A5B" Foreground="#F2FAF4"
+                  ToolTip.Tip="Download the new version, check it against the checksum GitHub publishes, start it once to be sure it runs, then replace this copy and restart. If any check fails, nothing is changed." />
+          <Button x:Name="UpdateDownloadButton" Content="Download page" Padding="10,5" FontSize="11"
+                  ToolTip.Tip="Open the release page, to download the new version by hand." />
+          <Button x:Name="UpdateHideButton" Content="Hide" Padding="10,5" FontSize="11"
+                  ToolTip.Tip="Hide the bar for now. It comes back next time DepthView starts." />
+        </StackPanel>
+      </Grid>
+    </Border>
+    </StackPanel>
 
     <!-- body
 

@@ -60,6 +60,7 @@ public partial class MainWindow : Window
         TuneButton.Click += (_, _) => OpenTune();
         ClearButton.Click += (_, _) => ClearAll();
         AboutButton.Click += (_, _) => new AboutWindow().ShowDialog(this);
+        WireUpdates();
 
         PreviewMode.SelectionChanged += (_, _) => UpdatePreview();
         LogCheck.IsCheckedChanged += (_, _) => Histogram.LogScale = LogCheck.IsChecked == true;

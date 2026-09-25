@@ -41,6 +41,15 @@ public sealed class Preferences
     /// <summary>A depth typed by hand, or null while depth follows thickness.</summary>
     public double? TargetDepthMm { get; set; }
 
+    /// <summary>
+    /// Ask GitHub once a day whether a newer release exists. On by default, as in LUOM What's
+    /// New: the request carries nothing but itself, and an offline machine just shows no bar.
+    /// </summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>A release the user chose "Skip this version" for; the bar stays hidden for it.</summary>
+    public string? SkipVersion { get; set; }
+
     // ------------------------------------------------------------------ storage
 
     private const int MinPasses = 2;

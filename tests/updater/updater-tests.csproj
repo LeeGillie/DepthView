@@ -1,0 +1,32 @@
+<!--
+  End-to-end tests for the in-place updater (src/DepthView/Updates/UpdateService.cs).
+
+  Deliberately not part of DepthView.slnx: it compiles the updater's source files directly,
+  with no Avalonia, so it builds and runs anywhere .NET does - including CI runners with no
+  display. It builds real release-shaped zips, serves them through a local release feed, and
+  installs them over a fake installed copy, checking both that good updates land and that
+  every tampered one is refused with nothing changed.
+
+      dotnet run (project tests/updater)
+
+  Unix only: the stand-in "programs" are shell scripts. On Windows it reports that and exits 0.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The updater compares against BuildInfo.Version, which reads this assembly's version. -->
+    <Version>1.3.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="UpdaterTests.cs" />
+    <Compile Include="../../src/DepthView/Updates/UpdateService.cs" />
+    <Compile Include="../../src/DepthView/BuildInfo.cs" />
+    <Compile Include="../../src/DepthView/Preferences.cs" />
+    <Compile Include="../../src/DepthView/Blank.cs" />
+  </ItemGroup>
+</Project>

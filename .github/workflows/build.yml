@@ -87,6 +87,28 @@ jobs:
           "${{ steps.exe.outputs.path }}" --render tests/fixtures/relief_demo.png --material brass --size 400 --out relief-ci.png
           test -s relief-ci.png
 
+      # The updater runs a downloaded copy with --version and refuses to install it unless the
+      # answer is the version it expected, so this line has to work on every platform.
+      - name: Report the version
+        shell: bash
+        run: '"${{ steps.exe.outputs.path }}" --version | grep -E "^DepthView [0-9]+\.[0-9]+"'
+
+      # End-to-end updater tests: real release-shaped zips installed over a fake copy, good ones
+      # landing and every tampered one refused with nothing changed. Shell-script stand-ins for
+      # the program, so Unix only.
+      - name: Updater tests
+        if: runner.os != 'Windows'
+        shell: bash
+        run: dotnet run --project tests/updater -c Release
+
+      - name: Bundle layout (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          python3 packaging/make_bundle.py --rid linux-x64 --version 0.0.0 \
+            --binary "${{ steps.exe.outputs.path }}" --dist bundle-ci
+          unzip -l bundle-ci/DepthView-0.0.0-linux-x64.zip
+          unzip -Z bundle-ci/DepthView-0.0.0-linux-x64.zip | grep -E '^-rwx.* DepthView/DepthView$'
+
       - name: Analyse the committed samples
         shell: bash
         run: |

@@ -50,7 +50,22 @@ bookkeeping step. `workflow_dispatch` with `dry_run` builds the artefacts withou
 use that to check the machinery.
 
 `<Version>` in `src/DepthView/DepthView.csproj` is the single source of truth and feeds the
-About box. Bump it in the same commit as the tag.
+About box and the updater. Bump it in the same commit as the tag.
+
+**Releases ship as zips, and their shape is a contract with every installed copy.**
+`packaging/make_bundle.py` packs each binary as `DepthView-<version>-<rid>.zip` holding one
+`DepthView/` folder (program, README.txt, LICENSE.txt; `DepthView.app` on macOS). The in-place
+updater (`Updates/UpdateService.cs`, modelled on LUOM What's New's) finds the zip for its
+platform on `releases/latest` by that name, verifies it against the asset `digest` GitHub
+publishes (falling back to `SHA256SUMS.txt`), refuses any entry outside `DepthView/`, runs the
+new copy's `--version`, and swaps items in with rename-aside so a running `.exe` can be
+replaced. **Change the zip name, the folder name, the tag format `v<version>` or what
+`--version` prints, and installed copies silently stop updating.** macOS zips must be built on
+a Mac: Apple silicon kills unsigned code, and the ad hoc `codesign` only exists there.
+
+Test the install path without a release: `DepthView --update --update-feed <release.json>`,
+where the JSON is a GitHub release document whose asset URLs are local paths.
+`tests/updater` does exactly that on Linux and macOS in CI.
 
 ---
 

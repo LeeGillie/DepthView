@@ -390,6 +390,23 @@ repository would find absent, ordered by how much each one costs the project's c
 
 ## 6. Housekeeping
 
+- ~~**Installers and in-place updates.**~~ **Built 2026-09-25, not yet released.** Carried
+  over from LUOM What's New: per-platform zips (one `DepthView/` folder: program, README.txt,
+  LICENSE.txt; a signed-ad-hoc `DepthView.app` on macOS; a menu-entry script on Linux) from
+  `packaging/make_bundle.py`, and `Updates/UpdateService.cs` - daily GitHub check, green bar,
+  Skip this version, About > Check for updates, and a verified install (digest or
+  SHA256SUMS, `--version` of the new copy, rename-aside swap, rollback). Before and at the
+  first release that carries it:
+  - Run the release workflow with `dry_run` first. The macOS jobs now run on a macOS runner
+    for the first time, and `codesign --verify` plus `--version` on osx-arm64 is the check.
+  - **1.3.0 and earlier cannot update themselves** - they have no updater. Everyone on them
+    downloads the zip once by hand; the release notes should say so plainly.
+  - Test a real update end to end once there are two releases with zips: install the older
+    zip, let it find the newer, and watch it restart - on Windows especially, where the
+    running .exe is renamed aside and only deleted on the next start.
+  - Still unsigned in the paid sense: SmartScreen and Gatekeeper still ask once. Notarisation
+    would remove the macOS prompt and costs an Apple Developer membership.
+
 - Avalonia 11.3 marks `DataFormats` and `IClipboard.GetDataAsync` obsolete in favour of the
   `DataTransfer` API arriving in 12.x. Currently suppressed with a scoped
   `#pragma warning disable CS0618` and a comment. Revisit when moving to Avalonia 12.

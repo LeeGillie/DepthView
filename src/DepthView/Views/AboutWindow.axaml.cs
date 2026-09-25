@@ -63,6 +63,14 @@ public partial class AboutWindow : Window
             Flash("Build info copied.");
         };
 
+        AutoUpdateCheck.IsChecked = Preferences.Current.CheckForUpdates;
+        AutoUpdateCheck.IsCheckedChanged += (_, _) =>
+        {
+            Preferences.Current.CheckForUpdates = AutoUpdateCheck.IsChecked == true;
+            Preferences.Current.Save();
+        };
+        CheckUpdateButton.Click += async (_, _) => await CheckForUpdatesAsync();
+
         LicenceButton.Click += (_, _) => ToggleLicence();
         CloseButton.Click += (_, _) => Close();
 
@@ -127,7 +135,7 @@ public partial class AboutWindow : Window
 
         PlatformList.Children.Add(new TextBlock
         {
-            Text = "Each is one self contained file. No runtime to install, nothing to unpack.",
+            Text = "Each is one zip: unpack it and run. The runtime is inside - nothing to install.",
             Classes = { "creditnote" },
             Margin = new Thickness(0, 4, 0, 0),
             Foreground = new SolidColorBrush(Color.Parse("#6FA97F")),
@@ -248,6 +256,25 @@ public partial class AboutWindow : Window
         CreditScroll.Offset = new Vector(0, 0);
         _atEnd = false;
         _hold = TicksAtStart;
+    }
+
+    /// <summary>
+    /// Ask GitHub now, bypassing the day-long cache, and say what it found either way. A newer
+    /// release also raises the bar in the main window - even one the user once chose to skip,
+    /// because asking by hand is asking to be told.
+    /// </summary>
+    private async System.Threading.Tasks.Task CheckForUpdatesAsync()
+    {
+        CheckUpdateButton.IsEnabled = false;
+        UpdateStatus.Text = "Checking ...";
+        var info = await Updates.UpdateService.CheckAsync(force: true);
+        CheckUpdateButton.IsEnabled = true;
+
+        UpdateStatus.Text = info.Error
+            ?? (info.Newer
+                ? $"DepthView {info.Latest} is available - see the bar in the main window."
+                : $"You have the latest version ({info.Current}).");
+        Updates.UpdateService.Announce(info, fromUser: true);
     }
 
     private void Flash(string message)

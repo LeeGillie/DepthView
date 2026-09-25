@@ -1,19 +1,26 @@
-# Publishes the seven self-contained binaries and attaches them to a GitHub Release.
+# Publishes DepthView for seven platforms and attaches the zips to a GitHub Release.
 #
 # Triggered by pushing a version tag:
 #
-#     git tag -a v1.0.0 -m "DepthView 1.0.0"
-#     git push origin v1.0.0
+#     git tag -a v1.4.0 -m "DepthView 1.4.0"
+#     git push origin v1.4.0
 #
 # Or run manually from the Actions tab with dry_run left on, which builds and uploads
 # everything as workflow artefacts WITHOUT creating a release. Use that to prove the
 # matrix works before spending a tag on it - a tag is cheap to delete and awkward to
 # delete after people have fetched it.
 #
-# All seven targets cross-compile from one Linux runner, which is what publish.sh already
-# does locally. Building the macOS binaries on a macOS runner would only matter for code
-# signing and notarisation, and neither is set up (see TODO). Until it is, a macOS user
-# has to clear the quarantine attribute by hand and the README says so.
+# Each platform ships as DepthView-<version>-<rid>.zip holding one DepthView/ folder (the
+# program, README.txt, LICENSE.txt; a DepthView.app on macOS), built by
+# packaging/make_bundle.py. Those names are a contract with the in-place updater
+# (src/DepthView/Updates/UpdateService.cs), which finds its platform's zip on the latest
+# release by name and verifies it against the digest GitHub publishes for the asset, with
+# SHA256SUMS.txt as the fallback. Rename either and every installed copy stops updating.
+#
+# Windows and Linux cross-compile on one Linux runner. macOS builds on a macOS runner,
+# because Apple silicon will not run unsigned native code at all: the .app is signed ad hoc
+# there. Ad hoc is not notarisation - Gatekeeper still asks the user once - but without it an
+# M-series Mac kills the program on launch.
 
 name: release
 
@@ -34,18 +41,18 @@ env:
 jobs:
   publish:
     name: ${{ matrix.rid }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        rid:
-          - win-x64
-          - win-x86
-          - win-arm64
-          - linux-x64
-          - linux-arm64
-          - osx-x64
-          - osx-arm64
+        include:
+          - { rid: win-x64,     os: ubuntu-latest }
+          - { rid: win-x86,     os: ubuntu-latest }
+          - { rid: win-arm64,   os: ubuntu-latest }
+          - { rid: linux-x64,   os: ubuntu-latest }
+          - { rid: linux-arm64, os: ubuntu-latest }
+          - { rid: osx-x64,     os: macos-latest }
+          - { rid: osx-arm64,   os: macos-latest }
 
     steps:
       - uses: actions/checkout@v7
@@ -67,49 +74,55 @@ jobs:
             -o out/${{ matrix.rid }} \
             --nologo -v quiet
 
-      # One flat, unambiguous filename per platform. A user downloading three of these
-      # into the same folder must not end up with DepthView, DepthView(1), DepthView(2).
-      - name: Name the binary after its platform
-        id: name
+      # One zip per platform, named for the platform and version. A user downloading three of
+      # these into one folder must not end up with DepthView.zip, DepthView(1).zip...
+      - name: Bundle
+        id: bundle
         run: |
           version="${GITHUB_REF_NAME#v}"
           case "$version" in
             refs/*|main|"") version="dev" ;;
           esac
-          if [[ "${{ matrix.rid }}" == win-* ]]; then
-            src="out/${{ matrix.rid }}/DepthView.exe"
-            dst="DepthView-${version}-${{ matrix.rid }}.exe"
-          else
-            src="out/${{ matrix.rid }}/DepthView"
-            dst="DepthView-${version}-${{ matrix.rid }}"
-          fi
-          test -f "$src" || { echo "::error::publish produced no binary at $src"; ls -R out; exit 1; }
-          mkdir -p dist
-          cp "$src" "dist/$dst"
-          chmod +x "dist/$dst"
-          echo "file=$dst" >> "$GITHUB_OUTPUT"
-          ls -lh "dist/$dst" | awk '{print "  " $NF, $5}'
+          if [[ "${{ matrix.rid }}" == win-* ]]; then bin="out/${{ matrix.rid }}/DepthView.exe"
+          else bin="out/${{ matrix.rid }}/DepthView"; fi
+          test -f "$bin" || { echo "::error::publish produced no binary at $bin"; ls -R out; exit 1; }
+          python3 packaging/make_bundle.py --rid ${{ matrix.rid }} --version "$version" \
+            --binary "$bin" --dist dist
+          echo "zip=DepthView-${version}-${{ matrix.rid }}.zip" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      # A single file that runs on a machine with no .NET installed is the whole delivery
-      # promise. If it cannot answer --help it is not a delivery, and the linux-x64 job is
-      # the only one of the seven that can check that here.
-      - name: Smoke test the Linux binary
+      # A download that cannot answer --version is not a delivery - and --version is exactly
+      # what the updater runs on a freshly downloaded copy before it will install it. Each
+      # runner can execute its own architecture only, so linux-x64 and osx-arm64 are the two
+      # checked here; the macOS one also proves the ad hoc signature is accepted.
+      - name: Smoke test the Linux bundle
         if: matrix.rid == 'linux-x64'
         run: |
-          ./dist/${{ steps.name.outputs.file }} --help | head -5
+          mkdir smoke && (cd smoke && unzip -q "../dist/${{ steps.bundle.outputs.zip }}")
+          test -x smoke/DepthView/DepthView
+          smoke/DepthView/DepthView --version | tee v.txt
+          grep -q "DepthView ${{ steps.bundle.outputs.version }}" v.txt || [ "${{ steps.bundle.outputs.version }}" = dev ]
+          smoke/DepthView/DepthView --help | head -5
           python -m pip install --quiet numpy
           python tests/make_fixtures.py
           set +e
-          ./dist/${{ steps.name.outputs.file }} --report tests/fixtures --summary
+          smoke/DepthView/DepthView --report tests/fixtures --summary
           code=$?
           set -e
           [ "$code" -eq 1 ] || { echo "::error::expected exit 1, got $code"; exit 1; }
           python tests/check_report.py tests/fixtures/depthview-report.txt
 
+      - name: Smoke test the macOS bundle
+        if: matrix.rid == 'osx-arm64'
+        run: |
+          mkdir smoke && (cd smoke && unzip -q "../dist/${{ steps.bundle.outputs.zip }}")
+          codesign --verify --strict --verbose=2 smoke/DepthView/DepthView.app
+          smoke/DepthView/DepthView.app/Contents/MacOS/DepthView --version
+
       - uses: actions/upload-artifact@v7
         with:
           name: DepthView-${{ matrix.rid }}
-          path: dist/*
+          path: dist/*.zip
           if-no-files-found: error
 
   release:
@@ -128,8 +141,8 @@ jobs:
           path: staged
           merge-multiple: true
 
-      # Someone who downloads a release gets a single executable and nothing to point it at,
-      # while every announcement of this tool tells them to try the samples. Ship them.
+      # Someone who downloads a release gets the program and nothing to point it at, while
+      # every announcement of this tool tells them to try the samples. Ship them.
       # `git ls-files` rather than the whole folder: samples/ is where a user drops their own
       # artwork to test, and none of that belongs in a public release asset.
       - name: Package the samples
@@ -139,9 +152,9 @@ jobs:
           ls -l samples-out
           (cd samples-out && zip -q -r ../staged/DepthView-samples.zip .)
 
-      # Unsigned binaries make checksums worth more than usual: they are the only way a
-      # user can tell a genuine download from a tampered one, since there is no signature
-      # for the OS to check.
+      # Unsigned builds make checksums worth more than usual: they are the only way a user
+      # can tell a genuine download from a tampered one. The updater prefers the per-asset
+      # digest GitHub computes itself, and falls back to this file.
       - name: Checksums
         run: |
           cd staged

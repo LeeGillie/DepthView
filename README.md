@@ -310,14 +310,36 @@ Identical depth counts. Raised by Nathaniel Klumb on the LightBurn forum; see
 
 ---
 
-## Running it
+## Installing and running it
 
-Nothing to install. The published binary is a single self-contained executable
-with the .NET runtime inside it.
+Download the zip for your computer from the
+[latest release](https://github.com/LeeGillie/DepthView/releases/latest) — `win-x64` for
+an ordinary Windows PC, `osx-arm64` for an Apple-silicon Mac, `linux-x64` for an ordinary
+Linux PC; the release page lists the rest. Unzip it somewhere you can write to. That is the
+whole installation: the program has the .NET runtime inside it, and there is no installer,
+no dependency and no administrator prompt.
 
-* **Windows** — double-click `DepthView.exe`
-* **macOS** — `chmod +x DepthView && ./DepthView`
-* **Linux** — `chmod +x DepthView && ./DepthView`
+* **Windows** — double-click `DepthView\DepthView.exe`
+* **macOS** — double-click `DepthView/DepthView.app` (drag it to Applications if you like)
+* **Linux** — double-click `DepthView/DepthView`; `./install-menu-entry.sh` adds it to the
+  application menu
+
+The first start on Windows and macOS asks you to confirm an unsigned program; the
+`README.txt` in the zip shows exactly what you will see and where to click.
+
+### Updates
+
+DepthView checks GitHub at most once a day for a newer release and shows a green bar when
+there is one. **Update now** downloads the zip for your platform, verifies it against the
+SHA-256 GitHub publishes for it, runs the new copy once to be sure it starts and reports the
+right version, and only then swaps the files in — the program last, with every replaced item
+kept aside until the swap has completed, so a failure part-way puts everything back. Files
+you keep in the folder, and your settings, are left alone. **Skip this version** hides the
+bar until the next one; About has *Check for updates* and the switch to turn checking off.
+Nothing is sent but the request itself.
+
+From a terminal: `DepthView --check-update`, and `DepthView --update` to install without
+the window.
 
 ### Try it in sixty seconds
 
@@ -753,7 +775,7 @@ Requires the .NET 8 SDK or newer. Open `DepthView.slnx` in Visual Studio 2026, o
 dotnet build src/DepthView/DepthView.csproj -c Release
 ```
 
-### Publishing single-file binaries
+### Publishing
 
 ```
 powershell -ExecutionPolicy Bypass -File publish.ps1        # Windows
@@ -762,8 +784,11 @@ powershell -ExecutionPolicy Bypass -File publish.ps1        # Windows
 
 Both produce self-contained, single-file executables in `publish/<rid>/` for:
 `win-x64`, `win-x86`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64`,
-`osx-arm64`. All seven cross-compile from any one host — no .NET install needed on
-the target machine.
+`osx-arm64`, then pack each into the zip users download, `dist/DepthView-<version>-<rid>.zip`,
+with `packaging/make_bundle.py` (Python 3). All seven cross-compile from any one host — no
+.NET install needed on the target machine — with one exception: a macOS zip has to be built
+on a Mac, where the `.app` is signed ad hoc, because Apple silicon will not run unsigned code.
+The release workflow does that on a macOS runner.
 
 ### Why Avalonia
 
@@ -787,6 +812,7 @@ src/DepthView/
   Program.cs              entry point, CLI report mode
   App.axaml               application shell
   BuildInfo.cs            version, build date, host and platform strings for the About box
+  Updates/UpdateService   the GitHub release check and the verified in-place install
   Views/MainWindow        UI, input handling, preview rendering
   Views/ReliefWindow      lit 3D relief preview
   Views/TuneWindow        side-by-side tuning: level points, rim, slicing, save and verify
@@ -804,6 +830,11 @@ src/DepthView/
                           CalibrationPattern, TinyFont
   Rendering/              ReliefRenderer (software height-field shading), MaterialPreset
   Assets/                 icon files consumed by the build
+packaging/
+  make_bundle.py          packs a published binary into the zip users download
+  README.txt              the end-user instructions that travel inside every zip
+  install-menu-entry.sh   Linux: adds DepthView to the application menu
+  DepthView.icns          the macOS app icon
 artwork/
   make_icon.py            generates the icon at every size, plus the .ico
   make_hero.py            generates the banner hero's depth map
@@ -918,11 +949,15 @@ before Avalonia is initialised, so those two are genuinely headless and are what
 ### Releases
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`, which publishes all seven
-self-contained binaries, names each one after its platform, generates `SHA256SUMS.txt` and
-attaches the lot to a GitHub Release. The `linux-x64` binary is smoke-tested first: it has
-to answer `--help`, analyse the fixtures and pass the assertion script before anything is
-published, because a single file that will not run on a machine without .NET is not a
-delivery.
+self-contained binaries, packs each into `DepthView-<version>-<rid>.zip`, generates
+`SHA256SUMS.txt` and attaches the lot to a GitHub Release. Two bundles are smoke-tested
+first: `linux-x64` has to answer `--version` and `--help`, analyse the fixtures and pass the
+assertion script, and `osx-arm64` has to pass `codesign --verify` and answer `--version` on
+a real Apple-silicon runner — because a download that will not run is not a delivery.
+
+The zip names, the single `DepthView/` folder inside them and the tag format `v<version>`
+are what the in-place updater looks for. Changing any of them strands every installed copy
+on its current version.
 
 ```
 git tag -a v1.0.0 -m "DepthView 1.0.0"

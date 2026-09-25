@@ -81,7 +81,7 @@
 
       <StackPanel Grid.Column="0" Margin="0,0,14,0">
         <TextBlock Classes="section" Text="RUNS ON"
-                   ToolTip.Tip="Every platform DepthView is published for. Each is a self-contained single file with nothing to install and no runtime to add." />
+                   ToolTip.Tip="Every platform DepthView is published for. Each release zip holds a self-contained program: unpack it and run, with no installer and no runtime to add." />
         <StackPanel x:Name="PlatformList" Spacing="0"
                     ToolTip.Tip="Releases carry one self-contained binary per runtime identifier listed here." />
       </StackPanel>
@@ -91,6 +91,18 @@
                    ToolTip.Tip="What is actually running right now. Copy this into a bug report and it answers most of the first round of questions." />
         <Grid x:Name="BuildGrid" ColumnDefinitions="112,*"
               ToolTip.Tip="Resolved at run time from the loaded assemblies, so it always describes the copy in front of you." />
+
+        <TextBlock Classes="section" Text="UPDATES" Margin="0,10,0,6"
+                   ToolTip.Tip="DepthView can ask GitHub whether a newer release exists. The request carries nothing about you or your files." />
+        <CheckBox x:Name="AutoUpdateCheck" Content="Check for updates automatically"
+                  Foreground="#B7BEC8" FontSize="12"
+                  ToolTip.Tip="Once a day at most, when the main window opens. If a newer release exists a green bar offers to install it. Offline, nothing happens." />
+        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,6,0,0">
+          <Button x:Name="CheckUpdateButton" Content="Check for updates" Padding="8,4" FontSize="11"
+                  ToolTip.Tip="Ask GitHub now, even if a check ran today and even if the version was skipped." />
+          <TextBlock x:Name="UpdateStatus" VerticalAlignment="Center" FontSize="11" Foreground="#9AA3AF"
+                     TextWrapping="Wrap" MaxWidth="220" />
+        </StackPanel>
       </StackPanel>
     </Grid>
 

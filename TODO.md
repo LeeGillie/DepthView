@@ -16,9 +16,10 @@ Next up, roughly in order:
   can ship before any coupon is cut.
 - **§7.9** target-vs-simulated depth comparison and the suggested Z advance with an override
   warning - designed, not built.
+- **`--gcode` built 2026-09-30, not yet released** (§8). Next: run it on a relief job whose
+  settings were written down first, to confirm the decoding outside colour tests.
 - **G-code capture watcher** (planned `GcodeCapture.cs`, `CaptureArchive.cs` - not yet
-  written; `Integrations/WeCreat/Gcode/GcodeStream.cs` is the reader they build on) and the
-  segmenter that would sit on it; the segmenter waits on WeCreat (§8).
+  written; `GcodeStream` and now `GcodeAnalyzer` are what they build on).
 - Decide the `--calibrate` default `--size`.
 - **The measurement programme has not started** - no coupon cut, nothing weighed. Depth
   prediction is not a capability yet; see CLAUDE.md, What is owed.
@@ -864,13 +865,15 @@ settings exchange is in the spec as designed-not-built. A short cover note went 
 the analysis is worth anything inside MakeIt; the spec states it as the first requirement and
 gives a test for it.
 
-**One thing is not blocked.** `Integrations/WeCreat/Gcode/GcodeStream.cs` was added and
-**nothing consumes it.** Reading the generated `.gc` is a documented, supported user action
-(`Ctrl+Shift+P` per WeCreat's own KB), needs no vendor cooperation, and yields the ground
-truth: distinct S values, X and Y sample pitch, layer structure — what the machine was actually
-sent rather than what the project file claims. That is a real analysis feature on its own and
-it is the only way to verify that any future round trip preserves precision. **Build the
-consumer.**
+**~~Build the G-code consumer.~~ Built 2026-09-30, not yet released:** `--gcode <job.gc>
+[--json]` (`GcodeAnalyzer.cs`, `GcodeReport.cs`, schema `depthview.gcode/1`). It reports the
+distinct power levels sent, the step between power changes along a line, scan directions with
+line spacing measured per pass, every cutting height, and settings groups in MakeIt's units,
+with the order the job switches between them - which is where a cleaning pass shows. Tested
+on a synthetic job in `tests/check_json.py` and on the MOPAChroma Atlas captures (calibration
+3x3 and 10-row colour test match their known settings; the 349 MB file is a relief job, see
+CLAUDE.md). Still to do: confirm the decoding on a relief job whose settings were written down
+first, and whether `--gcode` should also find MakeIt's staged job without a path.
 
 ### Standing constraints on this thread
 

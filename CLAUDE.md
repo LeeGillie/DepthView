@@ -273,7 +273,20 @@ is unanswered. Do not bake it into analysis defaults until that comes back.
 
 Reading the generated G-code is a **documented, supported** user action, not a workaround:
 WeCreat's own KB gives `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS) → open G-code files → `.gc`.
-`src/DepthView/Integrations/WeCreat/Gcode/GcodeStream.cs` exists to read those files.
+`src/DepthView/Integrations/WeCreat/Gcode/GcodeStream.cs` reads those files and
+`GcodeAnalyzer.cs` is what `--gcode` runs (added 2026-09-30).
+
+**A second MakeIt relief job, read with `--gcode` (2026-09-30).** A 349 MB capture kept in
+the MOPAChroma Atlas project as `colour-test-2026-09-26_1826.gc` - misnamed, it is a relief job,
+not a colour test - came out as: 222 distinct power levels; power changing every **0.1 mm**
+along a line (the same X sampling as the first job, now seen twice); **120 heights 10 um
+apart**; and the raster **turning between passes through 0, 45, 90 and 135 degrees**, about 60
+passes in each direction, lines 0.025 mm apart within a pass. Two consequences for anything
+built on these files: scan lines are not always horizontal, so never measure line spacing as a
+Y difference; and successive passes in one direction are offset from each other, so the union
+of many passes' lines is denser than any one pass - spacing has to be measured per pass, which
+is what `GcodeAnalyzer` does. The source image and settings for this job were not recorded, so
+it confirms the structure, not the 239-level figure above.
 
 **Both came from WeCreat support, and both are publishable — check which stream a fact came
 from rather than treating "WeCreat" as uniformly restricted.** There are two:

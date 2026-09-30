@@ -196,6 +196,162 @@ public static class JsonReport
         });
     }
 
+    public const string GcodeSchema = "depthview.gcode/1";
+
+    /// <summary>What a G-code file sends the machine: power levels, sampling, heights, settings.</summary>
+    public static string Gcode(DepthView.Integrations.WeCreat.Gcode.GcodeAnalysis a) => Write(w =>
+    {
+        w.WriteStartObject();
+        w.WriteString("schema", GcodeSchema);
+        w.WriteString("depthview", BuildInfo.Version);
+        w.WriteBoolean("ok", true);
+        w.WriteString("path", FullPath(a.Path));
+        w.WriteString("name", System.IO.Path.GetFileName(a.Path));
+        w.WriteNumber("fileBytes", a.Bytes);
+        w.WriteBoolean("gzipped", a.Gzipped);
+        w.WriteNumber("lines", a.Lines);
+        StringOrNull(w, "generator", a.Generator);
+        w.WriteStartArray("headerComments");
+        foreach (var c in a.HeaderComments) w.WriteStringValue(c);
+        w.WriteEndArray();
+
+        w.WriteStartObject("moves");
+        w.WriteNumber("g0", a.G0Moves);
+        w.WriteNumber("g1", a.G1Moves);
+        w.WriteNumber("burning", a.BurnMoves);
+        w.WriteNumber("z", a.ZMoves);
+        Num(w, "burnLengthMm", a.BurnLengthMm);
+        Num(w, "travelLengthMm", a.TravelLengthMm);
+        w.WriteEndObject();
+
+        if (a.HasBurn)
+        {
+            w.WriteStartObject("burnArea");
+            Num(w, "minX", a.MinX); Num(w, "maxX", a.MaxX);
+            Num(w, "minY", a.MinY); Num(w, "maxY", a.MaxY);
+            w.WriteEndObject();
+        }
+        else w.WriteNull("burnArea");
+
+        // Every distinct S the burning moves use, with how many moves use it. This is the
+        // depth resolution the machine actually receives.
+        w.WriteNumber("powerLevelCount", a.PowerLevels.Count);
+        w.WriteStartArray("powerLevels");
+        foreach (var kv in a.PowerLevels)
+        {
+            w.WriteStartArray();
+            w.WriteNumberValue(kv.Key / 1000.0);
+            w.WriteNumberValue(kv.Value);
+            w.WriteEndArray();
+        }
+        w.WriteEndArray();
+
+        // Step between power changes along a line (binned), and one entry per scan direction.
+        w.WriteStartObject("alongLine");
+        if (a.StepMode is { } xs)
+        {
+            Num(w, "stepModeMm", xs.Mm);
+            Num(w, "stepModeShare", xs.Share);
+        }
+        else { w.WriteNull("stepModeMm"); w.WriteNull("stepModeShare"); }
+        w.WriteNumber("stepCount", a.StepCount);
+        w.WriteNumber("stepBinUm", DepthView.Integrations.WeCreat.Gcode.GcodeAnalysis.StepBinUm);
+        w.WriteEndObject();
+
+        w.WriteStartArray("directions");
+        foreach (var d in a.Directions)
+        {
+            w.WriteStartObject();
+            w.WriteNumber("angleDeg", d.AngleDeg);
+            w.WriteNumber("passes", d.Passes);
+            w.WriteNumber("linesPerPass", d.LinesPerPass);
+            NumOrNull(w, "linePitchMm", d.PitchMm);
+            NumOrNull(w, "lineDensityPerCm", d.DensityPerCm);
+            w.WriteNumber("burnMoves", d.BurnMoves);
+            Num(w, "burnLengthMm", d.BurnLengthMm);
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
+
+        w.WriteStartArray("zLevels");
+        foreach (var z in a.ZLevels)
+        {
+            w.WriteStartObject();
+            Num(w, "z", z.Z);
+            w.WriteNumber("burnMoves", z.BurnMoves);
+            Num(w, "burnLengthMm", z.BurnLengthMm);
+            IntOrNull(w, "mainAngleDeg", z.MainAngleDeg);
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
+        w.WriteBoolean("zLevelsTruncated", a.ZLevelsTruncated);
+        w.WriteNumber("undefinedOperandLines", a.UndefinedOperands);
+
+        w.WriteStartArray("settingsGroups");
+        foreach (var g in a.Groups)
+        {
+            w.WriteStartObject();
+            w.WriteNumber("index", g.Index);
+            Num(w, "minS", g.MinS);
+            Num(w, "maxS", g.MaxS);
+            w.WriteNumber("powerLevelCount", g.PowerLevels.Count);
+            NumOrNull(w, "feedMmPerMin", g.FeedMmPerMin);
+            NumOrNull(w, "frequencyKHz", g.FrequencyKHz);
+            NumOrNull(w, "pulseWidthNs", g.PulseWidthNs);
+            IntOrNull(w, "angleDeg", g.AngleDeg);
+            w.WriteStartArray("rasterAnglesDeg");
+            foreach (int ang in g.RasterAngles) w.WriteNumberValue(ang);
+            w.WriteEndArray();
+            NumOrNull(w, "linePitchMm", g.LinePitchMm);
+            w.WriteNumber("linesPerPass", g.ScanLines);
+            w.WriteNumber("burnMoves", g.BurnMoves);
+            Num(w, "burnLengthMm", g.BurnLengthMm);
+            w.WriteNumber("firstLine", g.FirstLine);
+
+            // The same figures in the units MakeIt's settings panel shows. Decoded, not measured:
+            // see "decoding" below for how far that decoding has been confirmed.
+            w.WriteStartObject("makeIt");
+            Num(w, "powerPercentMin", g.MinS / 10);
+            Num(w, "powerPercentMax", g.MaxS / 10);
+            NumOrNull(w, "speedMmPerS", g.SpeedMmPerS);
+            NumOrNull(w, "frequencyKHz", g.FrequencyKHz);
+            NumOrNull(w, "pulseWidthNs", g.PulseWidthNs);
+            NumOrNull(w, "lineDensityPerCm", g.LineDensityPerCm);
+            w.WriteEndObject();
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
+
+        w.WriteNumber("settingsSwitches", Math.Max(0, a.TotalRuns - 1));
+        w.WriteStartArray("runs");
+        foreach (var r in a.Runs)
+        {
+            w.WriteStartObject();
+            w.WriteNumber("group", r.Group);
+            w.WriteNumber("firstLine", r.FirstLine);
+            NumOrNull(w, "z", r.Z);
+            w.WriteNumber("burnMoves", r.BurnMoves);
+            Num(w, "burnLengthMm", r.BurnLengthMm);
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
+        w.WriteBoolean("runsTruncated", a.TotalRuns > a.Runs.Count);
+
+        w.WriteStartArray("mCodes");
+        foreach (var kv in a.MCodes)
+        {
+            w.WriteStartArray();
+            w.WriteNumberValue(kv.Key);
+            w.WriteNumberValue(kv.Value);
+            w.WriteEndArray();
+        }
+        w.WriteEndArray();
+
+        w.WriteString("decoding", DepthView.Integrations.WeCreat.Gcode.GcodeReport.EncodingNote);
+        Num(w, "seconds", a.Elapsed.TotalSeconds);
+        w.WriteEndObject();
+    });
+
     /// <summary>A failure, in the same envelope, so a caller parsing stdout always gets JSON.</summary>
     public static string Error(string schema, string message) => Write(w =>
     {

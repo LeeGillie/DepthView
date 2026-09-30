@@ -22,6 +22,7 @@ so the host needs no .NET runtime and nothing else installed.
 | Analyse a depth map: true bit depth, levels actually used, 8-bit-in-16-bit imposters, range use, depths per pass count | **Built.** `--report --json` |
 | Tune a depth map into a new file: level points, stretch, rim, fit, quantise, invert, bit depth | **Built.** `--tune --json` |
 | Exchange engraving settings (power, speed, passes, frequency, pulse width, ...) with the host | **Not built.** Designed below so a host can plan for it |
+| Read a G-code job: power levels actually sent, line spacing, heights, settings in MakeIt's units | **Built.** `--gcode --json` |
 | Predict physical depth from material and settings | **Not built.** Needs calibration measurements that have not been made yet. Nothing in the output below is a depth prediction |
 
 ---
@@ -247,6 +248,40 @@ A complete example, for an 8-bit map saved as 16-bit:
 | `target` | with `--depth-mm`: `depthMm`, `passes`, `targetMicronsPerPass`; else `null`. **This is the target divided by the passes, not a prediction** of what each pass will cut |
 | `passes` | the pass count the figures were computed for |
 | `before`, `after` | full report entries, as above, for the input and for the file written. `after` is measured by reading the new file back, not predicted |
+
+---
+
+## `depthview.gcode/1`
+
+```
+DepthView --gcode <job.gc> --json [--out result.json]
+```
+
+What a G-code file actually sends the machine - the check that closes the loop after an
+export, because it shows what survived the trip. Reads MakeIt's staged job and LightBurn
+G-code, gzipped or not, streaming: a 349 MB MakeIt relief job reads in about three seconds.
+Exit code 0 when read, 2 when it could not be.
+
+| Field | Meaning |
+|---|---|
+| `generator`, `headerComments` | e.g. `"wecreat 3.0.6"` from MakeIt's first comment line |
+| `moves` | `g0`, `g1`, `burning` (G1 with S &gt; 0), `z`, `burnLengthMm`, `travelLengthMm` |
+| `burnArea` | `minX`, `maxX`, `minY`, `maxY` of everything that burned |
+| `powerLevelCount`, `powerLevels` | every distinct S the burning uses, as `[S, moves]` - the depth resolution the machine really receives |
+| `alongLine` | `stepModeMm`: the commonest step between power changes along a line (the sample pitch of a raster), `stepModeShare`, `stepCount`, `stepBinUm` |
+| `directions[]` | per scan direction: `angleDeg` (0-179), `passes`, `linesPerPass`, `linePitchMm`, `lineDensityPerCm`, `burnMoves`, `burnLengthMm`. Spacing is measured within one pass |
+| `zLevels[]` | each cutting height with `burnMoves`, `burnLengthMm`, `mainAngleDeg` |
+| `undefinedOperandLines` | lines with a non-numeric operand such as MakeIt's `Zundefined`, ignored rather than read as zero |
+| `settingsGroups[]` | one per combination of frequency, pulse width and speed: `minS`, `maxS`, `powerLevelCount`, `feedMmPerMin`, `frequencyKHz`, `pulseWidthNs`, `angleDeg`, `rasterAnglesDeg`, `linePitchMm`, `linesPerPass`, `burnMoves`, `burnLengthMm`, `firstLine`, and `makeIt` - the same in MakeIt's units: `powerPercentMin`/`Max`, `speedMmPerS`, `frequencyKHz`, `pulseWidthNs`, `lineDensityPerCm` |
+| `settingsSwitches`, `runs[]` | how often, and in what order, the job changes group - a cleaning pass shows up as a second group recurring at an interval |
+| `mCodes` | every M code seen, as `[code, count]` |
+| `decoding` | how far the decoding below is confirmed, as text to show a user |
+
+**How sure the decoding is.** Power as S/10 percent, frequency from `M38F`, pulse width from
+`M39P` and speed from `G1 F` were confirmed for MakeIt's Color Test (Fine Color Marking) by a
+controlled run checked against the physical part. They are assumed, not yet confirmed, for
+relief and other job types. Line spacing and the step along a line are measured from the moves
+themselves.
 
 ---
 

@@ -661,6 +661,19 @@ above it changing.
 Meanwhile, export the depth map from MakeIt and open the image directly — every
 analysis and tuning feature works on it.
 
+### G-code: what the machine is actually sent
+
+`DepthView --gcode <job.gc>` reads a G-code job and reports what reaches the laser: how many
+distinct power levels it really uses, the spacing of its scan lines and of the power changes
+along them, every cutting height, and each group of settings in MakeIt's own units. MakeIt
+stages every job as a G-code file, and its knowledge base documents `Ctrl+Shift+P` for getting
+at it. LightBurn G-code and gzipped files read too, and a 349 MB relief job takes seconds.
+
+This is where precision is really decided. In one measured MakeIt job, a genuine 16-bit map
+with 61,898 distinct levels reached the machine as 239 distinct power levels, sampled every
+0.1 mm along each line. The decoding of power, frequency, pulse width and speed is confirmed
+for MakeIt's colour test and assumed for relief jobs, and the report says so.
+
 ---
 
 ## Command line
@@ -677,11 +690,12 @@ DepthView --report <image>           full text report (also written beside the i
 DepthView --report <folder>          every image in the folder
 DepthView --report <folder> --summary --out results.txt
 DepthView --report <image> --json    the same analysis as JSON, for another program to read
+DepthView --gcode <job.gc>           what a G-code job actually sends the machine
 DepthView --project <file.lbrn2>     read a laser project and report its layers
 DepthView --lb <command>             drive a running copy of LightBurn over UDP
 ```
 
-**Calling DepthView from your own program.** `--report --json` and `--tune --json` print one
+**Calling DepthView from your own program.** `--report --json`, `--tune --json` and `--gcode --json` print one
 JSON document and nothing else, so a laser program, a script or an Electron app can run
 DepthView as a helper and act on the answer. [docs/INTEGRATION.md](docs/INTEGRATION.md) is the
 specification: the commands, every field, exit codes and a worked example.
@@ -832,6 +846,9 @@ src/DepthView/
                           LevelStripControl - the draggable black and white points
   Imaging/                PngDecoder, PnmDecoder, PfmDecoder, TiffSniffer, ImageLoader
                           PngEncoder - 8/16-bit greyscale out, with pHYs and provenance
+  Integrations/WeCreat/Gcode/
+                          GcodeStream (allocation-free reader), GcodeAnalyzer and
+                          GcodeReport (--gcode)
   Analysis/               DepthAnalyzer, AnalysisResult, ReportWriter,
                           JsonReport (the --json output; docs/INTEGRATION.md is its spec)
   Processing/             DepthTuner (the correction), TuningOptions, TuneJob (shared by

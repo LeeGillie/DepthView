@@ -54,6 +54,90 @@ def run(exe, *args, cwd=None):
     return p.returncode, doc, p.stdout, p.stderr
 
 
+def write_gcode(path):
+    """A small MakeIt-style job with known answers.
+
+    Two heights. At each, a main pass: 30 horizontal lines 0.05 mm apart, 20 samples of
+    0.1 mm per line, power cycling through five levels (S 100..500). At the second height a
+    cleaning pass follows: 30 vertical lines 0.05 mm apart at one power (S 300 would collide
+    with the main levels, so S 250). The preamble carries the traps: M107X-105Y-105 must not
+    move anything, M4S1000 must not become a power, and a Zundefined line must not become Z0.
+    """
+    out = [";wecreat 3.0.6", ";canvas border: 0 0 210 210",
+           "M107X-105Y-105", "M4S1000", "G90", "G0X105Y105", "G0Zundefined"]
+
+    def main_pass(z):
+        out.append(f"G0Z{z}")
+        out.append("M38F45")
+        out.append("M39P250")
+        out.append("G1F30000")          # 500 mm/s
+        for i in range(30):
+            y = 100 + i * 0.05
+            out.append(f"G0X100Y{y:.3f}")
+            for k in range(20):
+                s = 100 * (1 + (k % 5))
+                out.append(f"G1X{100 + (k + 1) * 0.1:.3f}S{s}")
+            out.append("G1 S0")
+
+    def cleaning_pass():
+        out.append("M38F100")
+        out.append("M39P350")
+        out.append("G1F210000")         # 3500 mm/s
+        for i in range(30):
+            x = 100 + i * 0.05
+            out.append(f"G0X{x:.3f}Y100")
+            out.append(f"G1Y102S250")
+            out.append("G1 S0")
+
+    main_pass(1.0)
+    main_pass(0.99)
+    cleaning_pass()
+    out += ["G0X105Y105", "M5"]
+    with open(path, "w", newline="\n") as f:
+        f.write("\n".join(out) + "\n")
+
+
+def check_gcode(exe, work):
+    gc = os.path.join(work, "job.gc")
+    write_gcode(gc)
+    code, doc, out, _ = run(exe, "--gcode", gc, "--json", cwd=work)
+    check(code == 0, f"gcode: exit {code}")
+    if not doc:
+        return
+    check(doc.get("schema") == "depthview.gcode/1", f"gcode schema {doc.get('schema')!r}")
+    check(doc.get("generator") == "wecreat 3.0.6", f"generator {doc.get('generator')!r}")
+    levels = [s for s, _ in doc["powerLevels"]]
+    check(levels == [100, 200, 250, 300, 400, 500], f"power levels {levels}")
+    step = doc["alongLine"]["stepModeMm"]
+    check(step == 0.1, f"step along line {step}, expected 0.1")
+    zs = [z["z"] for z in doc["zLevels"]]
+    check(zs == [1.0, 0.99], f"cutting heights {zs} - Zundefined must not become a height")
+    check(doc["undefinedOperandLines"] == 1, f"undefined lines {doc['undefinedOperandLines']}")
+    groups = doc["settingsGroups"]
+    check(len(groups) == 2, f"expected 2 settings groups, got {len(groups)}")
+    if len(groups) == 2:
+        g1, g2 = groups[0]["makeIt"], groups[1]["makeIt"]
+        check((g1["frequencyKHz"], g1["pulseWidthNs"], g1["speedMmPerS"]) == (45, 250, 500),
+              f"main settings {g1}")
+        check(g1["powerPercentMin"] == 10 and g1["powerPercentMax"] == 50, f"main power {g1}")
+        check(abs(g1["lineDensityPerCm"] - 200) < 0.5, f"main line density {g1['lineDensityPerCm']}")
+        check((g2["frequencyKHz"], g2["pulseWidthNs"], g2["speedMmPerS"]) == (100, 350, 3500),
+              f"cleaning settings {g2}")
+        check(groups[1]["rasterAnglesDeg"] == [90], f"cleaning direction {groups[1]['rasterAnglesDeg']}")
+    check(doc["settingsSwitches"] == 1, f"settings switches {doc['settingsSwitches']}")
+    area = doc["burnArea"]
+    check(area["minX"] == 100 and area["minY"] == 100, f"burn area {area} - M107X-105Y-105 moved something")
+
+    # The text form runs too, and says what it could not confirm.
+    code, _, text, _ = run_text(exe, "--gcode", gc, cwd=work)
+    check(code == 0 and "assumed, not" in text and "6 distinct" in text, "gcode text report")
+
+
+def run_text(exe, *args, cwd=None):
+    p = subprocess.run([exe, *args], capture_output=True, text=True, cwd=cwd)
+    return p.returncode, None, p.stdout, p.stderr
+
+
 def main(exe):
     exe = os.path.abspath(exe)
     work = tempfile.mkdtemp(prefix="dv-json-")
@@ -135,6 +219,9 @@ def main(exe):
             check(same_file(after.get("path"), tuned), "after.path should be the written file")
             check(same_file(doc.get("output"), tuned), "output should be the written file")
             check(any(r["passes"] == 200 for r in after.get("passCounts", [])), "tune table lacks --passes 200")
+
+        # --- G-code: a synthetic job whose answers are known by construction -------------
+        check_gcode(exe, work)
 
         # --- the original is never written over -------------------------------------
         size = os.path.getsize(src)

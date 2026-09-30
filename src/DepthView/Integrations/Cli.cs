@@ -16,6 +16,49 @@ namespace DepthView;
 /// </summary>
 internal static partial class Program
 {
+    /// <summary>
+    /// DepthView --gcode &lt;file.gc&gt; [--json] [--out file] - what a G-code file actually
+    /// sends the machine. Reading MakeIt's staged job is a documented user action
+    /// (Ctrl+Shift+P in MakeIt), so this needs nothing from the vendor.
+    /// Exit codes: 0 read, 2 could not be read.
+    /// </summary>
+    private static int RunGcode(string[] args)
+    {
+        AttachParentConsole();
+
+        bool json = args.Contains("--json");
+        string? outPath = null, path = null;
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--out" && i + 1 < args.Length) { outPath = args[++i]; continue; }
+            if (!args[i].StartsWith('-') && path is null) path = args[i];
+        }
+
+        if (path is null || !File.Exists(path))
+        {
+            string msg = path is null ? "No input file. Usage: DepthView --gcode <file.gc> [--json] [--out <file>]"
+                                      : $"No such file: {path}";
+            if (json) Console.WriteLine(Analysis.JsonReport.Error(Analysis.JsonReport.GcodeSchema, msg));
+            Console.Error.WriteLine(msg);
+            return 2;
+        }
+
+        try
+        {
+            var a = Integrations.WeCreat.Gcode.GcodeAnalyzer.Analyze(path);
+            string doc = json ? Analysis.JsonReport.Gcode(a) : Integrations.WeCreat.Gcode.GcodeReport.Build(a);
+            if (outPath is not null) File.WriteAllText(outPath, doc);
+            else Console.Write(doc);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            if (json) Console.WriteLine(Analysis.JsonReport.Error(Analysis.JsonReport.GcodeSchema, "Could not read: " + ex.Message));
+            Console.Error.WriteLine("Could not read: " + ex.Message);
+            return 2;
+        }
+    }
+
     /// <summary>DepthView --project &lt;file&gt; - read a laser project and report it.</summary>
     private static int RunProject(string[] args)
     {

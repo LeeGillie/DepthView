@@ -103,6 +103,14 @@ internal static partial class Program
           --passes <n,...> pass counts for the JSON table (default 64,100,128,200,256,512,1024)
           --histogram      with --json, also list every occupied level and its pixel count
 
+        G-code: what a job file actually sends the machine
+          DepthView --gcode <file.gc> [--json] [--out <file>]
+                           distinct power levels, scan-line spacing, the spacing of power
+                           changes along a line, cutting heights, and each group of settings
+                           in MakeIt's units. Reads MakeIt's staged job (Ctrl+Shift+P in
+                           MakeIt opens its folder) and LightBurn G-code; gzipped files too.
+                           --json gives schema depthview.gcode/1, see docs/INTEGRATION.md
+
         Headless relief render
           DepthView --render <image> [options]      write a lit relief render to a PNG
             --material <name>   material preset, matched loosely (default: polished brass)
@@ -264,6 +272,9 @@ internal static partial class Program
 
         int ridx = Array.FindIndex(args, a => a is "--render");
         if (ridx >= 0) return RunRender(args.Skip(ridx + 1).ToArray());
+
+        int gidx = Array.FindIndex(args, a => a is "--gcode");
+        if (gidx >= 0) return RunGcode(args.Skip(gidx + 1).ToArray());
 
         int pidx = Array.FindIndex(args, a => a is "--project");
         if (pidx >= 0) return RunProject(args.Skip(pidx + 1).ToArray());

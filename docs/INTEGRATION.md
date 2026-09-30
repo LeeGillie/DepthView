@@ -138,7 +138,9 @@ and leaves the input untouched. It never writes over an original.
 ## Conventions
 
 - **Black is deepest, white is untouched.** Level 0 gets every pass, the maximum gets none.
-- **Paths in the output are absolute.**
+- **Paths in the output are absolute and normalised**, so they may be spelled differently from
+  the argument - on Windows, for example, an 8.3 short name such as `RUNNER~1` comes back
+  expanded. To match an entry to a file you passed, compare resolved paths, not strings.
 - **A value that does not apply is `null`**, never a stand-in default.
 - **Output is plain ASCII.** Anything else inside strings is `\u` escaped, so no console code
   page can damage a file name on its way through a pipe.

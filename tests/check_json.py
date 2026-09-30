@@ -35,6 +35,15 @@ def check(ok, message):
         problems.append(message)
 
 
+def same_file(a, b):
+    """Paths come back absolute and normalised, which on Windows includes expanding 8.3 short
+    names (a CI runner's TEMP is C:\\Users\\RUNNER~1\\...). Compare what they point at, not
+    how they are spelled."""
+    if not a or not b:
+        return False
+    return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
+
+
 def run(exe, *args, cwd=None):
     p = subprocess.run([exe, *args], capture_output=True, text=True, cwd=cwd)
     try:
@@ -102,7 +111,7 @@ def main(exe):
         code, doc, out, _ = run(exe, "--report", odd, "--json", cwd=work)
         check(all(ord(ch) < 128 for ch in out), "JSON output contains non-ASCII characters")
         check("\\u002B" not in out, "'+' is escaped - the HTML-safe encoder is back")
-        check(bool(doc) and doc["files"][0].get("path") == os.path.abspath(odd),
+        check(bool(doc) and same_file(doc["files"][0].get("path"), odd),
               "a non-ASCII file name did not survive the round trip")
 
         # --- a file that is not there -------------------------------------------------
@@ -123,7 +132,8 @@ def main(exe):
             check(doc.get("schema") == "depthview.tune/1" and doc.get("ok") is True, "tune envelope")
             check(doc.get("target", {}).get("targetMicronsPerPass") == 3.5, f"target: {doc.get('target')}")
             after = doc.get("after", {})
-            check(after.get("path") == os.path.abspath(tuned), "after.path should be the written file")
+            check(same_file(after.get("path"), tuned), "after.path should be the written file")
+            check(same_file(doc.get("output"), tuned), "output should be the written file")
             check(any(r["passes"] == 200 for r in after.get("passCounts", [])), "tune table lacks --passes 200")
 
         # --- the original is never written over -------------------------------------

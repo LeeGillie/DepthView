@@ -2,62 +2,32 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.4.0 — install it once, and it keeps itself current
+## What's new in 1.5.0 — DepthView as a helper for other programs
 
-**Every platform now downloads as one zip.** Unzip it and there is a `DepthView` folder: the
-program, a `README.txt` that walks through starting, updating and removing it, and the licence.
-On a Mac the program is a proper `DepthView.app`, built and signed on a Mac so Apple silicon
-will run it. On Linux there is an optional script that adds DepthView to your application menu.
-No more `chmod +x`, no more bare files named after their platform.
+**JSON output for other programs.** `--report --json` and `--tune --json` print one JSON
+document and nothing else, so a laser control program, a script or an Electron app can run
+DepthView and act on the answer instead of scraping text. The formats are versioned
+(`depthview.report/1`, `depthview.tune/1`) and checked on Windows, macOS and Linux on every
+build. [docs/INTEGRATION.md](https://github.com/LeeGillie/DepthView/blob/main/docs/INTEGRATION.md)
+is the specification: how to call it, every field, the exit codes and a worked example.
 
-**DepthView now updates itself.** Once a day it asks GitHub whether a newer release exists, and
-if one does, a green bar says so. **Update now** downloads the zip for your computer, checks it
-against the SHA-256 GitHub publishes for it, starts the new copy once to make sure it runs and
-reports the right version, and only then replaces the program and restarts. If any check fails,
-nothing is changed. **Skip this version** hides the bar until the next one; *About → Check for
-updates* asks straight away, and the switch beside it turns checking off. Nothing is sent but the
-request itself.
-
-**1.3.0 and earlier cannot update themselves** — they have no updater. Download this release by
-hand once; from here on, updates come to you. Your saved pass count carries over.
-
----
-
-## True scale, everywhere
-
-The 3D relief window and `--render` now draw depth the same way the tuning dialog does: a blank
-diameter and a target depth in millimetres, with exaggeration in doublings around it, opening at
-**true scale** — Z in the same millimetres as X and Y. The slider, its label and a badge on the
-picture shade from green at true scale through yellow (2×) to red (8× and beyond, "inspection
-only"), so a magnified view is never mistaken for the real thing.
-
-*Correction to the 1.3.0 notes, which said the old exaggeration had been fixed: only the tuning
-dialog had been. The relief window and `--exag` still drew about 5 mm of relief on a 40 mm blank
-and called it 1.0. They are fixed now.* **Scripts that pass `--exag` change meaning:** it is now
-doublings, so `--exag 2` draws 4×, and 0 is true scale.
-
-## Your blank, once
-
-Blank diameter, **thickness** and target depth are now one set of numbers shared by every
-window: change one in the tuning dialog or the relief window and both move, and they are
-remembered between runs. Target depth starts at 18% of the thickness and follows it until you
-type your own; it warns when little floor would be left under the deepest cut. The tuning card
-adds **depth per pass** — the target depth over your pass count — and the 3D view stands the
-relief on a slab of the real thickness.
-
-## A mass-loss calibration coupon
-
-`DepthView --calibrate --mass` writes a coupon for anyone with a milligram scale: one uniform
-zone per coupon, no engraved labels (anything engraved counts as removed mass), and a worksheet
-with the controls and the arithmetic from weight lost to removal per joule. The depth-wedge
-coupon's comb no longer draws gaps finer than the image can represent under a label that claims
-they are there; it leaves them blank and says what size would draw them.
+**The original is never written over — now enforced, not just intended.** `--tune` refuses an
+`--out`, `--mask` or `--outline` that names the input file, and the tuning window refuses a
+save onto the original. Before this release nothing stopped either.
 
 ## Smaller things
 
-- `DepthView --version`, `--check-update` and `--update` from a terminal.
-- `--thick` alongside `--blank` and `--depth-mm` for `--render`, `--relief` and `--tune-ui`.
-- The Visual Studio solution now shows the docs, workflows, packaging and tests.
+- `--report --json` takes `--passes 60,120,...` to choose the pass counts in its table, and
+  `--histogram` to include every occupied grey level.
+- `--report` no longer mistakes the number after `--passes` for a file name.
+
+## Updating
+
+**From 1.4.0:** the green bar will offer this release — click **Update now**.
+
+**From 1.3.0 or earlier:** those versions cannot update themselves. Download this release by
+hand once, and read the [1.4.0 notes](https://github.com/LeeGillie/DepthView/releases/tag/v1.4.0)
+for what changed there — in particular, `--exag` now counts doublings, with 0 as true scale.
 
 ---
 
@@ -93,7 +63,7 @@ folder and DepthView is gone.
 
 ## Updating
 
-From this version on, DepthView asks GitHub once a day whether a newer release exists and
+Since 1.4.0, DepthView asks GitHub once a day whether a newer release exists and
 shows a green bar when there is one. **Update now** downloads the zip for your computer,
 checks it against the checksum GitHub publishes, starts the new copy once to be sure it
 runs, then replaces the program and restarts. If any check fails, nothing is changed. It

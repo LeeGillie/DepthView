@@ -3,13 +3,14 @@
 Everything discussed and consciously set aside, with enough context to pick it up cold.
 Ordered by my estimate of value per unit of work, not by size.
 
-### Resume here (paused 2026-09-25, after 1.4.0)
+### Resume here (updated 2026-09-30, after 1.5.0)
 
-1.4.0 is released: true-scale relief, one program-wide blank, zip installers and the in-place
-updater. The `v1.4.0` tag is on GitHub. Next up, roughly in order:
+1.4.0 brought true-scale relief, one program-wide blank, zip installers and the in-place
+updater; 1.5.0 adds JSON output for host programs and enforces never writing over the input.
+Next up, roughly in order:
 
-- **JSON interface for host programs** built 2026-09-29, committed locally, not pushed:
-  test, push, release as 1.5.0, then the cover note to WeCreat (§8).
+- **JSON interface for host programs** released in 1.5.0 (2026-09-30). Next: the short
+  cover note to WeCreat pointing at `docs/INTEGRATION.md` (§8).
 - **Listen for Mac and Linux reports** on the 1.4.0 zips - only CI has run them (§6).
 - **§7.3-7.5** (terrace width, noise floor, dither detection) need no measured constant and
   can ship before any coupon is cut.
@@ -851,14 +852,14 @@ that if not, A is a larger piece of work than it sounds.
 **Nothing yet for A, B or C — all three are blocked on their reply, and all three imply
 different work.** Do not speculatively build an interface to a spec that does not exist.
 
-**Built 2026-09-29, not yet released: the reverse of A, which needs nothing from MakeIt.**
+**Built 2026-09-29, released in 1.5.0: the reverse of A, which needs nothing from MakeIt.**
 Allen's actual question was how to integrate DepthView *quickly*, and every option above
 starts with work on WeCreat's side. The quick route is MakeIt bundling DepthView's own
 executable and calling it - Electron runs native helpers routinely - so DepthView's side now
 exists: `--report --json` and `--tune --json` (`Analysis/JsonReport.cs`), specified in
 `docs/INTEGRATION.md` with a worked example, and held by `tests/check_json.py` in CI. The
-settings exchange is in the spec as designed-not-built. Next: release it, then send Allen a
-short note pointing at the spec. Open question 1 (full-precision export) still decides whether
+settings exchange is in the spec as designed-not-built. Next: send Allen a short note
+pointing at the spec. Open question 1 (full-precision export) still decides whether
 the analysis is worth anything inside MakeIt; the spec states it as the first requirement and
 gives a test for it.
 

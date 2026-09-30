@@ -9,8 +9,8 @@ Ordered by my estimate of value per unit of work, not by size.
 updater; 1.5.0 adds JSON output for host programs and enforces never writing over the input.
 Next up, roughly in order:
 
-- **JSON interface for host programs** released in 1.5.0 (2026-09-30). Next: the short
-  cover note to WeCreat pointing at `docs/INTEGRATION.md` (§8).
+- **JSON interface for host programs** released in 1.5.0 (2026-09-30), and the cover note
+  pointing WeCreat at `docs/INTEGRATION.md` sent the same day. Waiting on them (§8).
 - **Listen for Mac and Linux reports** on the 1.4.0 zips - only CI has run them (§6).
 - **§7.3-7.5** (terrace width, noise floor, dither detection) need no measured constant and
   can ship before any coupon is cut.
@@ -858,8 +858,9 @@ starts with work on WeCreat's side. The quick route is MakeIt bundling DepthView
 executable and calling it - Electron runs native helpers routinely - so DepthView's side now
 exists: `--report --json` and `--tune --json` (`Analysis/JsonReport.cs`), specified in
 `docs/INTEGRATION.md` with a worked example, and held by `tests/check_json.py` in CI. The
-settings exchange is in the spec as designed-not-built. Next: send Allen a short note
-pointing at the spec. Open question 1 (full-precision export) still decides whether
+settings exchange is in the spec as designed-not-built. A short cover note went to Allen on
+2026-09-30 with the spec and release links; it does not repeat the call offer, which the
+23 Sep message already made. Open question 1 (full-precision export) still decides whether
 the analysis is worth anything inside MakeIt; the spec states it as the first requirement and
 gives a test for it.
 

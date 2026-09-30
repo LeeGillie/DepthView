@@ -651,8 +651,10 @@ to defeat that.**
 
 Support depends on WeCreat documenting the parts a third-party tool would need: how to
 find the depth-map object, which operation is bound to it, how to read its parameters,
-and how to write a change back leaving everything else untouched. That has been
-requested from WeCreat support; there is no answer yet. The reader is built behind the
+and how to write a change back leaving everything else untouched. That was requested
+from WeCreat support, and the discussion is ongoing. The route now proposed needs no
+`.wws` access at all: MakeIt calling DepthView's command line, as described in
+[docs/INTEGRATION.md](docs/INTEGRATION.md). The reader is built behind the
 same interface as the LightBurn one, so a schema can be dropped in without anything
 above it changing.
 

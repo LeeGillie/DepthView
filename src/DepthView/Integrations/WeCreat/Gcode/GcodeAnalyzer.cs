@@ -30,8 +30,9 @@ namespace DepthView.Integrations.WeCreat.Gcode;
 /// <list type="bullet">
 /// <item>Power: <c>S</c> on a <c>G1</c> move, 0-1000. A move burns when S &gt; 0.</item>
 /// <item>Frequency <c>M38F</c> (kHz), pulse width <c>M39P</c> (ns), speed <c>G1 F</c> (mm/min)
-/// and power as S/10 percent: confirmed for MakeIt's Color Test by a controlled run in the
-/// MOPAChroma Atlas project, not yet for relief jobs. The report says so.</item>
+/// and power as S/10 percent: confirmed for MakeIt 3.0.6 twice - a Color Test in the
+/// MOPAChroma Atlas project, and a 10-layer Relief (Emboss) job read back against its
+/// settings panel on 2026-09-30. Other job types are assumed; the report says so.</item>
 /// <item>Line pitch and the step between power changes along a line are measured from the
 /// moves themselves, not decoded from any setting.</item>
 /// </list>
@@ -164,6 +165,7 @@ public static class GcodeAnalyzer
         {
             a.ZMoves++;
             a.NoteZ(st.Z);
+            a.NoteLayerStart();
         }
 
         if (st.Motion == 0) { a.G0Moves++; st.LastAngle = int.MinValue; } else a.G1Moves++;
@@ -326,6 +328,7 @@ public sealed class GcodeAnalysis
     public sealed class ZLevel
     {
         public double Z;
+        public int Layers;
         public long BurnMoves;
         public double BurnLengthMm;
         internal readonly Dictionary<int, double> ByAngle = new();
@@ -376,6 +379,16 @@ public sealed class GcodeAnalysis
         _zIndex[key] = level;
         ZLevels.Add(level);
     }
+
+    /// <summary>
+    /// Layers, as opposed to heights: every Z move followed by burning starts one. MakeIt has
+    /// been seen cutting two layers at the same height (a 10-layer job at 9 heights), so counting
+    /// distinct heights would miss a layer the user asked for.
+    /// </summary>
+    public int Layers;
+    private bool _layerPending;
+
+    internal void NoteLayerStart() => _layerPending = true;
 
     internal void NoteStep(double len)
     {
@@ -443,6 +456,7 @@ public sealed class GcodeAnalysis
             NoteZ(zz);
             if (_zIndex.TryGetValue(Key(zz), out var level))
             {
+                if (_layerPending) { Layers++; level.Layers++; _layerPending = false; }
                 level.BurnMoves++;
                 level.BurnLengthMm += len;
                 level.ByAngle[angle] = level.ByAngle.GetValueOrDefault(angle) + len;

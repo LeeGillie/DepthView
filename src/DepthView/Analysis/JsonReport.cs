@@ -273,11 +273,13 @@ public static class JsonReport
         }
         w.WriteEndArray();
 
+        w.WriteNumber("layers", a.Layers);
         w.WriteStartArray("zLevels");
         foreach (var z in a.ZLevels)
         {
             w.WriteStartObject();
             Num(w, "z", z.Z);
+            w.WriteNumber("layers", z.Layers);
             w.WriteNumber("burnMoves", z.BurnMoves);
             Num(w, "burnLengthMm", z.BurnLengthMm);
             IntOrNull(w, "mainAngleDeg", z.MainAngleDeg);

@@ -288,6 +288,26 @@ of many passes' lines is denser than any one pass - spacing has to be measured p
 is what `GcodeAnalyzer` does. The source image and settings for this job were not recorded, so
 it confirms the structure, not the 239-level figure above.
 
+**A third, with its settings panel: the decoding is confirmed for relief (2026-09-30).** Lee's
+MakeIt 3.0.6 MOPA Relief job, Emboss, set to 10 layers, 82% power, 2327 mm/s, pulse width 200,
+frequency 48, line density 100, scanning angle Auto Planning, Z-Axis Descent Distance **off**,
+cleaning layer off (from a screenshot of MakeIt's panel for that job; the file is
+`samples/gcode.gc`, local only). `--gcode` reads back: power up to exactly 82% (S 820, 245
+levels from 1%), G1 F 139620 = 2327 mm/s, M38F48, M39P200, lines 0.1 mm apart = 100 per cm,
+power changing every 0.1 mm along a line. So S/10 percent, M38F kHz, M39P ns, G1 F mm/min and
+line density per centimetre are now confirmed for relief as well as for the colour test. Three
+things the panel does not say and the file does:
+- **Auto Planning turns the raster 27 degrees per layer** (27, 54, 81, ... wrapping to 9, 36,
+  63, 90): one pass per layer, a different direction each time.
+- **Z still descends 10 um per layer with the Z-descent switch off** - from 40.96 down to 40.88,
+  returning to 40.97 at the end. What the switch actually controls is unknown; worth asking before
+  building anything on it, and it matters for TODO 7.9.
+- **Ten layers, nine heights**: the last two layers are both cut at 40.88. `--gcode` counts
+  layers (a Z move followed by burning) separately from heights for this reason.
+Burning per layer falls from 28 m to 0.7 m, so each layer also cuts a shrinking area - MakeIt's
+relief is both per-pixel power (245 levels) and slicing across layers. How the two combine is
+not established; do not describe it further until it is.
+
 **Both came from WeCreat support, and both are publishable — check which stream a fact came
 from rather than treating "WeCreat" as uniformly restricted.** There are two:
 

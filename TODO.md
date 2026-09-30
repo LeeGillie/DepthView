@@ -16,8 +16,10 @@ Next up, roughly in order:
   can ship before any coupon is cut.
 - **§7.9** target-vs-simulated depth comparison and the suggested Z advance with an override
   warning - designed, not built.
-- **`--gcode` built 2026-09-30, not yet released** (§8). Next: run it on a relief job whose
-  settings were written down first, to confirm the decoding outside colour tests.
+- **`--gcode` built 2026-09-30, not yet released** (§8), in the window too (browse or drop a
+  `.gc`). Decoding confirmed for relief against Lee's settings panel (CLAUDE.md). Open
+  question it raised: Z descends 10 um per layer with MakeIt's Z-descent switch off - ask
+  what the switch controls before relying on it for §7.9.
 - **G-code capture watcher** (planned `GcodeCapture.cs`, `CaptureArchive.cs` - not yet
   written; `GcodeStream` and now `GcodeAnalyzer` are what they build on).
 - Decide the `--calibrate` default `--size`.
@@ -872,8 +874,9 @@ line spacing measured per pass, every cutting height, and settings groups in Mak
 with the order the job switches between them - which is where a cleaning pass shows. Tested
 on a synthetic job in `tests/check_json.py` and on the MOPAChroma Atlas captures (calibration
 3x3 and 10-row colour test match their known settings; the 349 MB file is a relief job, see
-CLAUDE.md). Still to do: confirm the decoding on a relief job whose settings were written down
-first, and whether `--gcode` should also find MakeIt's staged job without a path.
+CLAUDE.md). Confirmed on a relief job against its settings panel the same day. Opens from the
+window as well (`Views/GcodeWindow.cs`). Still open: whether it should also find MakeIt's
+staged job without being given a path.
 
 ### Standing constraints on this thread
 

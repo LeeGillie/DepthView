@@ -672,8 +672,9 @@ at it. LightBurn G-code and gzipped files read too, and a 349 MB relief job take
 
 This is where precision is really decided. In one measured MakeIt job, a genuine 16-bit map
 with 61,898 distinct levels reached the machine as 239 distinct power levels, sampled every
-0.1 mm along each line. The decoding of power, frequency, pulse width and speed is confirmed
-for MakeIt's colour test and assumed for relief jobs, and the report says so.
+0.1 mm along each line. The decoding of power, frequency, pulse width, speed and line density
+has been checked against MakeIt's own settings for a colour test and for a relief job, and
+every report says how far it has been confirmed.
 
 ---
 

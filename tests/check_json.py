@@ -80,6 +80,9 @@ def write_gcode(path):
             out.append("G1 S0")
 
     def cleaning_pass():
+        # MakeIt repeats a height for a layer (seen on a real 10-layer job at 9 heights), so the
+        # cleaning pass re-issues Z0.99: three layers, two heights.
+        out.append("G0Z0.99")
         out.append("M38F100")
         out.append("M39P350")
         out.append("G1F210000")         # 3500 mm/s
@@ -112,6 +115,7 @@ def check_gcode(exe, work):
     check(step == 0.1, f"step along line {step}, expected 0.1")
     zs = [z["z"] for z in doc["zLevels"]]
     check(zs == [1.0, 0.99], f"cutting heights {zs} - Zundefined must not become a height")
+    check(doc.get("layers") == 3, f"layers {doc.get('layers')}, expected 3 (a repeated height is a new layer)")
     check(doc["undefinedOperandLines"] == 1, f"undefined lines {doc['undefinedOperandLines']}")
     groups = doc["settingsGroups"]
     check(len(groups) == 2, f"expected 2 settings groups, got {len(groups)}")
@@ -130,7 +134,8 @@ def check_gcode(exe, work):
 
     # The text form runs too, and says what it could not confirm.
     code, _, text, _ = run_text(exe, "--gcode", gc, cwd=work)
-    check(code == 0 and "assumed, not" in text and "6 distinct" in text, "gcode text report")
+    check(code == 0 and "confirmed against MakeIt" in text and "6 distinct" in text
+          and "3 layer(s) at 2 height(s)" in text, "gcode text report")
 
 
 def run_text(exe, *args, cwd=None):

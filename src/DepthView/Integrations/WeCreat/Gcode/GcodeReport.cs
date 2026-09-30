@@ -8,15 +8,17 @@ namespace DepthView.Integrations.WeCreat.Gcode;
 public static class GcodeReport
 {
     /// <summary>
-    /// Said on every report, because the numbers below are only as good as the decoding and
-    /// the decoding has only been confirmed for one kind of MakeIt job.
+    /// Said on every report, because the numbers below are only as good as the decoding, and
+    /// the decoding has been confirmed for two kinds of MakeIt job, not every kind.
     /// </summary>
     public const string EncodingNote =
         "Power as S/10 percent, frequency from M38F, pulse width from M39P and speed from G1 F " +
-        "were confirmed for MakeIt's Color Test (Fine Color Marking) by a controlled run and a " +
-        "physical part. They are assumed, not yet confirmed, for relief and other job types. " +
-        "Scan-line spacing and the spacing of power changes along a line are measured from the " +
-        "moves themselves.";
+        "were confirmed against MakeIt 3.0.6 twice: a Color Test (Fine Color Marking) checked " +
+        "against the physical part, and a Relief (Emboss) job whose settings panel - 10 layers, " +
+        "82% power, 2327 mm/s, 200 ns, 48 kHz, line density 100 - the file matches exactly. " +
+        "Other job types and MakeIt versions are assumed to encode the same way. Scan-line " +
+        "spacing and the spacing of power changes along a line are measured from the moves " +
+        "themselves.";
 
     public static string Build(GcodeAnalysis a)
     {
@@ -74,13 +76,15 @@ public static class GcodeReport
             sb.AppendLine("  No Z moves carried a burn. The whole job runs at one height.");
         else
         {
-            sb.AppendLine($"  {a.ZLevels.Count:N0} height(s) with burning{(a.ZLevelsTruncated ? " (list truncated)" : "")}:");
+            sb.AppendLine($"  {a.Layers:N0} layer(s) at {a.ZLevels.Count:N0} height(s){(a.ZLevelsTruncated ? " (list truncated)" : "")}"
+                        + (a.Layers > a.ZLevels.Count ? " - some heights are cut more than once" : "") + ":");
             var first = a.ZLevels[0].Z;
             if (a.ZLevels.Count > 1)
                 sb.AppendLine($"  from Z {first:0.###} to {a.ZLevels[^1].Z:0.###}"
                             + $" - {Math.Abs(a.ZLevels[^1].Z - first) / (a.ZLevels.Count - 1) * 1000:0.#} um per height on average");
             foreach (var z in a.ZLevels.Take(12))
-                sb.AppendLine($"    Z {z.Z,9:0.###}   {z.BurnMoves,12:N0} moves   {z.BurnLengthMm / 1000,10:0.###} m"
+                sb.AppendLine($"    Z {z.Z,9:0.###}   {(z.Layers > 1 ? $"{z.Layers} layers" : "1 layer "),-9}"
+                            + $"{z.BurnMoves,10:N0} moves   {z.BurnLengthMm / 1000,9:0.###} m"
                             + (z.MainAngleDeg is int ang ? $"   mostly at {ang} deg" : ""));
             if (a.ZLevels.Count > 12) sb.AppendLine($"    ... {a.ZLevels.Count - 12:N0} more in --json");
         }

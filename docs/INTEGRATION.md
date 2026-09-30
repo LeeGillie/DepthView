@@ -270,7 +270,7 @@ Exit code 0 when read, 2 when it could not be.
 | `powerLevelCount`, `powerLevels` | every distinct S the burning uses, as `[S, moves]` - the depth resolution the machine really receives |
 | `alongLine` | `stepModeMm`: the commonest step between power changes along a line (the sample pitch of a raster), `stepModeShare`, `stepCount`, `stepBinUm` |
 | `directions[]` | per scan direction: `angleDeg` (0-179), `passes`, `linesPerPass`, `linePitchMm`, `lineDensityPerCm`, `burnMoves`, `burnLengthMm`. Spacing is measured within one pass |
-| `zLevels[]` | each cutting height with `burnMoves`, `burnLengthMm`, `mainAngleDeg` |
+| `layers`, `zLevels[]` | layers cut, and each cutting height with its `layers`, `burnMoves`, `burnLengthMm`, `mainAngleDeg` |
 | `undefinedOperandLines` | lines with a non-numeric operand such as MakeIt's `Zundefined`, ignored rather than read as zero |
 | `settingsGroups[]` | one per combination of frequency, pulse width and speed: `minS`, `maxS`, `powerLevelCount`, `feedMmPerMin`, `frequencyKHz`, `pulseWidthNs`, `angleDeg`, `rasterAnglesDeg`, `linePitchMm`, `linesPerPass`, `burnMoves`, `burnLengthMm`, `firstLine`, and `makeIt` - the same in MakeIt's units: `powerPercentMin`/`Max`, `speedMmPerS`, `frequencyKHz`, `pulseWidthNs`, `lineDensityPerCm` |
 | `settingsSwitches`, `runs[]` | how often, and in what order, the job changes group - a cleaning pass shows up as a second group recurring at an interval |
@@ -278,10 +278,14 @@ Exit code 0 when read, 2 when it could not be.
 | `decoding` | how far the decoding below is confirmed, as text to show a user |
 
 **How sure the decoding is.** Power as S/10 percent, frequency from `M38F`, pulse width from
-`M39P` and speed from `G1 F` were confirmed for MakeIt's Color Test (Fine Color Marking) by a
-controlled run checked against the physical part. They are assumed, not yet confirmed, for
-relief and other job types. Line spacing and the step along a line are measured from the moves
-themselves.
+`M39P`, speed from `G1 F` and line density as lines per centimetre were confirmed against
+MakeIt 3.0.6 twice: a Color Test (Fine Color Marking) checked against the physical part, and a
+10-layer Relief (Emboss) job read back against its settings panel. Other job types and MakeIt
+versions are assumed to encode the same way. Line spacing and the step along a line are
+measured from the moves themselves.
+
+`layers` counts every Z move followed by burning, and can exceed the number of `zLevels`:
+MakeIt has been seen cutting two layers at the same height.
 
 ---
 

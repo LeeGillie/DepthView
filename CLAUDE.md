@@ -284,6 +284,9 @@ is unanswered. Do not bake it into analysis defaults until that comes back.
 
 Reading the generated G-code is a **documented, supported** user action, not a workaround:
 WeCreat's own KB gives `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS) → open G-code files → `.gc`.
+**No laser has to fire** (from Lee, 2026-09-30): *Send* builds the file, then MakeIt waits for
+the machine's button; cancelling there leaves the `.gc` in place. So a job can be checked in
+DepthView before it is cut, which is the workflow to describe to users.
 `src/DepthView/Integrations/WeCreat/Gcode/GcodeStream.cs` reads those files and
 `GcodeAnalyzer.cs` is what `--gcode` runs (added 2026-09-30).
 

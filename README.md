@@ -674,7 +674,9 @@ along them, every cutting height, layers that repeat the one before them or run 
 their own (which is where MakeIt's cleaning layers show up), and each group of settings in
 MakeIt's own units. MakeIt
 stages every job as a G-code file, and its knowledge base documents `Ctrl+Shift+P` for getting
-at it. LightBurn G-code and gzipped files read too, and a 349 MB relief job takes seconds.
+at it. The file is written when you click *Send*, before the machine's button is pressed, and
+it stays if you cancel - so a job can be checked here before anything is cut. LightBurn G-code
+and gzipped files read too, and a 349 MB relief job takes seconds.
 
 This is where precision is really decided. In one measured MakeIt job, a genuine 16-bit map
 with 61,898 distinct levels reached the machine as 239 distinct power levels, sampled every

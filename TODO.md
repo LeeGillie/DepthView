@@ -3,10 +3,11 @@
 Everything discussed and consciously set aside, with enough context to pick it up cold.
 Ordered by my estimate of value per unit of work, not by size.
 
-### Resume here (updated 2026-09-30, after 1.5.0)
+### Resume here (updated 2026-09-30, after 1.6.0)
 
 1.4.0 brought true-scale relief, one program-wide blank, zip installers and the in-place
-updater; 1.5.0 adds JSON output for host programs and enforces never writing over the input.
+updater; 1.5.0 added JSON output for host programs and enforces never writing over the input;
+1.6.0 reads G-code jobs - what the machine is actually sent.
 Next up, roughly in order:
 
 - **JSON interface for host programs** released in 1.5.0 (2026-09-30), and the cover note
@@ -16,7 +17,7 @@ Next up, roughly in order:
   can ship before any coupon is cut.
 - **§7.9** target-vs-simulated depth comparison and the suggested Z advance with an override
   warning - designed, not built.
-- **`--gcode` built 2026-09-30, not yet released** (§8), in the window too (browse or drop a
+- **G-code reading released in 1.6.0 (2026-09-30)** (§8), in the window too (browse or drop a
   `.gc`). Decoding confirmed for relief against Lee's settings panel (CLAUDE.md). Open
   question it raised: Z descends 10 um per layer with MakeIt's Z-descent switch off - ask
   what the switch controls before relying on it for §7.9.
@@ -867,7 +868,7 @@ settings exchange is in the spec as designed-not-built. A short cover note went 
 the analysis is worth anything inside MakeIt; the spec states it as the first requirement and
 gives a test for it.
 
-**~~Build the G-code consumer.~~ Built 2026-09-30, not yet released:** `--gcode <job.gc>
+**~~Build the G-code consumer.~~ Built 2026-09-30, released in 1.6.0:** `--gcode <job.gc>
 [--json]` (`GcodeAnalyzer.cs`, `GcodeReport.cs`, schema `depthview.gcode/1`). It reports the
 distinct power levels sent, the step between power changes along a line, scan directions with
 line spacing measured per pass, every cutting height, and settings groups in MakeIt's units,

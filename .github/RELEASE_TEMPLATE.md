@@ -2,32 +2,42 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.5.0 — DepthView as a helper for other programs
+## What's new in 1.6.0 — see what your laser is actually sent
 
-**JSON output for other programs.** `--report --json` and `--tune --json` print one JSON
-document and nothing else, so a laser control program, a script or an Electron app can run
-DepthView and act on the answer instead of scraping text. The formats are versioned
-(`depthview.report/1`, `depthview.tune/1`) and checked on Windows, macOS and Linux on every
-build. [docs/INTEGRATION.md](https://github.com/LeeGillie/DepthView/blob/main/docs/INTEGRATION.md)
-is the specification: how to call it, every field, the exit codes and a worked example.
+**DepthView now reads G-code jobs.** Open a `.gc` file - browse to it, drop it on the window,
+or run `DepthView --gcode <job.gc>` - and it reports what really reaches the machine, rather
+than what the project or the depth map says:
 
-**The original is never written over — now enforced, not just intended.** `--tune` refuses an
-`--out`, `--mask` or `--outline` that names the input file, and the tuning window refuses a
-save onto the original. Before this release nothing stopped either.
+- **How many distinct power levels the job uses.** This is the depth resolution the machine
+  actually receives, however many grey levels the source map had.
+- **How finely it samples**: the spacing of the scan lines, and how often the power changes
+  along each line.
+- **Every layer and cutting height**, and the direction each layer is scanned in.
+- **The settings in MakeIt's own units** - power, speed, frequency, pulse width and line
+  density - for each group of settings in the job, and the order the job switches between
+  them, which is where a cleaning pass shows up.
 
-## Smaller things
+MakeIt writes every job it sends to a G-code file on your computer; its knowledge base documents
+`Ctrl+Shift+P` for getting at it. LightBurn G-code and gzipped files open too, and a 349 MB
+relief job reads in a few seconds.
 
-- `--report --json` takes `--passes 60,120,...` to choose the pass counts in its table, and
-  `--histogram` to include every occupied grey level.
-- `--report` no longer mistakes the number after `--passes` for a file name.
+**How far the decoding is confirmed.** Power, speed, frequency, pulse width and line density
+were read back against MakeIt 3.0.6's own settings panel for a colour test and for a 10-layer
+relief job, and matched exactly. Other job types are assumed to work the same way, and every
+report says so.
+
+Two things it has already shown about MakeIt relief jobs: *Auto Planning* turns the scan
+direction 27 degrees per layer, and power changes every 0.1 mm along a line.
+
+For other programs, `--gcode --json` gives the same as a JSON document (schema
+`depthview.gcode/1`, in [docs/INTEGRATION.md](https://github.com/LeeGillie/DepthView/blob/main/docs/INTEGRATION.md)).
 
 ## Updating
 
-**From 1.4.0:** the green bar will offer this release — click **Update now**.
+**From 1.4.0 or 1.5.0:** the green bar will offer this release — click **Update now**.
 
 **From 1.3.0 or earlier:** those versions cannot update themselves. Download this release by
-hand once, and read the [1.4.0 notes](https://github.com/LeeGillie/DepthView/releases/tag/v1.4.0)
-for what changed there — in particular, `--exag` now counts doublings, with 0 as true scale.
+hand once; from then on, updates come to you.
 
 ---
 

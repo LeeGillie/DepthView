@@ -674,9 +674,15 @@ DepthView --licence                  the About box, opened on its licence page
 DepthView --report <image>           full text report (also written beside the image)
 DepthView --report <folder>          every image in the folder
 DepthView --report <folder> --summary --out results.txt
+DepthView --report <image> --json    the same analysis as JSON, for another program to read
 DepthView --project <file.lbrn2>     read a laser project and report its layers
 DepthView --lb <command>             drive a running copy of LightBurn over UDP
 ```
+
+**Calling DepthView from your own program.** `--report --json` and `--tune --json` print one
+JSON document and nothing else, so a laser program, a script or an Electron app can run
+DepthView as a helper and act on the answer. [docs/INTEGRATION.md](docs/INTEGRATION.md) is the
+specification: the commands, every field, exit codes and a worked example.
 
 Tuning works headlessly too, and the dialog can be opened already configured:
 
@@ -824,7 +830,8 @@ src/DepthView/
                           LevelStripControl - the draggable black and white points
   Imaging/                PngDecoder, PnmDecoder, PfmDecoder, TiffSniffer, ImageLoader
                           PngEncoder - 8/16-bit greyscale out, with pHYs and provenance
-  Analysis/               DepthAnalyzer, AnalysisResult, ReportWriter
+  Analysis/               DepthAnalyzer, AnalysisResult, ReportWriter,
+                          JsonReport (the --json output; docs/INTEGRATION.md is its spec)
   Processing/             DepthTuner (the correction), TuningOptions, TuneJob (shared by
                           the dialog and the command line), DepthCanvas (fitting a design
                           inside the rim by padding, never by resampling),
@@ -845,6 +852,7 @@ artwork/
   depthview.ico           multi-resolution, 16 to 256
   banner/                 hero renders and the finished banners
 docs/
+  INTEGRATION.md          how another program calls DepthView and reads its JSON
   make-screenshots.ps1    regenerates every image the README uses
   images/                 the generated screenshots and relief renders
 samples/
@@ -855,6 +863,8 @@ tests/
   make_fixtures.py        generates test images with known-correct answers
   make_textures.py        generates sample material textures and a demo relief
   check_report.py         asserts the report says exactly what it should
+  check_json.py           runs the JSON interface the way a host program would and holds
+                          it to the same answers
   check_fit.py            asserts fitting a design inside a rim gets the geometry right and
                           copies every original pixel unchanged
   fixtures/               the generated images
@@ -928,6 +938,14 @@ from the baseline.
 ```
 DepthView --report tests/fixtures --summary
 python tests/check_report.py tests/fixtures/depthview-report.txt
+```
+
+`tests/check_json.py` does the same for the JSON interface, and runs DepthView itself the way
+a host program would - pipes, no shell - so it also catches anything stray reaching stdout, a
+file written beside an input, or an input file being overwritten:
+
+```
+python tests/check_json.py <path to DepthView>
 ```
 
 ## Continuous integration

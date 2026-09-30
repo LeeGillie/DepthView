@@ -43,6 +43,7 @@ public partial class TuneWindow : Window
     private readonly AnalysisResult _source;
     private readonly string _fileName;
     private readonly string? _sourceDir;
+    private readonly string? _sourcePath;
 
     private readonly ushort[] _grey;
     private readonly int _w, _h, _maxValue;
@@ -90,6 +91,7 @@ public partial class TuneWindow : Window
         _source = result;
         _fileName = fileName;
         _sourceDir = sourcePath is null ? null : Path.GetDirectoryName(sourcePath);
+        _sourcePath = sourcePath;
 
         _w = image.Width;
         _h = image.Height;
@@ -833,6 +835,14 @@ public partial class TuneWindow : Window
         });
 
         if (file is null) return;
+
+        // The status line promises the original is never modified, and the save picker will
+        // happily hand back the original's own name if that is what gets clicked.
+        if (_sourcePath is not null && file.TryGetLocalPath() is string target && Program.SamePath(target, _sourcePath))
+        {
+            StatusText.Text = $"That is the original, {_fileName}. DepthView never writes over it - choose a different name.";
+            return;
+        }
 
         _busy = true;
         SaveButton.IsEnabled = false;

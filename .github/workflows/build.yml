@@ -81,6 +81,12 @@ jobs:
         shell: bash
         run: python tests/check_report.py tests/fixtures/depthview-report.txt
 
+      # The JSON interface in docs/INTEGRATION.md is a contract with host programs such as
+      # MakeIt. Run it the way they would - pipes, no shell - and hold it to the same answers.
+      - name: JSON interface
+        shell: bash
+        run: python tests/check_json.py "${{ steps.exe.outputs.path }}"
+
       - name: Render a relief headlessly
         shell: bash
         run: |

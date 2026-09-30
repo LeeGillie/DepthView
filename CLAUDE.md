@@ -63,6 +63,15 @@ replaced. **Change the zip name, the folder name, the tag format `v<version>` or
 `--version` prints, and installed copies silently stop updating.** macOS zips must be built on
 a Mac: Apple silicon kills unsigned code, and the ad hoc `codesign` only exists there.
 
+**The `--json` output is a second contract, with host programs** (designed with MakeIt in
+mind, which is Electron and would call DepthView as a helper rather than embed it - proposed
+to WeCreat, not agreed). `Analysis/JsonReport.cs`
+writes it and `docs/INTEGRATION.md` specifies it; change them together. Schemas are named in
+every document (`depthview.report/1`, `depthview.tune/1`): fields may be added, but renaming,
+retyping or removing one means a new schema version. With `--json` nothing but JSON may reach
+stdout - a stray `Console.WriteLine` breaks every caller - and `tests/check_json.py` runs the
+program through pipes on all three platforms to catch exactly that.
+
 Test the install path without a release: `DepthView --update --update-feed <release.json>`,
 where the JSON is a GitHub release document whose asset URLs are local paths.
 `tests/updater` does exactly that on Linux and macOS in CI.
@@ -74,6 +83,8 @@ where the JSON is a GitHub release document whose asset URLs are local paths.
 - **Black is deepest, white is untouched.** LightBurn's 3D Slice default and MakeIt's too.
   `--invert` exists for art authored the other way round.
 - **Never write over the original.** Every tuning path produces a new file. No exceptions.
+  `--tune` refuses an `--out`, `--mask` or `--outline` that names the input (added 1.5.0; before
+  that, nothing stopped a caller doing it).
 - **One blank, program-wide.** Diameter, thickness and target depth live in `Blank.Current`
   and are edited through `Controls/BlankEditor`. Never give a window its own copy of any of
   them - the point is that the same number shows everywhere and an edit anywhere moves it

@@ -97,6 +97,11 @@ internal static partial class Program
           --summary        one line per file instead of a full report
           --out <file>     write to this file (otherwise <image>-report.txt beside each input,
                            or depthview-report.txt for a folder or summary run)
+          --json           one JSON document instead of text, for another program to read
+                           (schema depthview.report/1, see docs/INTEGRATION.md). Only JSON goes
+                           to stdout, and nothing is written beside the input unless --out is given
+          --passes <n,...> pass counts for the JSON table (default 64,100,128,200,256,512,1024)
+          --histogram      with --json, also list every occupied level and its pixel count
 
         Headless relief render
           DepthView --render <image> [options]      write a lit relief render to a PNG
@@ -173,6 +178,9 @@ internal static partial class Program
             --invert            flip black/white, for art authored white-deepest
             --bits <8|16>       output bit depth (default 16)
             --passes <n>        pass count to report depths against (default 256)
+            --json              report what was done as one JSON document on stdout
+                                (schema depthview.tune/1, see docs/INTEGRATION.md)
+          --out may not name the input file: the original is never written over.
           Measured in millimetres instead, which is how a rim is actually known:
             --blank <mm>        diameter of the blank, matched to the image's short side
             --rim-mm <mm>       rim width, measured inward from the edge
@@ -390,21 +398,28 @@ internal static partial class Program
         AttachParentConsole();
 
         bool summary = rest.Contains("--summary");
+        bool json = rest.Contains("--json");
+        bool histogram = rest.Contains("--histogram");
         string? outPath = null;
+        int[]? passCounts = null;
         var inputs = new List<string>();
 
         for (int i = 0; i < rest.Length; i++)
         {
             if (rest[i] == "--out" && i + 1 < rest.Length) { outPath = rest[++i]; continue; }
+            if (rest[i] == "--passes" && i + 1 < rest.Length) { passCounts = ParsePassList(rest[++i]); continue; }
             if (rest[i].StartsWith('-')) continue;
             inputs.AddRange(Expand(rest[i]));
         }
 
         if (inputs.Count == 0)
         {
+            if (json) Console.WriteLine(JsonReport.Error(JsonReport.ReportSchema, "No input files."));
             Console.Error.WriteLine("No input files. Try: DepthView --report <image or folder>");
             return 2;
         }
+
+        if (json) return RunReportJson(inputs, outPath, passCounts ?? JsonReport.DefaultPassCounts, histogram);
 
         var sb = new StringBuilder();
         int exit = 0;
@@ -463,6 +478,55 @@ internal static partial class Program
         }
 
         return exit;
+    }
+
+    /// <summary>
+    /// --report --json: the same analysis, as one JSON document for another program to read.
+    /// docs/INTEGRATION.md is the specification.
+    ///
+    /// Only JSON goes to stdout - no progress lines, no "Written to" - so a caller can parse
+    /// it whole. Nothing is written beside the input unless --out asks for it. Exit codes are
+    /// the text report's: 0 clean, 1 an imposter found, 2 a file could not be read.
+    /// </summary>
+    private static int RunReportJson(List<string> inputs, string? outPath, IReadOnlyList<int> passCounts, bool histogram)
+    {
+        var entries = new List<JsonReport.Entry>();
+        int exit = 0;
+
+        foreach (var path in inputs.OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var (img, meta) = ImageLoader.Load(File.ReadAllBytes(path), Path.GetFileName(path), path, "read from the command line");
+                var result = DepthAnalyzer.Analyze(img, meta);
+                if (result.VerdictSeverity == Severity.Alert) exit = Math.Max(exit, 1);
+                entries.Add(new JsonReport.Entry(path, result, null));
+            }
+            catch (Exception ex)
+            {
+                exit = 2;
+                entries.Add(new JsonReport.Entry(path, null, ex.Message));
+                Console.Error.WriteLine($"ERROR {Path.GetFileName(path)}: {ex.Message}");
+            }
+        }
+
+        string doc = JsonReport.Report(entries, passCounts, histogram);
+        if (outPath is not null) File.WriteAllText(outPath, doc);
+        else Console.WriteLine(doc);
+        return exit;
+    }
+
+    /// <summary>"200" or "60,120,240": pass counts to report against. Anything under 2 is dropped.</summary>
+    private static int[] ParsePassList(string s)
+    {
+        var list = s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(x => int.TryParse(x, System.Globalization.NumberStyles.Integer,
+                                              System.Globalization.CultureInfo.InvariantCulture, out int n) ? n : 0)
+                    .Where(n => n >= 2)
+                    .Distinct()
+                    .OrderBy(n => n)
+                    .ToArray();
+        return list.Length > 0 ? list : JsonReport.DefaultPassCounts;
     }
 
     // ------------------------------------------------------------------ calibration coupon
@@ -754,7 +818,7 @@ internal static partial class Program
 
         string? input = null, outPath = null, maskPath = null, outlinePath = null;
         var o = new TuningOptions();
-        bool haveBlack = false, haveWhite = false, wantOutline = false;
+        bool haveBlack = false, haveWhite = false, wantOutline = false, json = false;
         double? rimPct = null, rampPct = null;
         int passes = 256;
         // WeCreat support give 6-8 um for the Lumos Ultra UV spot; 7 sits in the middle.
@@ -808,6 +872,7 @@ internal static partial class Program
                 case "--spot": if (double.TryParse(Next(), out double sp)) spotMicrons = sp; break;
                 case "--depth-mm": if (double.TryParse(Next(), out double dm)) o.TargetDepthMm = dm; break;
                 case "--bits": if (int.TryParse(Next(), out int bd)) o.OutputBitDepth = bd; break;
+                case "--json": json = true; break;
                 default:
                     if (!a.StartsWith('-') && input is null) input = a;
                     break;
@@ -816,9 +881,31 @@ internal static partial class Program
 
         if (input is null || !File.Exists(input))
         {
+            if (json) Console.WriteLine(JsonReport.Error(JsonReport.TuneSchema,
+                input is null ? "No input file." : $"No such file: {input}"));
             Console.Error.WriteLine("Usage: DepthView --tune <image> [options]. See --help.");
             return 2;
         }
+
+        outPath ??= Path.ChangeExtension(input, null) + "-tuned.png";
+
+        // Never write over the original - no exceptions. A caller that builds paths for us (a
+        // host program, a script) is exactly the one that can get this wrong without noticing.
+        if (SamePath(input, outPath)
+            || (maskPath is not null && SamePath(input, maskPath))
+            || (outlinePath is not null && SamePath(input, outlinePath)))
+        {
+            const string refuse = "Refusing to write over the input file. Give --out a different path.";
+            if (json) Console.WriteLine(JsonReport.Error(JsonReport.TuneSchema, refuse));
+            Console.Error.WriteLine(refuse);
+            return 2;
+        }
+
+        // With --json the human-readable lines below are swallowed and one JSON document is
+        // written at the end instead, so a caller can parse stdout whole.
+        var realOut = Console.Out;
+        if (json) Console.SetOut(TextWriter.Null);
+        string? maskWritten = null, outlineWritten = null;
 
         try
         {
@@ -847,8 +934,6 @@ internal static partial class Program
             var tuned = DepthTuner.Apply(grey, loaded.Image.Width, loaded.Image.Height,
                                          maxValue, o, out var rep);
 
-            outPath ??= Path.ChangeExtension(input, null) + "-tuned.png";
-
             // Fitting grows the canvas, so the output is not always the size of the input.
             // The report carries the dimensions that were actually produced.
             int outW = rep.OutWidth, outH = rep.OutHeight;
@@ -861,6 +946,7 @@ internal static partial class Program
             if (maskPath is not null && o.AddRim)
             {
                 TuneJob.WriteRimMask(maskPath, outW, outH, o);
+                maskWritten = maskPath;
                 Console.WriteLine($"  mask            {Path.GetFileName(maskPath)} (white = engraved area)");
             }
 
@@ -872,6 +958,7 @@ internal static partial class Program
                 outlinePath ??= Path.ChangeExtension(outPath, null) + "-outline.svg";
                 double engraveMm = o.RimRadius > 0 ? o.RimRadius * 2 / (Math.Min(outW, outH) / blankMm) : 0;
                 AlignmentOutline.Write(outlinePath, blankMm, engraveMm, Path.GetFileName(outPath));
+                outlineWritten = outlinePath;
 
                 Console.WriteLine($"  outline         {Path.GetFileName(outlinePath)} - "
                                 + $"{blankMm:F1} mm circle to frame against the blank's rim");
@@ -978,13 +1065,49 @@ internal static partial class Program
                 Console.WriteLine("                  resolution was being wasted. If the narrow range was deliberate,"
                                 + " this overrides it.");
             Console.WriteLine($"  range use       {before.RangeUtilisation * 100:F1}% -> {after.RangeUtilisation * 100:F1}%");
+
+            if (json)
+            {
+                realOut.WriteLine(JsonReport.Tune(new JsonReport.TuneOutcome
+                {
+                    Input = input,
+                    Output = outPath,
+                    Mask = maskWritten,
+                    Outline = outlineWritten,
+                    InWidth = loaded.Image.Width,
+                    InHeight = loaded.Image.Height,
+                    Options = o,
+                    Report = rep,
+                    Passes = passes,
+                    SpotMicrons = spotMicrons,
+                    Before = before,
+                    After = after,
+                }));
+            }
             return 0;
         }
         catch (Exception ex)
         {
+            if (json) realOut.WriteLine(JsonReport.Error(JsonReport.TuneSchema, "Tune failed: " + ex.Message));
             Console.Error.WriteLine("Tune failed: " + ex.Message);
             return 2;
         }
+        finally
+        {
+            if (json) Console.SetOut(realOut);
+        }
+    }
+
+    /// <summary>Whether two paths name the same file, allowing for how each OS compares names.</summary>
+    internal static bool SamePath(string a, string b)
+    {
+        try
+        {
+            var cmp = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+                ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), cmp);
+        }
+        catch { return false; }
     }
 
     // ------------------------------------------------------------------ headless relief render

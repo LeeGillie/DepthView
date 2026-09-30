@@ -48,6 +48,7 @@
   </Folder>
   <Folder Name="/docs/">
     <File Path="docs/DEPTH-PREDICTION.md" />
+    <File Path="docs/INTEGRATION.md" />
     <File Path="docs/make-screenshots.ps1" />
   </Folder>
   <Folder Name="/docs/research/">
@@ -67,6 +68,7 @@
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/check_fit.py" />
+    <File Path="tests/check_json.py" />
     <File Path="tests/check_lbcontrol.ps1" />
     <File Path="tests/check_report.py" />
     <File Path="tests/extract-lbrn-image.ps1" />

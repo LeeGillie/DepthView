@@ -663,7 +663,8 @@ analysis and tuning feature works on it.
 
 ### G-code: what the machine is actually sent
 
-`DepthView --gcode <job.gc>` reads a G-code job and reports what reaches the laser: how many
+Browse to or drop a `.gc` job on the window, or run `DepthView --gcode <job.gc>`, and DepthView
+reports what reaches the laser: how many
 distinct power levels it really uses, the spacing of its scan lines and of the power changes
 along them, every cutting height, and each group of settings in MakeIt's own units. MakeIt
 stages every job as a G-code file, and its knowledge base documents `Ctrl+Shift+P` for getting

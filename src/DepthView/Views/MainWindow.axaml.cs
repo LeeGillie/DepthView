@@ -112,6 +112,10 @@ public partial class MainWindow : Window
                     {
                         await LoadProjectAsync(start, "opened from the command line");
                     }
+                    else if (Integrations.WeCreat.Gcode.GcodeAnalyzer.LooksLikeGcode(start))
+                    {
+                        OpenGcode(start);
+                    }
                     else
                     {
                         var bytes = await File.ReadAllBytesAsync(start);
@@ -221,16 +225,17 @@ public partial class MainWindow : Window
 
         var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Select a depth map or a laser project",
+            Title = "Select a depth map, a laser project or a G-code job",
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
                 // Everything openable, first, because the common case is "I have a file and I
                 // want to know about it" rather than "I know which kind I am looking for".
-                new FilePickerFileType("Depth maps and projects")
+                new FilePickerFileType("Depth maps, projects and G-code")
                 {
                     Patterns = ImageLoader.SupportedPatterns.Split(';')
                                           .Concat(ProjectReaders.SupportedPatterns.Split(';'))
+                                          .Concat(Integrations.WeCreat.Gcode.GcodeAnalyzer.SupportedPatterns.Split(';'))
                                           .ToArray()
                 },
                 new FilePickerFileType("Depth map images")
@@ -240,6 +245,10 @@ public partial class MainWindow : Window
                 new FilePickerFileType("Laser projects")
                 {
                     Patterns = ProjectReaders.SupportedPatterns.Split(';')
+                },
+                new FilePickerFileType("G-code jobs (what the machine is sent)")
+                {
+                    Patterns = Integrations.WeCreat.Gcode.GcodeAnalyzer.SupportedPatterns.Split(';')
                 },
                 new FilePickerFileType("All files") { Patterns = new[] { "*" } }
             }
@@ -334,6 +343,14 @@ public partial class MainWindow : Window
             if (path is not null && ProjectReaders.LooksLikeProject(path))
             {
                 await LoadProjectAsync(path, source);
+                return;
+            }
+
+            // A G-code job is not an image either. It gets its own report window and leaves
+            // whatever depth map is already loaded here untouched.
+            if (path is not null && Integrations.WeCreat.Gcode.GcodeAnalyzer.LooksLikeGcode(path))
+            {
+                OpenGcode(path);
                 return;
             }
 
@@ -630,6 +647,21 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             ShowError(ex.Message);
+        }
+    }
+
+    /// <summary>Open the G-code report for a job file. Each job gets its own window.</summary>
+    private void OpenGcode(string path)
+    {
+        try
+        {
+            var w = new GcodeWindow(path);
+            w.Show(this);
+            StatusText.Text = $"Opened the G-code report for {Path.GetFileName(path)} in its own window.";
+        }
+        catch (Exception ex)
+        {
+            ShowError("Could not open that G-code file: " + ex.Message);
         }
     }
 

@@ -38,6 +38,20 @@ namespace DepthView.Integrations.WeCreat.Gcode;
 /// </summary>
 public static class GcodeAnalyzer
 {
+    /// <summary>File-picker patterns for G-code jobs, gzipped or not.</summary>
+    public const string SupportedPatterns = "*.gc;*.gcode;*.nc;*.ngc;*.gc.gz;*.gcode.gz";
+
+    /// <summary>
+    /// Whether a path names a G-code job, by extension. MakeIt stages jobs as .gc; LightBurn and
+    /// most other tools write .gcode or .nc; the archive gzips them.
+    /// </summary>
+    public static bool LooksLikeGcode(string path)
+    {
+        string p = path.ToLowerInvariant();
+        if (p.EndsWith(".gz")) p = p[..^3];
+        return p.EndsWith(".gc") || p.EndsWith(".gcode") || p.EndsWith(".nc") || p.EndsWith(".ngc");
+    }
+
     public static GcodeAnalysis Analyze(string path)
     {
         var sw = Stopwatch.StartNew();
@@ -170,7 +184,7 @@ public static class GcodeAnalyzer
         // direction of the previous one with a different power. In a raster that modulates power
         // per sample this is a whole number of samples, and its commonest value is the sample
         // pitch along the line.
-        if (angle == st.LastAngle && st.S != st.LastS)
+        if (st.LastAngle != int.MinValue && GcodeAnalysis.AngleGap(angle, st.LastAngle) <= 2 && st.S != st.LastS)
             a.NoteStep(len);
         st.LastAngle = angle;
         st.LastS = st.S;
@@ -381,16 +395,6 @@ public sealed class GcodeAnalysis
         long sk = Key(s);
         PowerLevels[sk] = PowerLevels.GetValueOrDefault(sk) + 1;
 
-        // Perpendicular offset of the line this move lies on, for its direction. Averaging both
-        // ends halves the rounding in the printed coordinates.
-        double th = angle * Math.PI / 180;
-        double offset = (-(x + ox) / 2 * Math.Sin(th) + (y + oy) / 2 * Math.Cos(th));
-        long ok = (long)Math.Round(offset * 10000);
-
-        var dir = DirectionFor(_dirIndex, Directions, angle);
-        dir.BurnMoves++;
-        dir.BurnLengthMm += len;
-
         var gkey = (KeyOrNull(freq), KeyOrNull(pw), KeyOrNull(feed));
         if (!_groupIndex.TryGetValue(gkey, out var grp))
         {
@@ -406,13 +410,31 @@ public sealed class GcodeAnalysis
         grp.MinS = Math.Min(grp.MinS, s);
         grp.MaxS = Math.Max(grp.MaxS, s);
         grp.PowerLevels.Add(sk);
+
+        // A short move between coordinates printed to a micrometre can round to a degree either
+        // side of its line's true direction (a 0.1 mm step at 108 degrees reads as 107 to 109).
+        // Within a pass, a move within 2 degrees of the pass's direction belongs to it, so noise
+        // neither splits the pass nor invents directions nobody scanned in.
+        long zk = z is double pz ? Key(pz) : long.MinValue;
+        if (_passKey.Z == zk && _passKey.Group == grp.Index && AngleGap(angle, _passKey.Angle) <= 2)
+            angle = _passKey.Angle;
+
+        // Perpendicular offset of the line this move lies on, for its direction. Averaging both
+        // ends halves the rounding in the printed coordinates.
+        double th = angle * Math.PI / 180;
+        double offset = (-(x + ox) / 2 * Math.Sin(th) + (y + oy) / 2 * Math.Cos(th));
+        long ok = (long)Math.Round(offset * 10000);
+
+        var dir = DirectionFor(_dirIndex, Directions, angle);
+        dir.BurnMoves++;
+        dir.BurnLengthMm += len;
         var gdir = DirectionFor(grp.ByAngle, null, angle);
         gdir.BurnMoves++;
         gdir.BurnLengthMm += len;
 
         // A pass ends when the height, the settings or the direction changes. Its lines are
         // measured then, and the offsets thrown away, so memory follows one pass, not the job.
-        var passKey = (z is double pz ? Key(pz) : long.MinValue, grp.Index, angle);
+        var passKey = (zk, grp.Index, angle);
         if (passKey != _passKey) { ClosePass(); _passKey = passKey; _passDir = dir; _passGroupDir = gdir; }
         _passOffsets.Add(ok);
 
@@ -443,7 +465,15 @@ public sealed class GcodeAnalysis
         return d;
     }
 
-    private (long, int, int) _passKey = (long.MaxValue, 0, 0);
+    private (long Z, int Group, int Angle) _passKey = (long.MaxValue, 0, int.MinValue);
+
+    /// <summary>Difference between two directions in 0..179, the short way round.</summary>
+    internal static int AngleGap(int a, int b)
+    {
+        int d = Math.Abs(a - b) % 180;
+        return Math.Min(d, 180 - d);
+    }
+
     private readonly HashSet<long> _passOffsets = new();
     private Direction? _passDir, _passGroupDir;
 

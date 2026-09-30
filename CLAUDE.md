@@ -52,6 +52,17 @@ use that to check the machinery.
 `<Version>` in `src/DepthView/DepthView.csproj` is the single source of truth and feeds the
 About box and the updater. Bump it in the same commit as the tag.
 
+**`.github/RELEASE_TEMPLATE.md` is compiled into the program** (added 1.7.0). Its "What's new
+in X" section is what the release page leads with *and* what the program shows the first time
+a newer version starts (`Updates/ReleaseNotes.cs`, `Views/ReleaseNotesWindow.cs`). So rewrite
+that section in the same commit as the version bump. `DepthView --whats-new` exits 1 when the
+section's version is not `<Version>`, and CI runs it, so a stale template fails the build
+rather than shipping last release's notes. "Just updated" is judged by the version that
+starts, against `LastRunVersion` in preferences - never by the old updater, which knows
+nothing of it - and a missing record with preferences or the update cache on disk counts as
+updated from an older release. It only covers the What's new section: keep release-only
+instructions such as "Updating" under their own heading, where the program does not show them.
+
 **Releases ship as zips, and their shape is a contract with every installed copy.**
 `packaging/make_bundle.py` packs each binary as `DepthView-<version>-<rid>.zip` holding one
 `DepthView/` folder (program, README.txt, LICENSE.txt; `DepthView.app` on macOS). The in-place

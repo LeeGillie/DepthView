@@ -97,6 +97,12 @@ public partial class MainWindow : Window
                 if (Program.ScreenshotPath is not null) ScheduleScreenshot();
                 return;
             }
+            if (Program.StartupWhatsNew)
+            {
+                OpenReleaseNotes();
+                if (Program.ScreenshotPath is not null) ScheduleScreenshot();
+                return;
+            }
 
             var start = Program.StartupFile;
 
@@ -160,6 +166,7 @@ public partial class MainWindow : Window
                 Histogram.ClearHover();
                 Window target =
                     Program.StartupAbout && _about is not null ? _about :
+                    Program.StartupWhatsNew && _notes is not null ? _notes :
                     Program.StartupTune && _tune is not null ? _tune :
                     Program.StartupRelief && _relief is not null ? _relief : this;
                 var size = new PixelSize(Math.Max(1, (int)target.ClientSize.Width),

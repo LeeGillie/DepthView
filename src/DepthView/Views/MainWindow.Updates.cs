@@ -25,13 +25,18 @@ public partial class MainWindow
 
     private UpdateInfo? _update;
     private bool _updating;
+    private bool _justUpdated;
 
     private void WireUpdates()
     {
         UpdateService.Checked += OnUpdateChecked;
         Closed += (_, _) => UpdateService.Checked -= OnUpdateChecked;
 
-        UpdateNotesButton.Click += async (_, _) => await OpenUrlAsync(_update?.NotesUrl ?? UpdateService.ReleasesPage);
+        UpdateNotesButton.Click += async (_, _) =>
+        {
+            if (_justUpdated) OpenReleaseNotes(ReleaseNotes.UpdatedFrom);
+            else await OpenUrlAsync(_update?.NotesUrl ?? UpdateService.ReleasesPage);
+        };
         UpdateDownloadButton.Click += async (_, _) => await OpenUrlAsync(_update?.NotesUrl ?? UpdateService.ReleasesPage);
         UpdateHideButton.Click += (_, _) => UpdateBar.IsVisible = false;
         UpdateSkipButton.Click += (_, _) =>
@@ -48,7 +53,14 @@ public partial class MainWindow
         Opened += async (_, _) =>
         {
             bool testFeed = UpdateService.FeedOverride is not null;
-            if (!testFeed && (Program.ScreenshotPath is not null || !Preferences.Current.CheckForUpdates)) return;
+            bool screenshot = Program.ScreenshotPath is not null;
+
+            // First start of a newer version: offer its notes, once. A screenshot run neither
+            // shows the offer nor uses it up, so the next ordinary start still gets it.
+            if (ReleaseNotes.JustUpdated && (!screenshot || testFeed)) ShowJustUpdated();
+            else if (!screenshot) ReleaseNotes.MarkSeen();
+
+            if (!testFeed && (screenshot || !Preferences.Current.CheckForUpdates)) return;
             var info = await UpdateService.CheckAsync();
             UpdateService.Announce(info, fromUser: false);
         };
@@ -66,8 +78,16 @@ public partial class MainWindow
         var u = _update;
         bool show = u is { Newer: true, Error: null }
                     && (fromUser || (Preferences.Current.CheckForUpdates && u.Latest != Preferences.Current.SkipVersion));
-        if (!show || u is null) { UpdateBar.IsVisible = false; return; }
+        if (!show || u is null)
+        {
+            // Nothing newer: leave a "just updated" offer where it is.
+            if (!_justUpdated) UpdateBar.IsVisible = false;
+            return;
+        }
 
+        _justUpdated = false;
+        ToolTip.SetTip(UpdateNotesButton, "Open the release notes for the new version in your web browser.");
+        ToolTip.SetTip(UpdateHideButton, "Hide the bar for now. It comes back next time DepthView starts.");
         UpdateText.Foreground = UpdateTextBrush;
         UpdateText.Text = u.CanInstall
             ? $"DepthView {u.Latest} is available - you have {u.Current}."
@@ -79,6 +99,39 @@ public partial class MainWindow
         UpdateDownloadButton.IsVisible = !u.CanInstall;
         UpdateHideButton.IsVisible = true;
         UpdateBar.IsVisible = true;
+    }
+
+    /// <summary>
+    /// The bar after an update: this version is new here, and its notes are one click away.
+    /// Offered once - the version is recorded as seen as soon as the offer is made.
+    /// </summary>
+    private void ShowJustUpdated()
+    {
+        _justUpdated = true;
+        string from = ReleaseNotes.UpdatedFrom is { } f ? $" (you had {f})" : "";
+        UpdateText.Foreground = UpdateTextBrush;
+        UpdateText.Text = $"DepthView has been updated to {BuildInfo.Version}{from}. See what is new in this version?";
+        ToolTip.SetTip(UpdateNotesButton, "Show this version's release notes. They are built into the program, so this works offline.");
+        UpdateProgress.IsVisible = false;
+        UpdateNotesButton.IsVisible = true;
+        UpdateSkipButton.IsVisible = false;
+        UpdateInstallButton.IsVisible = false;
+        UpdateDownloadButton.IsVisible = false;
+        UpdateHideButton.IsVisible = true;
+        ToolTip.SetTip(UpdateHideButton, "Hide the bar. The notes stay available from About - What's new.");
+        UpdateBar.IsVisible = true;
+        ReleaseNotes.MarkSeen();
+    }
+
+    private ReleaseNotesWindow? _notes;
+
+    internal void OpenReleaseNotes(string? updatedFrom = null)
+    {
+        if (_notes is not null) { _notes.Activate(); return; }
+        _notes = new ReleaseNotesWindow(updatedFrom);
+        _notes.Closed += (_, _) => _notes = null;
+        _notes.Show(this);
+        if (_justUpdated) UpdateBar.IsVisible = false;
     }
 
     private void ShowUpdateMessage(string text, bool error, bool busy)

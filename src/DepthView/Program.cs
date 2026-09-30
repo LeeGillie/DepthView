@@ -45,6 +45,7 @@ internal static partial class Program
 
     /// <summary>Open the About box straight away. Exists so its screenshot is reproducible too.</summary>
     public static bool StartupAbout;
+    public static bool StartupWhatsNew;
 
     /// <summary>Open the About box showing the licence page rather than the credit roll.</summary>
     public static bool StartupLicence;
@@ -86,6 +87,8 @@ internal static partial class Program
           DepthView --window <w> <h>      open the window at this size, to check the
                                           layout at screen sizes you do not own
           DepthView --version             print the version and exit
+          DepthView --whats-new           print this version's release notes (built in)
+          DepthView --whats-new-ui        open them in a window
           DepthView --check-update        ask GitHub whether a newer release exists
           DepthView --update              download, verify and install it in place (a copy
                                           unpacked from a release zip only). Nothing is
@@ -258,6 +261,25 @@ internal static partial class Program
             return 0;
         }
 
+        // Release notes, as text. Exit 1 when the notes built in are not this version's - CI
+        // runs this, so a release cannot be built with last release's notes inside it.
+        if (args.Any(a => a is "--whats-new"))
+        {
+            AttachParentConsole();
+            var notes = Updates.ReleaseNotes.ForThisBuild();
+            if (notes is null)
+            {
+                Console.Error.WriteLine($"No release notes for {BuildInfo.Version} are built in (they describe "
+                    + $"{Updates.ReleaseNotes.NotesVersion(Updates.ReleaseNotes.Markdown) ?? "nothing"}). "
+                    + "Update .github/RELEASE_TEMPLATE.md.");
+                return 1;
+            }
+            Console.Write(Updates.ReleaseNotes.PlainText(notes));
+            Console.WriteLine();
+            Console.WriteLine("Full release page: " + Updates.ReleaseNotes.PageUrl);
+            return 0;
+        }
+
         int fidx = Array.IndexOf(args, "--update-feed");
         if (fidx >= 0 && fidx + 1 < args.Length) Updates.UpdateService.FeedOverride = args[fidx + 1];
 
@@ -313,6 +335,7 @@ internal static partial class Program
                     ? FitPolicy.Canvas : FitPolicy.Content;
         }
         StartupAbout = args.Any(a => a is "--about");
+        StartupWhatsNew = args.Any(a => a is "--whats-new-ui");
         StartupLicence = args.Any(a => a is "--licence" or "--license");
         if (StartupLicence) StartupAbout = true;
 
@@ -344,6 +367,9 @@ internal static partial class Program
             StartupPitch = op;
             StartupRelief = true;
         }
+
+        // Before any window can save a preference: is this the first start of a newer version?
+        Updates.ReleaseNotes.Probe();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
     }
@@ -376,6 +402,7 @@ internal static partial class Program
         {
             var changed = Updates.UpdateService.InstallAsync(info, layout, progress).GetAwaiter().GetResult();
             Console.WriteLine($"Installed DepthView {info.Latest}: {string.Join(", ", changed)}");
+            Console.WriteLine($"What's new: run DepthView --whats-new, or see {info.NotesUrl}");
             return 0;
         }
         catch (Updates.UpdateException ex)

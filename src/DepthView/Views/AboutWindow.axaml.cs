@@ -70,6 +70,11 @@ public partial class AboutWindow : Window
             Preferences.Current.Save();
         };
         CheckUpdateButton.Click += async (_, _) => await CheckForUpdatesAsync();
+        WhatsNewButton.Click += (_, _) =>
+        {
+            if (Owner is MainWindow main) main.OpenReleaseNotes();
+            else new ReleaseNotesWindow().Show(this);
+        };
 
         LicenceButton.Click += (_, _) => ToggleLicence();
         CloseButton.Click += (_, _) => Close();

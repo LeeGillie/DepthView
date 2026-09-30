@@ -2,39 +2,32 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.6.0 — see what your laser is actually sent
+## What's new in 1.7.0 — release notes in the program, and cleaning layers in G-code
 
-**DepthView now reads G-code jobs.** Open a `.gc` file - browse to it, drop it on the window,
-or run `DepthView --gcode <job.gc>` - and it reports what really reaches the machine, rather
-than what the project or the depth map says:
+**DepthView now tells you what changed when it updates.** The first time a new version
+starts, the green bar says so and **What's new** opens that version's release notes in the
+program. They are built in, so this works offline. You can read them again any time from
+**About → What's new**, or print them with `DepthView --whats-new`.
 
-- **How many distinct power levels the job uses.** This is the depth resolution the machine
-  actually receives, however many grey levels the source map had.
-- **How finely it samples**: the spacing of the scan lines, and how often the power changes
-  along each line.
-- **Every layer and cutting height**, and the direction each layer is scanned in.
-- **The settings in MakeIt's own units** - power, speed, frequency, pulse width and line
-  density - for each group of settings in the job, and the order the job switches between
-  them, which is where a cleaning pass shows up.
+**G-code reports now show repeated layers and cleaning layers.** Open a `.gc` job and a new
+section, *Repeated layers and cleaning*, lists:
 
-MakeIt writes every job it sends to a G-code file on your computer; its knowledge base documents
-`Ctrl+Shift+P` for getting at it. LightBurn G-code and gzipped files open too, and a 349 MB
-relief job reads in a few seconds.
+- **Layers that are exact copies of the layer before them**, at the same height, and how
+  often they recur.
+- **Layers that run at settings of their own**, and how often.
+- **Layers that move to a cutting height and burn nothing.**
 
-**How far the decoding is confirmed.** Power, speed, frequency, pulse width and line density
-were read back against MakeIt 3.0.6's own settings panel for a colour test and for a 10-layer
-relief job, and matched exactly. Other job types are assumed to work the same way, and every
-report says so.
+Turn on MakeIt's *Cleaning Layer* and this is where the cleaning layers show up, along with
+the power, speed, frequency, pulse width and line density the file actually runs them at.
 
-Two things it has already shown about MakeIt relief jobs: *Auto Planning* turns the scan
-direction 27 degrees per layer, and power changes every 0.1 mm along a line.
-
-For other programs, `--gcode --json` gives the same as a JSON document (schema
-`depthview.gcode/1`, in [docs/INTEGRATION.md](https://github.com/LeeGillie/DepthView/blob/main/docs/INTEGRATION.md)).
+For other programs, the same findings are in `--gcode --json` as a new `layerChecks` object
+(schema `depthview.gcode/1`, fields added, none changed; see
+[docs/INTEGRATION.md](https://github.com/LeeGillie/DepthView/blob/main/docs/INTEGRATION.md)).
 
 ## Updating
 
-**From 1.4.0 or 1.5.0:** the green bar will offer this release — click **Update now**.
+**From 1.4.0, 1.5.0 or 1.6.0:** the green bar will offer this release — click **Update now**.
+When 1.7.0 starts, it offers these notes.
 
 **From 1.3.0 or earlier:** those versions cannot update themselves. Download this release by
 hand once; from then on, updates come to you.

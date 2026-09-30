@@ -50,6 +50,10 @@ public sealed class Preferences
     /// <summary>A release the user chose "Skip this version" for; the bar stays hidden for it.</summary>
     public string? SkipVersion { get; set; }
 
+    /// <summary>The last version whose window opened here. A newer one starting offers its
+    /// release notes once - see <see cref="Updates.ReleaseNotes"/>.</summary>
+    public string? LastRunVersion { get; set; }
+
     // ------------------------------------------------------------------ storage
 
     private const int MinPasses = 2;

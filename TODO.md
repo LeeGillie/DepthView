@@ -3,7 +3,7 @@
 Everything discussed and consciously set aside, with enough context to pick it up cold.
 Ordered by my estimate of value per unit of work, not by size.
 
-### Resume here (updated 2026-09-30, after 1.6.0)
+### Resume here (updated 2026-09-30, after 1.7.0)
 
 1.4.0 brought true-scale relief, one program-wide blank, zip installers and the in-place
 updater; 1.5.0 added JSON output for host programs and enforces never writing over the input;
@@ -21,7 +21,9 @@ Next up, roughly in order:
   `.gc`). Decoding confirmed for relief against Lee's settings panel (CLAUDE.md). Open
   question it raised: Z descends 10 um per layer with MakeIt's Z-descent switch off - ask
   what the switch controls before relying on it for §7.9.
-- **Cleaning-layer detection** built after 1.6.0, not released: `--gcode` reports layers that
+- **1.7.0 (2026-09-30)**: the program offers its release notes the first time a newer version
+  starts (built in from `.github/RELEASE_TEMPLATE.md`; see CLAUDE.md, Releasing), and:
+- **Cleaning-layer detection** released in 1.7.0: `--gcode` reports layers that
   exactly repeat the one before them, layers at other settings, and empty layers
   (`layerChecks` in JSON). On Lee's cleaning-on job it found MakeIt 3.0.6 writing each cleaning
   layer as a copy of the previous engraving layer, with none of the cleaning settings in the

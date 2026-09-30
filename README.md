@@ -338,8 +338,12 @@ you keep in the folder, and your settings, are left alone. **Skip this version**
 bar until the next one; About has *Check for updates* and the switch to turn checking off.
 Nothing is sent but the request itself.
 
-From a terminal: `DepthView --check-update`, and `DepthView --update` to install without
-the window.
+The first time a new version starts, the bar says so and **What's new** shows that version's
+release notes. They are built into the program, so this works offline, and About → *What's
+new* shows them again any time.
+
+From a terminal: `DepthView --check-update`, `DepthView --update` to install without the
+window, and `DepthView --whats-new` to print the release notes.
 
 ### Try it in sixty seconds
 
@@ -666,7 +670,9 @@ analysis and tuning feature works on it.
 Browse to or drop a `.gc` job on the window, or run `DepthView --gcode <job.gc>`, and DepthView
 reports what reaches the laser: how many
 distinct power levels it really uses, the spacing of its scan lines and of the power changes
-along them, every cutting height, and each group of settings in MakeIt's own units. MakeIt
+along them, every cutting height, layers that repeat the one before them or run at settings of
+their own (which is where MakeIt's cleaning layers show up), and each group of settings in
+MakeIt's own units. MakeIt
 stages every job as a G-code file, and its knowledge base documents `Ctrl+Shift+P` for getting
 at it. LightBurn G-code and gzipped files read too, and a 349 MB relief job takes seconds.
 

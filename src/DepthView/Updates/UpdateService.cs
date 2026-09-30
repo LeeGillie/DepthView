@@ -167,7 +167,7 @@ public static class UpdateService
 
     // ------------------------------------------------------------------ checking
 
-    private static string CachePath =>
+    internal static string CachePath =>
         Path.Combine(Path.GetDirectoryName(Preferences.DefaultPath) ?? ".", CacheFileName);
 
     private static HttpClient NewClient(TimeSpan timeout)

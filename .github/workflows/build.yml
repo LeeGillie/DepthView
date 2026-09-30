@@ -99,6 +99,13 @@ jobs:
         shell: bash
         run: '"${{ steps.exe.outputs.path }}" --version | grep -E "^DepthView [0-9]+\.[0-9]+"'
 
+      # After an update the new version offers its release notes, which are built in from
+      # .github/RELEASE_TEMPLATE.md. This exits 1 unless they are this version's notes, so a
+      # release cannot ship with the previous release's notes inside it.
+      - name: Release notes are this version's
+        shell: bash
+        run: '"${{ steps.exe.outputs.path }}" --whats-new'
+
       # End-to-end updater tests: real release-shaped zips installed over a fake copy, good ones
       # landing and every tampered one refused with nothing changed. Shell-script stand-ins for
       # the program, so Unix only.

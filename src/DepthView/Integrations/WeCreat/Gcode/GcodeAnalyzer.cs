@@ -78,6 +78,10 @@ public static class GcodeAnalyzer
 
                 if (code.IndexOf("undefined"u8) >= 0) a.UndefinedOperands++;
                 Line(a, st, code, g.LineNumber);
+
+                // Everything in a layer except the Z move that opened it, so a layer cut twice
+                // at the same height hashes the same both times.
+                if (code.IndexOf((byte)'Z') < 0) a.HashLine(code);
             }
         }
 
@@ -165,7 +169,7 @@ public static class GcodeAnalyzer
         {
             a.ZMoves++;
             a.NoteZ(st.Z);
-            a.NoteLayerStart();
+            a.NoteLayerStart(st.Z, lineNo);
         }
 
         if (st.Motion == 0) { a.G0Moves++; st.LastAngle = int.MinValue; } else a.G1Moves++;
@@ -388,7 +392,116 @@ public sealed class GcodeAnalysis
     public int Layers;
     private bool _layerPending;
 
-    internal void NoteLayerStart() => _layerPending = true;
+    /// <summary>
+    /// Every block opened by a Z move, in order - burning or not - up to <see cref="MaxLayerList"/>.
+    /// This is what finds a cleaning layer: either a layer with settings of its own recurring at
+    /// an interval, or, as MakeIt 3.0.6 was seen to do, an exact repeat of the layer before it.
+    /// </summary>
+    public List<LayerBlock> Blocks = new();
+    public const int MaxLayerList = 5000;
+    private LayerBlock? _block;
+    private ulong _hash = FnvOffset;
+    private const ulong FnvOffset = 14695981039346656037UL, FnvPrime = 1099511628211UL;
+
+    public sealed class LayerBlock
+    {
+        public int Number;              // 1-based, in cut order
+        public double Z;
+        public long FirstLine;
+        public long BurnMoves;
+        public double BurnLengthMm;
+        public int? Group;              // settings group of its first burning move
+        public int? AngleDeg;           // direction of its first burning move
+        public ulong Hash;
+        public int? RepeatOf;           // number of the block it repeats exactly, if any
+        public int? Layer;              // 1-based among burning blocks; null if it burns nothing
+        public bool Burns => BurnMoves > 0;
+    }
+
+    internal void NoteLayerStart(double z, long lineNo)
+    {
+        _layerPending = true;
+        CloseBlock();
+        if (Blocks.Count < MaxLayerList)
+            _block = new LayerBlock { Number = Blocks.Count + 1, Z = z, FirstLine = lineNo };
+        else
+            _block = null;
+    }
+
+    internal void HashLine(ReadOnlySpan<byte> code)
+    {
+        if (_block is null) return;
+        foreach (byte b in code) { _hash ^= b; _hash *= FnvPrime; }
+        _hash ^= (byte)'\n'; _hash *= FnvPrime;
+    }
+
+    private void CloseBlock()
+    {
+        if (_block is null) return;
+        _block.Hash = _hash;
+        _hash = FnvOffset;
+
+        // A repeat is a burning block at the same height whose every line matches the block
+        // immediately before it. Identical content one height lower is ordinary deepening (a job
+        // with no rotation and one power does exactly that every layer), so height must match.
+        var prev = Blocks.Count > 0 ? Blocks[^1] : null;
+        if (_block.Burns && prev is not null && prev.Burns && Math.Abs(prev.Z - _block.Z) < 1e-6
+            && prev.Hash == _block.Hash && prev.BurnMoves == _block.BurnMoves)
+            _block.RepeatOf = prev.Number;
+
+        Blocks.Add(_block);
+        _block = null;
+    }
+
+    /// <summary>Layers that repeat the layer before them exactly (layer numbers, counting burning blocks only).</summary>
+    public List<int> RepeatedBlocks = new();
+
+    /// <summary>How many other layers typically come between repeats, or null.</summary>
+    public int? RepeatAfterEvery;
+
+    /// <summary>Layers whose settings group is not the job's main one (layer numbers).</summary>
+    public List<int> OtherSettingsBlocks = new();
+    public int? OtherSettingsAfterEvery;
+    public int? MainGroup;
+
+    /// <summary>Blocks at or below the first cutting height that burn nothing.</summary>
+    public int EmptyBlocks;
+    public bool EmptyBlocksAtEnd;
+
+    /// <summary>True when the job had more Z blocks than <see cref="MaxLayerList"/> and the rest went uncounted.</summary>
+    public bool BlocksTruncated => Blocks.Count >= MaxLayerList;
+
+    private void SummariseLayers()
+    {
+        var burning = Blocks.Where(b => b.Burns).ToList();
+        if (burning.Count == 0) return;
+        for (int i = 0; i < burning.Count; i++) burning[i].Layer = i + 1;
+
+        MainGroup = Groups.Count == 0 ? null : Groups.MaxBy(g => g.BurnLengthMm)!.Index;
+
+        RepeatedBlocks = burning.Where(b => b.RepeatOf is not null).Select(b => b.Layer!.Value).ToList();
+        RepeatAfterEvery = TypicalGap(RepeatedBlocks);
+
+        OtherSettingsBlocks = burning.Where(b => b.Group is int g && g != MainGroup).Select(b => b.Layer!.Value).ToList();
+        OtherSettingsAfterEvery = TypicalGap(OtherSettingsBlocks);
+
+        // A Z move above the first cutting height is a travel height (MakeIt returns to its
+        // start height at the end); only blocks at or below it are layers that cut nothing.
+        double top = burning[0].Z + 1e-6;
+        var empty = Blocks.Where(b => !b.Burns && b.Z <= top).ToList();
+        EmptyBlocks = empty.Count;
+        int lastBurning = burning[^1].Number;
+        EmptyBlocksAtEnd = empty.Count > 0 && empty.All(b => b.Number > lastBurning);
+    }
+
+    /// <summary>The commonest number of blocks between consecutive entries, when there are enough to say.</summary>
+    private static int? TypicalGap(List<int> numbers)
+    {
+        if (numbers.Count < 2) return null;
+        var gaps = numbers.Zip(numbers.Skip(1), (p, q) => q - p - 1).ToList();
+        var top = gaps.GroupBy(v => v).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).First();
+        return top.Count() * 2 >= gaps.Count ? top.Key : null;   // only when most gaps agree
+    }
 
     internal void NoteStep(double len)
     {
@@ -450,6 +563,14 @@ public sealed class GcodeAnalysis
         var passKey = (zk, grp.Index, angle);
         if (passKey != _passKey) { ClosePass(); _passKey = passKey; _passDir = dir; _passGroupDir = gdir; }
         _passOffsets.Add(ok);
+
+        if (_block is not null)
+        {
+            _block.BurnMoves++;
+            _block.BurnLengthMm += len;
+            _block.Group ??= grp.Index;
+            _block.AngleDeg ??= angle;
+        }
 
         if (z is double zz)
         {
@@ -520,6 +641,8 @@ public sealed class GcodeAnalysis
     {
         CloseRun();
         ClosePass();
+        CloseBlock();
+        SummariseLayers();
 
         foreach (var d in Directions) d.Summarise();
         Directions.Sort((p, q) => q.BurnLengthMm.CompareTo(p.BurnLengthMm));

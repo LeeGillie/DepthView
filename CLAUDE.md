@@ -308,6 +308,25 @@ Burning per layer falls from 28 m to 0.7 m, so each layer also cuts a shrinking 
 relief is both per-pixel power (245 levels) and slicing across layers. How the two combine is
 not established; do not describe it further until it is.
 
+**A fourth, with Cleaning Layer on: the cleaning settings do not reach the file (2026-09-30).**
+Same job settings but 100 layers, and Cleaning Layer on - every 10 layers, power 33%, speed
+9494, line density 175, frequency 48, pulse width 200, 1 pass, "Engraving Completed" ticked
+(panel screenshot; file `samples/test gc with cleaning/gcode.gc`, local only). The file has 111
+Z blocks, which is 100 + 10 cleaning + 1 final, so the layers are in the right places. But:
+- **Each cleaning layer is a byte-identical copy of the engraving layer before it**, at the same
+  Z (layers 11, 22, ... 99 repeat 10, 21, ... 98). Hash every line of the block except the Z
+  move and they match.
+- **None of the cleaning settings appear anywhere.** Every block sets M38F48, M39P200 and
+  G1F139620 (2327 mm/s); there is no F569640 (9494 mm/s) and no line spacing but 100/cm.
+- The last 8 blocks (Z 40.02 down to 39.98, four at 39.98) burn nothing: burning per layer
+  tapers to 0.35 m by layer 103, so the map's deepest content ran out before the last six
+  engraving layers, and presumably the tenth cleaning layer and the final one copy empty layers.
+So as written, a "cleaning" layer here re-cuts the previous layer at the engraving settings. That
+is what the file says, from one job; whether the machine does something the file does not show
+is unknown. `--gcode` reports it under REPEATED LAYERS AND CLEANING, and requires the same Z
+for a repeat - identical content one height lower is ordinary deepening. **Lee decides whether
+this goes to WeCreat.** Do not put it in public notes as a MakeIt bug on one file.
+
 **Both came from WeCreat support, and both are publishable — check which stream a fact came
 from rather than treating "WeCreat" as uniformly restricted.** There are two:
 

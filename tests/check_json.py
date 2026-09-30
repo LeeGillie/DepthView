@@ -57,7 +57,7 @@ def run(exe, *args, cwd=None):
 def write_gcode(path):
     """A small MakeIt-style job with known answers.
 
-    Two heights. At each, a main pass: 30 horizontal lines 0.05 mm apart, 20 samples of
+    Three heights (the last cut twice, identically - see below). At each, a main pass: 30 horizontal lines 0.05 mm apart, 20 samples of
     0.1 mm per line, power cycling through five levels (S 100..500). At the second height a
     cleaning pass follows: 30 vertical lines 0.05 mm apart at one power (S 300 would collide
     with the main levels, so S 250). The preamble carries the traps: M107X-105Y-105 must not
@@ -95,6 +95,12 @@ def write_gcode(path):
     main_pass(1.0)
     main_pass(0.99)
     cleaning_pass()
+    # MakeIt 3.0.6 with Cleaning Layer on wrote each cleaning layer as a byte-identical copy of
+    # the layer before it: layer 5 repeats layer 4 exactly. Then a layer that cuts nothing, and
+    # a return to a travel height above the first cut, which is not a layer at all.
+    main_pass(0.98)
+    main_pass(0.98)
+    out += ["G0Z0.97", "M38F45", "M39P250", "G0Z1.5"]
     out += ["G0X105Y105", "M5"]
     with open(path, "w", newline="\n") as f:
         f.write("\n".join(out) + "\n")
@@ -114,8 +120,16 @@ def check_gcode(exe, work):
     step = doc["alongLine"]["stepModeMm"]
     check(step == 0.1, f"step along line {step}, expected 0.1")
     zs = [z["z"] for z in doc["zLevels"]]
-    check(zs == [1.0, 0.99], f"cutting heights {zs} - Zundefined must not become a height")
-    check(doc.get("layers") == 3, f"layers {doc.get('layers')}, expected 3 (a repeated height is a new layer)")
+    check(zs == [1.0, 0.99, 0.98], f"cutting heights {zs} - Zundefined must not become a height")
+    check(doc.get("layers") == 5, f"layers {doc.get('layers')}, expected 5 (a repeated height is a new layer)")
+    lc = doc.get("layerChecks") or {}
+    check(lc.get("mainGroup") == 1, f"main group {lc.get('mainGroup')}")
+    check(lc.get("repeatedLayers") == [5], f"repeated layers {lc.get('repeatedLayers')}, expected [5]")
+    check(lc.get("otherSettingsLayers") == [3], f"other-settings layers {lc.get('otherSettingsLayers')}, expected [3]")
+    check(lc.get("emptyLayers") == 1 and lc.get("emptyLayersAtEnd") is True,
+          f"empty layers {lc.get('emptyLayers')} at end {lc.get('emptyLayersAtEnd')} - the travel height must not count")
+    reps = [b.get("repeatsLayer") for b in lc.get("blocks", [])]
+    check(reps == [None, None, None, None, 4, None, None], f"repeatsLayer per block {reps}")
     check(doc["undefinedOperandLines"] == 1, f"undefined lines {doc['undefinedOperandLines']}")
     groups = doc["settingsGroups"]
     check(len(groups) == 2, f"expected 2 settings groups, got {len(groups)}")
@@ -128,14 +142,15 @@ def check_gcode(exe, work):
         check((g2["frequencyKHz"], g2["pulseWidthNs"], g2["speedMmPerS"]) == (100, 350, 3500),
               f"cleaning settings {g2}")
         check(groups[1]["rasterAnglesDeg"] == [90], f"cleaning direction {groups[1]['rasterAnglesDeg']}")
-    check(doc["settingsSwitches"] == 1, f"settings switches {doc['settingsSwitches']}")
+    check(doc["settingsSwitches"] == 2, f"settings switches {doc['settingsSwitches']}")
     area = doc["burnArea"]
     check(area["minX"] == 100 and area["minY"] == 100, f"burn area {area} - M107X-105Y-105 moved something")
 
     # The text form runs too, and says what it could not confirm.
     code, _, text, _ = run_text(exe, "--gcode", gc, cwd=work)
     check(code == 0 and "confirmed against MakeIt" in text and "6 distinct" in text
-          and "3 layer(s) at 2 height(s)" in text, "gcode text report")
+          and "5 layer(s) at 3 height(s)" in text
+          and "1 layer(s) are exact copies" in text, "gcode text report")
 
 
 def run_text(exe, *args, cwd=None):

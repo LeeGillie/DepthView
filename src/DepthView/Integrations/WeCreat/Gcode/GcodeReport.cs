@@ -92,6 +92,8 @@ public static class GcodeReport
             sb.AppendLine($"  {a.UndefinedOperands:N0} line(s) carry a non-numeric operand (\"undefined\"); those values were ignored, not read as zero.");
         sb.AppendLine();
 
+        AppendLayerChecks(sb, a);
+
         sb.AppendLine("SETTINGS, IN MAKEIT'S UNITS");
         sb.AppendLine("  One group per combination of frequency, pulse width and speed, in order of first use.");
         foreach (var g in a.Groups)
@@ -112,13 +114,57 @@ public static class GcodeReport
             sb.AppendLine($"  The job switches settings {a.TotalRuns - 1:N0} time(s). In order:");
             var runs = a.Runs.Take(40).ToList();
             sb.AppendLine("    " + string.Join(" ", runs.Select(r => $"[{r.Group}]")) + (a.TotalRuns > runs.Count ? " ..." : ""));
-            sb.AppendLine("  A second group that recurs at a regular interval is how a cleaning pass shows up.");
             sb.AppendLine();
         }
 
         AppendFooter(sb, a);
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Cleaning layers, as far as the file shows them. Two signatures are checked: a layer that
+    /// repeats the one before it exactly (what MakeIt 3.0.6 was seen to write with Cleaning Layer
+    /// on), and a layer run at settings of its own. The file says nothing about intent, so this
+    /// reports what recurs and where, and names the likely cause without asserting it.
+    /// </summary>
+    private static void AppendLayerChecks(StringBuilder sb, GcodeAnalysis a)
+    {
+        int burning = a.Blocks.Count(b => b.Burns);
+        if (burning < 2) return;
+
+        sb.AppendLine("REPEATED LAYERS AND CLEANING");
+        bool any = false;
+        if (a.RepeatedBlocks.Count > 0)
+        {
+            any = true;
+            sb.AppendLine($"  {a.RepeatedBlocks.Count:N0} layer(s) are exact copies of the layer just before them, at the same height"
+                        + (a.RepeatAfterEvery is int n ? $" - one after every {n} layer(s)" : "") + ":");
+            sb.AppendLine("    layers " + Numbers(a.RepeatedBlocks));
+            sb.AppendLine("  With MakeIt's Cleaning Layer on, this is where cleaning layers were seen to fall. Each copy");
+            sb.AppendLine("  runs at the same power, speed, frequency, pulse width and line spacing as the layer it copies,");
+            sb.AppendLine("  so if the Cleaning Layer panel asked for different settings, they are not in this file.");
+        }
+        if (a.OtherSettingsBlocks.Count > 0)
+        {
+            any = true;
+            sb.AppendLine($"  {a.OtherSettingsBlocks.Count:N0} layer(s) start at settings other than the main group [{a.MainGroup}]"
+                        + (a.OtherSettingsAfterEvery is int n ? $" - one after every {n} layer(s)" : "") + ":");
+            sb.AppendLine("    layers " + Numbers(a.OtherSettingsBlocks));
+            sb.AppendLine("  Settings of their own, recurring at an interval, is what a cleaning layer with its own settings looks like.");
+        }
+        else if (a.Groups.Count > 0)
+            sb.AppendLine($"  Every layer starts at the same settings group [{a.MainGroup}]; no layer has settings of its own.");
+        if (!any)
+            sb.AppendLine("  No layer repeats the one before it. Nothing here has the signature of a cleaning layer.");
+        if (a.EmptyBlocks > 0)
+            sb.AppendLine($"  {a.EmptyBlocks:N0} layer(s){(a.EmptyBlocksAtEnd ? " at the end" : "")} move to a cutting height and burn nothing.");
+        if (a.BlocksTruncated)
+            sb.AppendLine($"  Only the first {GcodeAnalysis.MaxLayerList:N0} Z blocks were checked.");
+        sb.AppendLine();
+    }
+
+    private static string Numbers(List<int> n) =>
+        string.Join(", ", n.Take(15)) + (n.Count > 15 ? $" ... ({n.Count - 15:N0} more in --json)" : "");
 
     private static void AppendFooter(StringBuilder sb, GcodeAnalysis a)
     {

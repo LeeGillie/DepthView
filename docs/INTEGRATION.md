@@ -273,9 +273,18 @@ Exit code 0 when read, 2 when it could not be.
 | `layers`, `zLevels[]` | layers cut, and each cutting height with its `layers`, `burnMoves`, `burnLengthMm`, `mainAngleDeg` |
 | `undefinedOperandLines` | lines with a non-numeric operand such as MakeIt's `Zundefined`, ignored rather than read as zero |
 | `settingsGroups[]` | one per combination of frequency, pulse width and speed: `minS`, `maxS`, `powerLevelCount`, `feedMmPerMin`, `frequencyKHz`, `pulseWidthNs`, `angleDeg`, `rasterAnglesDeg`, `linePitchMm`, `linesPerPass`, `burnMoves`, `burnLengthMm`, `firstLine`, and `makeIt` - the same in MakeIt's units: `powerPercentMin`/`Max`, `speedMmPerS`, `frequencyKHz`, `pulseWidthNs`, `lineDensityPerCm` |
-| `settingsSwitches`, `runs[]` | how often, and in what order, the job changes group - a cleaning pass shows up as a second group recurring at an interval |
+| `layerChecks` | (added in 1.7.0) repeated layers and cleaning. Layer numbers count Z blocks that burn, in cut order. `mainGroup`; `repeatedLayers` - layers that are exact copies of the layer before them at the same height, with `repeatAfterEvery` (how many layers typically fall between them, or null); `otherSettingsLayers` and `otherSettingsAfterEvery` - layers that start in a group other than the main one; `emptyLayers`, `emptyLayersAtEnd` - Z moves at or below the first cutting height that burn nothing; `truncated`; and `blocks[]`, every Z block with `layer` (null if it burns nothing), `z`, `firstLine`, `burnMoves`, `burnLengthMm`, `group`, `angleDeg`, `repeatsLayer` |
+| `settingsSwitches`, `runs[]` | how often, and in what order, the job changes group |
 | `mCodes` | every M code seen, as `[code, count]` |
 | `decoding` | how far the decoding below is confirmed, as text to show a user |
+
+**Cleaning layers have two possible signatures, and MakeIt 3.0.6 was seen to use the less
+obvious one.** A cleaning layer with settings of its own would show as `otherSettingsLayers`
+recurring at an interval. With Cleaning Layer on (every 10 layers, 33%, 9494 mm/s, line density
+175), MakeIt 3.0.6 instead wrote each cleaning layer as an exact copy of the engraving layer
+before it, at the engraving settings - so it shows as `repeatedLayers` with `repeatAfterEvery`
+10, and the cleaning settings appear nowhere in the file. Seen in one job; report what the
+fields say rather than assuming either form.
 
 **How sure the decoding is.** Power as S/10 percent, frequency from `M38F`, pulse width from
 `M39P`, speed from `G1 F` and line density as lines per centimetre were confirmed against

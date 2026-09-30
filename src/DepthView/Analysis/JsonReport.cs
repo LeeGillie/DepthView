@@ -289,6 +289,33 @@ public static class JsonReport
         w.WriteBoolean("zLevelsTruncated", a.ZLevelsTruncated);
         w.WriteNumber("undefinedOperandLines", a.UndefinedOperands);
 
+        // Repeated layers and cleaning (added 1.7.0). Layer numbers count burning Z blocks in cut order.
+        w.WriteStartObject("layerChecks");
+        IntOrNull(w, "mainGroup", a.MainGroup);
+        IntArray(w, "repeatedLayers", a.RepeatedBlocks);
+        IntOrNull(w, "repeatAfterEvery", a.RepeatAfterEvery);
+        IntArray(w, "otherSettingsLayers", a.OtherSettingsBlocks);
+        IntOrNull(w, "otherSettingsAfterEvery", a.OtherSettingsAfterEvery);
+        w.WriteNumber("emptyLayers", a.EmptyBlocks);
+        w.WriteBoolean("emptyLayersAtEnd", a.EmptyBlocksAtEnd);
+        w.WriteBoolean("truncated", a.BlocksTruncated);
+        w.WriteStartArray("blocks");
+        foreach (var b in a.Blocks)
+        {
+            w.WriteStartObject();
+            IntOrNull(w, "layer", b.Layer);
+            Num(w, "z", b.Z);
+            w.WriteNumber("firstLine", b.FirstLine);
+            w.WriteNumber("burnMoves", b.BurnMoves);
+            Num(w, "burnLengthMm", b.BurnLengthMm);
+            IntOrNull(w, "group", b.Group);
+            IntOrNull(w, "angleDeg", b.AngleDeg);
+            IntOrNull(w, "repeatsLayer", b.RepeatOf is int r ? a.Blocks[r - 1].Layer : null);
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
+        w.WriteEndObject();
+
         w.WriteStartArray("settingsGroups");
         foreach (var g in a.Groups)
         {
@@ -555,6 +582,13 @@ public static class JsonReport
     {
         if (v is int i) w.WriteNumber(name, i);
         else w.WriteNull(name);
+    }
+
+    private static void IntArray(Utf8JsonWriter w, string name, IEnumerable<int> values)
+    {
+        w.WriteStartArray(name);
+        foreach (int v in values) w.WriteNumberValue(v);
+        w.WriteEndArray();
     }
 
     private static void StringOrNull(Utf8JsonWriter w, string name, string? v)

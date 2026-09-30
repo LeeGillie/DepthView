@@ -21,6 +21,11 @@ Next up, roughly in order:
   `.gc`). Decoding confirmed for relief against Lee's settings panel (CLAUDE.md). Open
   question it raised: Z descends 10 um per layer with MakeIt's Z-descent switch off - ask
   what the switch controls before relying on it for §7.9.
+- **Cleaning-layer detection** built after 1.6.0, not released: `--gcode` reports layers that
+  exactly repeat the one before them, layers at other settings, and empty layers
+  (`layerChecks` in JSON). On Lee's cleaning-on job it found MakeIt 3.0.6 writing each cleaning
+  layer as a copy of the previous engraving layer, with none of the cleaning settings in the
+  file (CLAUDE.md). Lee to decide whether to raise it with WeCreat.
 - **G-code capture watcher** (planned `GcodeCapture.cs`, `CaptureArchive.cs` - not yet
   written; `GcodeStream` and now `GcodeAnalyzer` are what they build on).
 - Decide the `--calibrate` default `--size`.

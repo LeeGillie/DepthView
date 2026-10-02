@@ -103,7 +103,11 @@ where the JSON is a GitHub release document whose asset URLs are local paths.
   the run only and are not saved.
 - **Never resample a depth map.** Interpolation invents grey levels that were not in the
   file, which is the exact fault this program exists to detect. Fitting artwork inside a
-  rim grows the canvas by padding instead — see `DepthCanvas`.
+  rim grows the canvas by padding instead — see `DepthCanvas`. `--fit design` (added after
+  1.7.0, for a coin drawn off-centre on a tall canvas: "2026 Liberty.png") may also *crop*,
+  but only background: `DepthCanvas.DesignOutside` counts design pixels a crop would drop and
+  the tuner refuses the plan if there is even one. Cropping and padding both copy pixels;
+  neither resamples.
 - **Measure, do not assert.** Every claim the tool makes about an improvement is a number
   it computed. `--tune` re-reads the file it just wrote and analyses it as a stranger's
   file; the Tune dialog does the same on save. If a prediction and a measurement ever

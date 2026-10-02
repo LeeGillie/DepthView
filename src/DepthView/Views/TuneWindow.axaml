@@ -227,14 +227,15 @@
                    the coin the design gets. Burying it under ramp and spot size put it below
                    the fold on a 900px window, where nobody would find it. -->
               <CheckBox x:Name="FitCheck"
-                        Content="Grow the canvas so nothing is clipped"
-                        ToolTip.Tip="Instead of the rim painting over artwork that runs past it, put the map in the middle of a larger square so the whole design sits inside the rim. Nothing is resampled - every original pixel is copied across untouched - so the artwork simply spans fewer millimetres of the same blank." />
+                        Content="Fit the design inside the rim"
+                        ToolTip.Tip="Instead of the rim painting over artwork that runs past it, change the canvas around the map so the whole design sits inside the rim. Nothing is resampled - every original pixel is copied across untouched - so the artwork simply spans a different number of millimetres of the same blank." />
               <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
                 <TextBlock Grid.Column="0" Classes="label" Text="Keep clear of" />
                 <ComboBox Grid.Column="1" x:Name="FitPolicyBox" HorizontalAlignment="Stretch" SelectedIndex="0"
-                          ToolTip.Tip="Artwork: grow until the furthest engraved pixel clears the rim, which uses as much of the blank as the design actually needs.&#x0a;Whole image: grow until all four corners clear it. Nothing can be clipped by construction, but a square inside a circle gives up a factor of root two, so a 40 mm blank carries about 27 mm of art.">
+                          ToolTip.Tip="Artwork: grow until the furthest engraved pixel clears the rim, which uses as much of the blank as the design actually needs.&#x0a;Whole image: grow until all four corners clear it. Nothing can be clipped by construction, but a square inside a circle gives up a factor of root two, so a 40 mm blank carries about 27 mm of art.&#x0a;Artwork, centred on it: centre the blank on the design instead of on the canvas, and size it so the design fills the blank inside the rim. For a coin drawn off-centre or on a wide surround of background. It may crop, but only background, and it refuses any crop that would remove design.">
                   <ComboBoxItem Content="Artwork (measured)" />
                   <ComboBoxItem Content="Whole image (corners)" />
+                  <ComboBoxItem Content="Artwork, centred on it" />
                 </ComboBox>
               </Grid>
               <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">

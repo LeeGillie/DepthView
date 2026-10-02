@@ -152,7 +152,7 @@ internal static partial class Program
                                 depth, which is how a noisy floor stops engraving mottled
             --white <level>     levels at or above this become pure white: no passes at all
             --no-stretch        keep the levels where they are instead of filling the range
-            --fit [content|canvas]
+            --fit [content|canvas|design]
                                 grow the canvas so the design clears the rim, instead of
                                 letting the rim paint over whatever runs past it. Nothing is
                                 resampled: the original pixels are copied into the middle of
@@ -161,7 +161,12 @@ internal static partial class Program
                                 furthest engraved pixel clears the rim; "canvas" grows until
                                 all four corners do, which cannot clip anything but costs the
                                 diagonal - a square inside a circle gives up a factor of root
-                                two, so a 40 mm blank carries about 27 mm of art
+                                two, so a 40 mm blank carries about 27 mm of art. "design"
+                                centres the blank on the design itself rather than on the
+                                canvas, and sizes it so the design fills the blank inside the
+                                rim - for a coin drawn off-centre, or on a wide surround of
+                                background. It may crop, but only background: a crop that
+                                would remove one pixel of design is refused
             --pad <background|untouched>
                                 what the new ring between the artwork and the rim is cut to.
                                 "background" (the default) carries the design's own field out
@@ -331,8 +336,15 @@ internal static partial class Program
 
             int fi = Array.IndexOf(args, "--fit");
             if (fi >= 0)
-                StartupFit = fi + 1 < args.Length && args[fi + 1].Equals("canvas", StringComparison.OrdinalIgnoreCase)
-                    ? FitPolicy.Canvas : FitPolicy.Content;
+            {
+                string mode = fi + 1 < args.Length ? args[fi + 1].ToLowerInvariant() : "";
+                StartupFit = mode switch
+                {
+                    "canvas" => FitPolicy.Canvas,
+                    "design" => FitPolicy.Design,
+                    _ => FitPolicy.Content,
+                };
+            }
         }
         StartupAbout = args.Any(a => a is "--about");
         StartupWhatsNew = args.Any(a => a is "--whats-new-ui");
@@ -889,6 +901,7 @@ internal static partial class Program
                     {
                         string? mode = rest[i + 1].ToLowerInvariant();
                         if (mode is "canvas") { o.Fit = FitPolicy.Canvas; i++; }
+                        else if (mode is "design") { o.Fit = FitPolicy.Design; i++; }
                         else if (mode is "content") i++;
                     }
                     break;
@@ -1015,10 +1028,12 @@ internal static partial class Program
             var pAfter = after.PassesAt(passes);
 
             Console.WriteLine($"Tuned {Path.GetFileName(input)} -> {Path.GetFileName(outPath)}");
-            if (o.PixelsPerMm(loaded.Image.Width, loaded.Image.Height) is double ppmm)
+            // Against the canvas that was written, not the one that was read: a fit changes how
+            // many pixels the blank spans, and so every millimetre figure below.
+            if (o.PixelsPerMm(outW, outH) is double ppmm)
             {
                 var check = ResolutionCheck.For(1000.0 / ppmm, spotMicrons);
-                Console.WriteLine($"  physical        {o.BlankDiameterMm:F1} mm across {Math.Min(loaded.Image.Width, loaded.Image.Height):N0} px"
+                Console.WriteLine($"  physical        {o.BlankDiameterMm:F1} mm across {Math.Min(outW, outH):N0} px"
                                 + $"  =  {ppmm:F1} px/mm, {o.Dpi:F0} dpi");
                 Console.WriteLine($"  resolution      {check.MicronsPerPixel:F1} um/pixel against a {spotMicrons:F0} um spot"
                                 + $"  -  {check.Note}");
@@ -1078,7 +1093,18 @@ internal static partial class Program
             Console.WriteLine($"  flattened       {rep.FlattenedToBlack:N0} px to pure black, "
                             + $"{rep.LiftedToWhite:N0} px to pure white");
 
-            if (rep.Fit is { } fit)
+            if (rep.Fit is { Recentred: true } centred)
+            {
+                Console.WriteLine($"  fitted          blank centred on the design; {loaded.Image.Width:N0} x {loaded.Image.Height:N0}"
+                                + $" -> {centred.Size:N0} px square, "
+                                + (centred.Crops(loaded.Image.Width, loaded.Image.Height)
+                                    ? $"cropping background only ({rep.FitDesignLost:N0} px of design removed)"
+                                    : "padded")
+                                + "; no pixel resampled");
+                Console.WriteLine($"                  the design spans {centred.ArtAcrossMm:F1} mm of the"
+                                + $" {o.BlankDiameterMm:F1} mm blank, at {centred.PixelsPerMm:F1} px/mm");
+            }
+            else if (rep.Fit is { } fit)
             {
                 Console.WriteLine($"  fitted          canvas grown {loaded.Image.Width:N0} -> {fit.Size:N0} px"
                                 + $" so the design clears the rim; no pixel resampled");
@@ -1087,6 +1113,12 @@ internal static partial class Program
             }
 
             if (o.AddRim) Console.WriteLine($"  rim             {rep.Summary}");
+            if (rep.FitDesignLost > 0)
+                Console.WriteLine($"                  centring on the design would have cropped {rep.FitDesignLost:N0} px"
+                                + " of it, so it was not done");
+            if (o.AddRim && o.Fit != FitPolicy.Design && rep.DesignOffCentreMm is >= DepthTuner.OffCentreNoteMm)
+                Console.WriteLine($"                  the design sits {rep.DesignOffCentreMm:F1} mm off the blank's centre;"
+                                + " --fit design centres the blank on it");
             Console.WriteLine($"  changed         {rep.Changed:N0} of {grey.Length:N0} pixels");
             Console.WriteLine($"  depths @ {passes,-4}   {dBefore:N0} -> {dAfter:N0}");
             Console.WriteLine($"  passes          relief {pBefore.Relief:N0} -> {pAfter.Relief:N0}, "

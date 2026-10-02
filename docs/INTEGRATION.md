@@ -128,7 +128,7 @@ The options most useful to a host:
 | `--bits <8\|16>` | output bit depth (default 16) |
 | `--blank <mm>` | blank diameter; also writes the correct DPI into the PNG |
 | `--rim-mm <mm>` `--ramp-mm <mm>` | leave an untouched rim |
-| `--fit [content\|canvas]` | grow the canvas so the design clears the rim; nothing is resampled |
+| `--fit [content\|canvas\|design]` | fit the design inside the rim; nothing is resampled. `design` centres the blank on the design and may crop background (never design) |
 | `--depth-mm <mm>` `--passes <n>` | the job's target depth and pass count, for the figures in the output |
 
 `--help` lists everything. **`--out` may not name the input file**: DepthView refuses, exits 2,
@@ -242,7 +242,8 @@ A complete example, for an 8-bit map saved as 16-bit:
 | `size` | `inWidth`, `inHeight`, `outWidth`, `outHeight` - fitting can grow the canvas |
 | `applied` | the settings actually used: `blackPoint`, `whitePoint`, `stretch`, `invert`, `slices`, `dither`, `bits`, `fit`, `pad`, `rim` |
 | `changedPixels`, `flattenedToBlack`, `liftedToWhite` | what moved |
-| `fit` | `canvasPx`, `artAcrossMm`, `pixelsPerMm`, or `null` |
+| `fit` | `canvasPx`, `artAcrossMm`, `pixelsPerMm`, and (added 1.7.1) `recentred`, `offsetX`, `offsetY` - where the input's top-left corner lands on the output, negative where background was cropped - and `cropped`; or `null` |
+| `designOffCentreMm` | (added 1.7.1) how far the middle of the design sits from the middle of the blank, when a rim was drawn with `--blank`; else `null`. Above about 0.5 mm, `--fit design` is worth trying |
 | `rim` | `widthMm`, `rampMm`, `radiusPx`, `rampPx`, `pixelsPainted`, `contentPixelsClipped`, `contentClippedFraction`, `summary`, or `null` |
 | `physical` | with `--blank`: `blankDiameterMm`, `pixelsPerMm`, `dpi`, `micronsPerPixel`, `spotMicrons`, `resolutionNote`; else `null` |
 | `target` | with `--depth-mm`: `depthMm`, `passes`, `targetMicronsPerPass`; else `null`. **This is the target divided by the passes, not a prediction** of what each pass will cut |

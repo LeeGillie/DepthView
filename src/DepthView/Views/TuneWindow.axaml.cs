@@ -215,7 +215,12 @@ public partial class TuneWindow : Window
         if (Program.StartupFit != FitPolicy.None)
         {
             FitCheck.IsChecked = true;
-            FitPolicyBox.SelectedIndex = Program.StartupFit == FitPolicy.Canvas ? 1 : 0;
+            FitPolicyBox.SelectedIndex = Program.StartupFit switch
+            {
+                FitPolicy.Canvas => 1,
+                FitPolicy.Design => 2,
+                _ => 0,
+            };
         }
 
         // --relief alongside --tune-ui opens straight into the lit view. Same reason as every
@@ -626,8 +631,12 @@ public partial class TuneWindow : Window
             o.RimWidthMm = (double)(RimBox.Value ?? 0);
             o.RimRampMm = (double)(RampBox.Value ?? 0);
             o.Fit = FitCheck.IsChecked != true ? FitPolicy.None
-                  : FitPolicyBox.SelectedIndex == 1 ? FitPolicy.Canvas
-                  : FitPolicy.Content;
+                  : FitPolicyBox.SelectedIndex switch
+                  {
+                      1 => FitPolicy.Canvas,
+                      2 => FitPolicy.Design,
+                      _ => FitPolicy.Content,
+                  };
             o.PadWith = PadBox.SelectedIndex == 1 ? PadFill.Untouched : PadFill.Background;
         }
 
@@ -749,9 +758,23 @@ public partial class TuneWindow : Window
             int fullSize = (int)Math.Round(Math.Max(_w, _h) * (fit.Size / (double)Math.Max(_pw, _ph)));
             double blank = o.BlankDiameterMm ?? 40;
 
-            yield return $"Canvas grown           {Math.Max(_w, _h):N0} to ~{fullSize:N0} px, no resampling";
-            yield return $"Artwork spans          {fit.ArtAcrossMm:F1} of {blank:F0} mm "
-                       + $"({fit.ArtAcrossMm / blank * 100:F0}% of the blank)";
+            if (fit.Recentred)
+            {
+                yield return "Blank centred          on the design, no resampling";
+                yield return $"Canvas                 {_w:N0}x{_h:N0} to ~{fullSize:N0} sq, "
+                           + (fit.Crops(_pw, _ph) ? "cropped" : "padded");
+                yield return $"Design spans           {fit.ArtAcrossMm:F1} of {blank:F0} mm, inside the rim";
+            }
+            else
+            {
+                yield return $"Canvas grown           {Math.Max(_w, _h):N0} to ~{fullSize:N0} px, no resampling";
+                yield return $"Artwork spans          {fit.ArtAcrossMm:F1} of {blank:F0} mm "
+                           + $"({fit.ArtAcrossMm / blank * 100:F0}% of the blank)";
+            }
+        }
+        else if (rep.FitDesignLost > 0)
+        {
+            yield return "Centring refused       it would crop part of the design";
         }
         else if (o.Fit != FitPolicy.None)
         {
@@ -762,6 +785,11 @@ public partial class TuneWindow : Window
             ? $"Rim overlaps           {rep.RimClippedFraction * 100:F2}% of the design; "
             + $"art at {rep.SuggestedScale * 100:F0}% would clear it"
             : "Rim                    sits clear of the design";
+
+        // The cause of a lopsided moat, said where the moat is visible. Without it the preview
+        // shows the symptom - deep on one side, thin on the other - and nothing names the fix.
+        if (o.Fit != FitPolicy.Design && rep.DesignOffCentreMm is >= DepthTuner.OffCentreNoteMm)
+            yield return $"Design off centre      {rep.DesignOffCentreMm:F1} mm - try fit: centred on it";
     }
 
     /// <summary>
@@ -773,7 +801,10 @@ public partial class TuneWindow : Window
     /// </summary>
     private string GeometryNote(TuningOptions o)
     {
-        if (o.PixelsPerMm(_w, _h) is not double ppmm || ppmm <= 0) return "";
+        // A fit changes how many pixels the blank spans, and with it every figure here. The
+        // plan was made on the preview, so it is scaled back to the full image.
+        double? fitted = _rimReport?.Fit is { } fit && _previewScale > 0 ? fit.PixelsPerMm / _previewScale : null;
+        if ((fitted ?? o.PixelsPerMm(_w, _h)) is not double ppmm || ppmm <= 0) return "";
 
         double spot = (double)(SpotBox.Value ?? 7);
         var check = ResolutionCheck.For(1000.0 / ppmm, spot);

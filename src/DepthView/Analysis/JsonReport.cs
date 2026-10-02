@@ -140,9 +140,17 @@ public static class JsonReport
                 w.WriteNumber("canvasPx", fit.Size);
                 Num(w, "artAcrossMm", fit.ArtAcrossMm);
                 Num(w, "pixelsPerMm", fit.PixelsPerMm);
+                // Added 1.7.1 with "fit": "design". Offsets place the input's top-left corner on
+                // the output and are negative where background was cropped away.
+                w.WriteBoolean("recentred", fit.Recentred);
+                w.WriteNumber("offsetX", fit.OffsetX);
+                w.WriteNumber("offsetY", fit.OffsetY);
+                w.WriteBoolean("cropped", fit.Crops(t.InWidth, t.InHeight));
                 w.WriteEndObject();
             }
             else w.WriteNull("fit");
+            if (rep.DesignOffCentreMm is double off) Num(w, "designOffCentreMm", off);
+            else w.WriteNull("designOffCentreMm");
 
             if (o.AddRim)
             {
@@ -159,7 +167,8 @@ public static class JsonReport
             }
             else w.WriteNull("rim");
 
-            if (o.PixelsPerMm(t.InWidth, t.InHeight) is double ppmm && o.BlankDiameterMm is double blank)
+            // The written canvas, not the input: a fit changes how many pixels the blank spans.
+            if (o.PixelsPerMm(rep.OutWidth, rep.OutHeight) is double ppmm && o.BlankDiameterMm is double blank)
             {
                 var check = ResolutionCheck.For(1000.0 / ppmm, t.SpotMicrons);
                 w.WriteStartObject("physical");

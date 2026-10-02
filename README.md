@@ -540,6 +540,14 @@ corners clear it, which cannot clip anything by construction but has to fit a sq
 inside a circle, giving up a factor of √2 before the rim is even considered. On a 40 mm
 blank that is the difference between 38 mm of art and 27 mm.
 
+Both of those centre the blank on the image. That is right for art drawn for the blank,
+and wrong for a coin that sits off-centre on a tall canvas or a wide black surround: the
+rim comes out concentric with the file's edges, and the background between the design and
+the rim becomes a crescent, deep on one side and thin on the other. The results card says
+when a design is off centre and by how much. *Artwork, centred on it* centres the blank on
+the design itself and sizes it so the design fills the blank inside the rim. It may crop,
+but only background — any crop that would remove a pixel of design is refused.
+
 **What the new ring is cut to.** *Match the background* carries the design's own field
 out to the rim, so there is no step where the original file ended. *Leave untouched* cuts
 nothing there, which is faster and spends no depth budget — but only looks right when the
@@ -717,6 +725,7 @@ DepthView --tune coin.png --blank 40 --rim-mm 0.9
 DepthView --tune coin.png --black 20316 --white 42598 --passes 256 --depth-mm 0.3
 DepthView --tune coin.png --blank 40 --rim-mm 0.9 --fit            # nothing gets clipped
 DepthView --tune coin.png --blank 40 --rim-mm 0.9 --fit canvas --pad untouched
+DepthView --tune coin.png --blank 40 --rim-mm 0.9 --fit design     # centre the blank on the design
 DepthView --tune coin.png --blank 40 --rim-mm 0.9 --mask rim.png --slices 256 --dither
 DepthView coin.png --tune-ui --blank 40 --rim-mm 0.9 --fit   # the dialog, already set up
 ```

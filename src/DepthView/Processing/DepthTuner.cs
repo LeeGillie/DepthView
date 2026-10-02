@@ -26,6 +26,12 @@ public sealed class TuningReport
 
     /// <summary>Set when the canvas was grown to make the design clear the rim.</summary>
     public DepthCanvas.FitPlan? Fit;
+
+    /// <summary>Pixels of design a centring crop would have removed. A plan with any is refused.</summary>
+    public long FitDesignLost;
+
+    /// <summary>Distance from the middle of the design to the middle of the blank, when a rim was drawn.</summary>
+    public double? DesignOffCentreMm;
 }
 
 /// <summary>
@@ -41,6 +47,12 @@ public sealed class TuningReport
 /// </summary>
 public static class DepthTuner
 {
+    /// <summary>
+    /// How far off the blank's centre a design has to sit before it is worth pointing out.
+    /// Half a millimetre is about where a lopsided moat becomes visible on a 40 mm coin.
+    /// </summary>
+    public const double OffCentreNoteMm = 0.5;
+
     /// <summary>Pull a single grey plane out of an image, at its native precision.</summary>
     public static ushort[] ExtractGrey(ImageData img)
     {
@@ -107,6 +119,7 @@ public static class DepthTuner
         // the original rectangle can contain artwork.
         ushort[] design = outp;
         int dw = w, dh = h;
+        int designX = 0, designY = 0;   // where the original's top-left corner lands on the output
 
         // ---- fit --------------------------------------------------------
         // Grow the canvas until the design clears the rim, instead of letting the rim paint
@@ -116,7 +129,18 @@ public static class DepthTuner
         if (o.AddRim && o.Fit != FitPolicy.None && o.BlankDiameterMm is > 0)
         {
             var plan = DepthCanvas.Plan(outp, w, h, maxValue, o, background);
-            if (plan.Size > 0 && plan.Grows(w, h))
+
+            // Centring on the design may crop, and a crop is only allowed to take background.
+            // That holds by construction; it is counted anyway, and a plan that would lose a
+            // single pixel of design is not used.
+            if (plan.Recentred && plan.Crops(w, h))
+            {
+                report.FitDesignLost = DepthCanvas.DesignOutside(outp, w, h, plan.Size, plan.OffsetX,
+                                                                 plan.OffsetY, maxValue, background);
+                if (report.FitDesignLost > 0) plan = default;
+            }
+
+            if (plan.Size > 0 && (plan.Grows(w, h) || plan.Recentred))
             {
                 // What the new ring gets cut to, and it is not a cosmetic choice.
                 //
@@ -131,6 +155,8 @@ public static class DepthTuner
                 // the source image shows up as a square step around the artwork.
                 ushort fill = o.PadWith == PadFill.Untouched ? untouched : background;
                 outp = DepthCanvas.Pad(outp, w, h, plan.Size, plan.OffsetX, plan.OffsetY, fill);
+                designX = plan.OffsetX;
+                designY = plan.OffsetY;
                 w = h = plan.Size;
                 report.Fit = plan;
                 report.OutWidth = w;
@@ -149,7 +175,7 @@ public static class DepthTuner
 
         // ---- rim --------------------------------------------------------
         if (o.AddRim && o.RimRadius > 0)
-            ApplyRim(outp, w, h, design, dw, dh, maxValue, untouched, background, o, report);
+            ApplyRim(outp, w, h, design, dw, dh, designX, designY, maxValue, untouched, background, o, report);
 
         // ---- quantise ---------------------------------------------------
         if (o.Slices > 1)
@@ -178,11 +204,13 @@ public static class DepthTuner
     /// content test run over the padded buffer ends up measuring whatever this code just wrote
     /// there - reporting the field as clipped design with a background fill, and the padding
     /// itself as clipped design with an untouched one. The design lives in the original
-    /// rectangle; nothing outside it can be artwork. Padding is centred, so a radius measured
-    /// from the original's centre is the same distance in the padded canvas.</para>
+    /// rectangle; nothing outside it can be artwork. The original sits at
+    /// (<paramref name="designX"/>, <paramref name="designY"/>) on the output - centred when
+    /// padded, anywhere when the fit centred the blank on the design - so the rim's centre is
+    /// carried back into the original's own coordinates before any distance is measured.</para>
     /// </summary>
     private static void ApplyRim(ushort[] buf, int width, int height,
-                                 ushort[] design, int dw, int dh,
+                                 ushort[] design, int dw, int dh, int designX, int designY,
                                  int maxValue, ushort untouched, ushort background,
                                  TuningOptions o, TuningReport report)
     {
@@ -201,7 +229,8 @@ public static class DepthTuner
 
         long totalContent = 0;
         double furthestContent = 0;
-        double dcx = (dw - 1) / 2.0, dcy = (dh - 1) / 2.0;
+        double dcx = cx - designX, dcy = cy - designY;
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
 
         for (int y = 0; y < dh; y++)
         {
@@ -211,6 +240,10 @@ public static class DepthTuner
             {
                 if (Math.Abs(design[row + x] - background) <= tol) continue;
                 totalContent++;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
 
                 double dx = x - dcx;
                 double r = Math.Sqrt(dx * dx + dy * dy);
@@ -247,13 +280,28 @@ public static class DepthTuner
 
         report.RimClippedFraction = totalContent > 0 ? (double)report.RimClipped / totalContent : 0;
 
+        // How far the middle of the design sits from the middle of the blank. Centring the
+        // blank on the canvas is right for art drawn for the blank, and visibly wrong for art
+        // that is not: the rim ends up concentric with the file's edges, and the background
+        // between the design and the rim turns into a crescent, deep on one side and thin on
+        // the other. Worth saying, because nothing else on screen points at the cause.
+        if (maxX >= 0 && o.BlankDiameterMm is > 0)
+        {
+            double ox = (minX + maxX) / 2.0 - dcx, oy = (minY + maxY) / 2.0 - dcy;
+            double ppmm = Math.Min(width, height) / o.BlankDiameterMm.Value;
+            report.DesignOffCentreMm = Math.Sqrt(ox * ox + oy * oy) / ppmm;
+        }
+
         // If the rim eats into the design, say by how much the art would have to shrink to
         // clear it: the furthest content from the centre, against the ramp's inner edge.
         if (report.RimClipped > 0 && inner > 0 && furthestContent > inner)
             report.SuggestedScale = inner / furthestContent;
 
         report.Summary = report.RimClipped == 0
-            ? report.Fit is { } fit
+            ? report.Fit is { Recentred: true } centred
+                ? $"The blank was centred on the design and the canvas made {centred.Size:N0} px square, "
+                + $"so the design fills the blank inside the rim: {centred.ArtAcrossMm:F1} mm across."
+                : report.Fit is { } fit
                 ? $"The canvas was grown to {fit.Size:N0} px so the design clears the rim; "
                 + $"the artwork now spans {fit.ArtAcrossMm:F1} mm of the blank."
                 : "The rim sits clear of the design."

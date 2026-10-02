@@ -153,6 +153,67 @@ def check_gcode(exe, work):
           and "1 layer(s) are exact copies" in text, "gcode text report")
 
 
+def write_grey16(path, w, h, pixel):
+    """A 16-bit greyscale PNG from pixel(x, y), with no dependency beyond the standard library."""
+    import struct
+    import zlib
+    rows = bytearray()
+    for y in range(h):
+        rows.append(0)
+        for x in range(w):
+            rows += struct.pack(">H", pixel(x, y))
+
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
+
+    with open(path, "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n")
+        f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 16, 0, 0, 0, 0)))
+        f.write(chunk(b"IDAT", zlib.compress(bytes(rows))))
+        f.write(chunk(b"IEND", b""))
+
+
+def check_fit_design(exe, work):
+    """A disc of radius 200 centred at (320, 300) on a 600 x 800 black canvas.
+
+    Centring the blank on the canvas puts the disc 101.6 px off centre - 6.8 mm on a 40 mm
+    blank across the 600 px short side - which is the lopsided moat this fit exists to remove.
+    With --fit design the canvas becomes a square around the disc, cropping only background.
+    """
+    src = os.path.join(work, "offcentre.png")
+    write_grey16(src, 600, 800,
+                 lambda x, y: 40000 if (x - 320) ** 2 + (y - 300) ** 2 <= 200 ** 2 else 0)
+
+    plain = os.path.join(work, "offcentre-plain.png")
+    code, doc, _, _ = run(exe, "--tune", src, "--json", "--out", plain, "--blank", "40",
+                          "--rim-mm", "1", cwd=work)
+    check(code == 0, f"fit design (no fit): exit {code}")
+    if doc:
+        off = doc.get("designOffCentreMm")
+        check(off is not None and abs(off - 6.77) < 0.1, f"designOffCentreMm {off}, expected ~6.77")
+        check(doc.get("fit") is None, "no fit was asked for")
+
+    fitted = os.path.join(work, "offcentre-design.png")
+    code, doc, _, _ = run(exe, "--tune", src, "--json", "--out", fitted, "--blank", "40",
+                          "--rim-mm", "1", "--fit", "design", cwd=work)
+    check(code == 0, f"fit design: exit {code}")
+    if not doc:
+        return
+    size = doc.get("size", {})
+    fit = doc.get("fit") or {}
+    side = size.get("outWidth")
+    check(side == size.get("outHeight"), f"fit design output not square: {size}")
+    # Radius 200 plus a pixel of margin, inside 19 of 20 mm: ceil(402 / 0.95) = 424.
+    check(side is not None and abs(side - 424) <= 2, f"fit design canvas {side}, expected ~424")
+    check(fit.get("recentred") is True and fit.get("cropped") is True, f"fit design fit {fit}")
+    check(fit.get("offsetX") in (-108, -109) and fit.get("offsetY") in (-88, -89),
+          f"fit design offsets {fit.get('offsetX')}, {fit.get('offsetY')}")
+    off = doc.get("designOffCentreMm")
+    check(off is not None and off < 0.1, f"fit design leaves the disc {off} mm off centre")
+    rim = doc.get("rim") or {}
+    check(rim.get("contentPixelsClipped") == 0, f"fit design: rim clipped {rim.get('contentPixelsClipped')} px of disc")
+
+
 def run_text(exe, *args, cwd=None):
     p = subprocess.run([exe, *args], capture_output=True, text=True, cwd=cwd)
     return p.returncode, None, p.stdout, p.stderr
@@ -242,6 +303,9 @@ def main(exe):
 
         # --- G-code: a synthetic job whose answers are known by construction -------------
         check_gcode(exe, work)
+
+        # --- a coin drawn off-centre on a tall canvas: --fit design --------------------
+        check_fit_design(exe, work)
 
         # --- the original is never written over -------------------------------------
         size = os.path.getsize(src)

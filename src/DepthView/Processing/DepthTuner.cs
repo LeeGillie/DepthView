@@ -30,6 +30,9 @@ public sealed class TuningReport
     /// <summary>Pixels of design a centring crop would have removed. A plan with any is refused.</summary>
     public long FitDesignLost;
 
+    /// <summary>Pixels of the design's own rim that the new rim covers, on request.</summary>
+    public long DesignRimCovered;
+
     /// <summary>Distance from the middle of the design to the middle of the blank, when a rim was drawn.</summary>
     public double? DesignOffCentreMm;
 }
@@ -136,7 +139,9 @@ public static class DepthTuner
             if (plan.Recentred && plan.Crops(w, h))
             {
                 report.FitDesignLost = DepthCanvas.DesignOutside(outp, w, h, plan.Size, plan.OffsetX,
-                                                                 plan.OffsetY, maxValue, background);
+                                                                 plan.OffsetY, maxValue, background,
+                                                                 plan.DesignCentreX, plan.DesignCentreY,
+                                                                 plan.CoveredRim?.Inner);
                 if (report.FitDesignLost > 0) plan = default;
             }
 
@@ -231,6 +236,7 @@ public static class DepthTuner
         double furthestContent = 0;
         double dcx = cx - designX, dcy = cy - designY;
         int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
+        double? designRimFrom = report.Fit?.CoveredRim?.Inner;
 
         for (int y = 0; y < dh; y++)
         {
@@ -247,6 +253,11 @@ public static class DepthTuner
 
                 double dx = x - dcx;
                 double r = Math.Sqrt(dx * dx + dy * dy);
+
+                // The design's own rim, covered because that was asked for: counted on its
+                // own, so it neither reads as clipped artwork nor hides any that really is.
+                if (designRimFrom is double from && r >= from) { report.DesignRimCovered++; continue; }
+
                 if (r > furthestContent) furthestContent = r;
                 if (r >= coveredFrom) report.RimClipped++;
             }
@@ -298,7 +309,11 @@ public static class DepthTuner
             report.SuggestedScale = inner / furthestContent;
 
         report.Summary = report.RimClipped == 0
-            ? report.Fit is { Recentred: true } centred
+            ? report.Fit is { CoveredRim: { } own } withRim
+                ? $"The blank was centred on the design and sized so the design's own rim "
+                + $"({own.Width / withRim.PixelsPerMm:F2} mm wide) sits under the new rim, which replaces it; "
+                + $"the field inside it spans {withRim.ArtAcrossMm:F1} mm."
+            : report.Fit is { Recentred: true } centred
                 ? $"The blank was centred on the design and the canvas made {centred.Size:N0} px square, "
                 + $"so the design fills the blank inside the rim: {centred.ArtAcrossMm:F1} mm across."
                 : report.Fit is { } fit

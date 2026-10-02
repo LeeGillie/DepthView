@@ -63,6 +63,14 @@ public sealed class TuningOptions
     /// </summary>
     public PadFill PadWith = PadFill.Background;
 
+    /// <summary>
+    /// With <see cref="FitPolicy.Design"/>: when the artwork has a raised rim of its own, size
+    /// the blank so that rim ends up under ours, and the new rim replaces it rather than
+    /// standing inside it. A drawn rim and a blank's real rim side by side leave a ring-shaped
+    /// trench between them where the drawing's outer bevel drops to full depth.
+    /// </summary>
+    public bool CoverDesignRim;
+
     // --- slicing --------------------------------------------------------
 
     /// <summary>Quantise to exactly this many levels, matching a pass count. 0 leaves it alone.</summary>

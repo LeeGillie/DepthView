@@ -107,7 +107,11 @@ where the JSON is a GitHub release document whose asset URLs are local paths.
   1.7.0, for a coin drawn off-centre on a tall canvas: "2026 Liberty.png") may also *crop*,
   but only background: `DepthCanvas.DesignOutside` counts design pixels a crop would drop and
   the tuner refuses the plan if there is even one. Cropping and padding both copy pixels;
-  neither resamples.
+  neither resamples. `--cover-rim` / "Replace the design's own rim" goes one step further for
+  art with a drawn rim: `DepthCanvas.DetectDesignRim` finds the rim's foot from the mean level
+  per radius, and the blank is sized so the foot lands on the ramp's inner edge. The detector
+  is deliberately narrow and reports what it found; it found 1175..1245 px on the Liberty map
+  and correctly finds nothing on a plain disc (both in `tests/check_json.py`).
 - **Measure, do not assert.** Every claim the tool makes about an improvement is a number
   it computed. `--tune` re-reads the file it just wrote and analyses it as a stranger's
   file; the Tune dialog does the same on save. If a prediction and a measurement ever

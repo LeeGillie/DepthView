@@ -122,6 +122,7 @@ public partial class TuneWindow : Window
         RimCheck.IsCheckedChanged += (_, _) => Queue();
         FitCheck.IsCheckedChanged += (_, _) => Queue();
         FitPolicyBox.SelectionChanged += (_, _) => Queue();
+        CoverRimCheck.IsCheckedChanged += (_, _) => Queue();
         PadBox.SelectionChanged += (_, _) => Queue();
         SliceCheck.IsCheckedChanged += (_, _) => Queue();
         DitherCheck.IsCheckedChanged += (_, _) => Queue();
@@ -222,6 +223,15 @@ public partial class TuneWindow : Window
                 _ => 0,
             };
         }
+        if (Program.StartupCoverRim) CoverRimCheck.IsChecked = true;
+
+        if (Program.StartupBlack is not null || Program.StartupWhite is not null)
+            ApplyLevels(Program.StartupBlack ?? (int)(BlackBox.Value ?? 0),
+                        Program.StartupWhite ?? (int)(WhiteBox.Value ?? _maxValue));
+        if (Program.StartupBits is int bits) BitBox.SelectedIndex = bits == 8 ? 1 : 0;
+        if (Program.StartupSpot is double spot && spot > 0) SpotBox.Value = (decimal)spot;
+        if (Program.StartupOutline) OutlineCheck.IsChecked = true;
+        if (Program.StartupWriteDpi) DpiCheck.IsChecked = true;
 
         // --relief alongside --tune-ui opens straight into the lit view. Same reason as every
         // other override here: a screenshot of the 3D panes has to be capturable headlessly,
@@ -589,6 +599,7 @@ public partial class TuneWindow : Window
         DitherCheck.IsChecked = false;
         FitCheck.IsChecked = false;
         FitPolicyBox.SelectedIndex = 0;
+        CoverRimCheck.IsChecked = false;
         PadBox.SelectedIndex = 0;
         MaskCheck.IsChecked = false;
         OutlineCheck.IsChecked = false;
@@ -638,6 +649,7 @@ public partial class TuneWindow : Window
                       _ => FitPolicy.Content,
                   };
             o.PadWith = PadBox.SelectedIndex == 1 ? PadFill.Untouched : PadFill.Background;
+            o.CoverDesignRim = CoverRimCheck.IsChecked == true && o.Fit == FitPolicy.Design;
         }
 
         o.ResolvePhysical(_w, _h);
@@ -763,7 +775,18 @@ public partial class TuneWindow : Window
                 yield return "Blank centred          on the design, no resampling";
                 yield return $"Canvas                 {_w:N0}x{_h:N0} to ~{fullSize:N0} sq, "
                            + (fit.Crops(_pw, _ph) ? "cropped" : "padded");
-                yield return $"Design spans           {fit.ArtAcrossMm:F1} of {blank:F0} mm, inside the rim";
+                if (fit.CoveredRim is { } own)
+                {
+                    // Measured on the reduced preview, so to a tenth; the saved file reports its own.
+                    yield return $"Design's own rim       ~{own.Width / fit.PixelsPerMm:F1} mm wide, under the new rim";
+                    yield return $"Field spans            {fit.ArtAcrossMm:F1} of {blank:F0} mm, inside the ramp";
+                }
+                else
+                {
+                    if (o.CoverDesignRim)
+                        yield return "Design's own rim       none found, nothing covered";
+                    yield return $"Design spans           {fit.ArtAcrossMm:F1} of {blank:F0} mm, inside the rim";
+                }
             }
             else
             {
@@ -837,7 +860,11 @@ public partial class TuneWindow : Window
             return;
         }
 
-        string dpi = o.Dpi is double d ? $"{d:F0} dpi written in" : "no physical size written";
+        // A fit changes the canvas, and the DPI written is recomputed for it at save time; quote
+        // that figure, not the one resolved against the original canvas.
+        double? fittedPpmm = _rimReport?.Fit is { } fit && _previewScale > 0 ? fit.PixelsPerMm / _previewScale : null;
+        double? dpiOut = o.Dpi is double d0 ? (fittedPpmm is double fp ? fp * 25.4 : d0) : null;
+        string dpi = dpiOut is double d ? $"{d:F0} dpi written in" : "no physical size written";
         string geometry = GeometryNote(o);
 
         StatusText.Text = $"{_w:N0} x {_h:N0}, {dpi}. Saving writes a new file; {_fileName} is never modified."

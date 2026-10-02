@@ -43,6 +43,11 @@ internal static partial class Program
     /// <summary>Fit policy to open the tuning dialog with, from the same --fit flag as --tune.</summary>
     public static FitPolicy StartupFit = FitPolicy.None;
 
+    /// <summary>More of the tuning dialog's settings from the command line, as --tune takes them.</summary>
+    public static int? StartupBlack, StartupWhite, StartupBits;
+    public static double? StartupSpot;
+    public static bool StartupCoverRim, StartupOutline, StartupWriteDpi;
+
     /// <summary>Open the About box straight away. Exists so its screenshot is reproducible too.</summary>
     public static bool StartupAbout;
     public static bool StartupWhatsNew;
@@ -75,7 +80,9 @@ internal static partial class Program
           DepthView <image> --relief      also open the 3D relief preview
           DepthView <image> --tune-ui     also open the tuning dialog, optionally already set
                                           up: --blank <mm> --rim-mm <mm> --ramp-mm <mm>
-                                          --passes <n>
+                                          --passes <n> --black <level> --white <level>
+                                          --bits <8|16> --spot <um> --fit [mode] --cover-rim
+                                          --outline --write-dpi (tick those two boxes)
                                           Either relief view also takes --blank <mm>,
                                           --thick <mm>, --depth-mm <mm> and --exag <stops>,
                                           as in --render
@@ -167,6 +174,10 @@ internal static partial class Program
                                 rim - for a coin drawn off-centre, or on a wide surround of
                                 background. It may crop, but only background: a crop that
                                 would remove one pixel of design is refused
+            --cover-rim         with --fit design: if the artwork has a raised rim of its own,
+                                size the blank so that rim lands under the new one, which
+                                replaces it. What was found is reported; if no rim is found,
+                                nothing is covered
             --pad <background|untouched>
                                 what the new ring between the artwork and the rim is cut to.
                                 "background" (the default) carries the design's own field out
@@ -333,6 +344,17 @@ internal static partial class Program
             StartupRimMm = Flag(args, "--rim-mm");
             StartupRampMm = Flag(args, "--ramp-mm");
             StartupPasses = Flag(args, "--passes") is double p && p >= 2 ? (int)p : null;
+
+            // The rest of the dialog's settings, so a fully tuned state can be opened - and
+            // captured - from a script. Each means exactly what it means to --tune.
+            StartupBlack = Flag(args, "--black") is double blackLevel ? (int)blackLevel : null;
+            StartupWhite = Flag(args, "--white") is double whiteLevel ? (int)whiteLevel : null;
+            StartupBits = Flag(args, "--bits") is double outBits ? (int)outBits : null;
+            StartupSpot = Flag(args, "--spot");
+            StartupCoverRim = args.Any(a => a is "--cover-rim");
+            if (StartupCoverRim) StartupFit = FitPolicy.Design;
+            StartupOutline = args.Any(a => a is "--outline");
+            StartupWriteDpi = args.Any(a => a is "--write-dpi");
 
             int fi = Array.IndexOf(args, "--fit");
             if (fi >= 0)
@@ -910,6 +932,13 @@ internal static partial class Program
                     if (Next() is "untouched") o.PadWith = PadFill.Untouched;
                     break;
 
+                // Implies --fit design: covering the design's rim only means anything once the
+                // blank is centred on the design.
+                case "--cover-rim":
+                    o.CoverDesignRim = true;
+                    o.Fit = FitPolicy.Design;
+                    break;
+
                 // Takes an optional filename; bare --outline writes it beside the map.
                 case "--outline":
                     wantOutline = true;
@@ -1103,6 +1132,12 @@ internal static partial class Program
                                 + "; no pixel resampled");
                 Console.WriteLine($"                  the design spans {centred.ArtAcrossMm:F1} mm of the"
                                 + $" {o.BlankDiameterMm:F1} mm blank, at {centred.PixelsPerMm:F1} px/mm");
+                if (centred.CoveredRim is { } own)
+                    Console.WriteLine($"  design rim      found r {own.Inner:F0}..{own.Outer:F0} px from the design's centre"
+                                    + $" ({own.Width / centred.PixelsPerMm:F2} mm wide, level {own.FootLevel:F0} at its foot,"
+                                    + $" {own.TopLevel:F0} at its top); now under the new rim, {rep.DesignRimCovered:N0} px covered");
+                else if (o.CoverDesignRim)
+                    Console.WriteLine("  design rim      none found, so nothing was covered: the design sits inside the new rim");
             }
             else if (rep.Fit is { } fit)
             {

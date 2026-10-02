@@ -78,7 +78,8 @@ public static class DepthCanvas
         double ArtAcrossMm,     // what the original now measures on the blank; with Design, the design
         double PixelsPerMm,     // resolution of the padded canvas
         bool Recentred = false, // Design: the blank is centred on the design, not the canvas
-        double DesignCentreX = 0, double DesignCentreY = 0)   // that centre, in source pixels
+        double DesignCentreX = 0, double DesignCentreY = 0,   // that centre, in source pixels
+        DesignRim? CoveredRim = null)   // the design's own rim, sized to sit under ours
     {
         public bool Grows(int w, int h) => Size > w || Size > h;
 
@@ -146,6 +147,101 @@ public static class DepthCanvas
         return Math.Sqrt(furthestSq);
     }
 
+    /// <summary>
+    /// A raised rim drawn into the artwork itself: a band around the outside of the design that
+    /// stands above the field inside it. Radii are from the design's centre, in source pixels:
+    /// <see cref="Inner"/> is the foot of its inner slope, where the field ends, and
+    /// <see cref="Outer"/> the furthest pixel of design. Levels are the band's mean at its
+    /// highest and at the foot.
+    /// </summary>
+    public readonly record struct DesignRim(double Inner, double Outer, double TopLevel, double FootLevel)
+    {
+        public double Width => Outer - Inner;
+    }
+
+    /// <summary>
+    /// Find the design's own rim, if it has one, from the mean level of the design at each
+    /// radius around its centre.
+    ///
+    /// The test is deliberately narrow, because acting on a rim that is not there would cover
+    /// real artwork: the highest point of the outer 15% of the design has to stand at least 8%
+    /// of the range above the lowest point just inside it, and the band from that low point to
+    /// the edge can be no wider than 12% of the radius. A coin drawn with its own raised edge
+    /// passes; lettering running round the edge usually does not, because its mean at any one
+    /// radius is diluted by the field between the letters. Anything else returns null and
+    /// nothing is covered - and whatever is found is reported in pixels and millimetres, so a
+    /// wrong answer is visible rather than silent.
+    /// </summary>
+    public static DesignRim? DetectDesignRim(ushort[] p, int w, int h, int maxValue, ushort background,
+                                            double cx, double cy, double outer)
+    {
+        int bins = (int)Math.Ceiling(outer) + 2;
+        if (bins < 50) return null;
+        var sum = new double[bins];
+        var count = new long[bins];
+        int tol = ContentTolerance(maxValue);
+
+        for (int y = 0; y < h; y++)
+        {
+            double dy = y - cy;
+            long row = (long)y * w;
+            for (int x = 0; x < w; x++)
+            {
+                int v = p[row + x];
+                if (Math.Abs(v - background) <= tol) continue;
+                double dx = x - cx;
+                int r = (int)Math.Round(Math.Sqrt(dx * dx + dy * dy));
+                if (r >= bins) continue;
+                sum[r] += v;
+                count[r]++;
+            }
+        }
+
+        // Mean per radius, smoothed over a few pixels so one ring of lettering cannot decide it.
+        var mean = new double[bins];
+        for (int r = 0; r < bins; r++) mean[r] = count[r] > 0 ? sum[r] / count[r] : double.NaN;
+        var smooth = new double[bins];
+        // A quarter of a percent of the radius either side: 3 px on a 4096 px coin, and the
+        // same physical width on the dialog's reduced preview, so both find the same rim.
+        int half = Math.Max(1, (int)Math.Round(outer * 0.0025));
+        for (int r = 0; r < bins; r++)
+        {
+            double s = 0; int n = 0;
+            for (int k = Math.Max(0, r - half); k <= Math.Min(bins - 1, r + half); k++)
+                if (!double.IsNaN(mean[k])) { s += mean[k]; n++; }
+            smooth[r] = n > 0 ? s / n : double.NaN;
+        }
+
+        // Only rings that are mostly design count: the anti-aliased last few pixels of the edge
+        // are a sliver of a ring and would otherwise read as a cliff.
+        bool Solid(int r) => count[r] > 0 && !double.IsNaN(smooth[r]) && count[r] >= Math.PI * r * 0.9;
+
+        int topFrom = (int)(outer * 0.85), topTo = (int)outer;
+        int top = -1;
+        for (int r = topFrom; r <= topTo && r < bins; r++)
+            if (Solid(r) && (top < 0 || smooth[r] > smooth[top])) top = r;
+        if (top < 0) return null;
+
+        int footFrom = Math.Max(0, top - (int)(outer * 0.12));
+        int low = -1;
+        for (int r = footFrom; r < top; r++)
+            if (Solid(r) && (low < 0 || smooth[r] < smooth[low])) low = r;
+        if (low < 0) return null;
+
+        double step = smooth[top] - smooth[low];
+        if (step < maxValue * 0.08) return null;
+
+        // The foot is where the rim's inner slope starts to rise: the outermost radius still
+        // within a tenth of the step of the low point. Taking the low point itself would put
+        // the foot anywhere on a flat field, which is as far in as the search reaches.
+        int foot = low;
+        for (int r = low; r < top; r++)
+            if (Solid(r) && smooth[r] <= smooth[low] + step * 0.1) foot = r;
+        if (outer - foot > outer * 0.12) return null;
+
+        return new DesignRim(foot, outer, smooth[top], smooth[foot]);
+    }
+
     /// <summary>How far from the background a level has to be to count as design.</summary>
     public static int ContentTolerance(int maxValue) => Math.Max(1, maxValue / 128);
 
@@ -201,6 +297,18 @@ public static class DepthCanvas
             // The extra pixel covers rounding the offset to whole pixels: the design centre
             // can land half a pixel from the canvas centre, and nothing may be cut off for it.
             double r = ContentRadius(p, w, h, maxValue, background, out _, dx, dy) + 1;
+
+            // Asked to replace the design's own rim with ours: size the blank so the foot of
+            // that rim lands on the inner edge of our ramp, and its whole band - top and outer
+            // bevel - ends up under the new rim. Without a rim that the detector is sure of,
+            // this quietly does nothing and the design fits inside the rim as usual.
+            DesignRim? covered = null;
+            if (o.CoverDesignRim && DetectDesignRim(p, w, h, maxValue, background, dx, dy, r - 1) is { } rim)
+            {
+                covered = rim;
+                r = rim.Inner;
+            }
+
             int side = Math.Max(1, (int)Math.Ceiling(2 * r / fraction));
             return new FitPlan(
                 Size: side,
@@ -213,7 +321,8 @@ public static class DepthCanvas
                 PixelsPerMm: side / blank,
                 Recentred: true,
                 DesignCentreX: dx,
-                DesignCentreY: dy);
+                DesignCentreY: dy,
+                CoveredRim: covered);
         }
 
         double needRadius = o.Fit == FitPolicy.Canvas
@@ -266,9 +375,13 @@ public static class DepthCanvas
     /// than assumed, so the tuner can refuse the crop if it ever is not.
     /// </summary>
     public static long DesignOutside(ushort[] p, int w, int h, int size, int ox, int oy,
-                                     int maxValue, ushort background)
+                                     int maxValue, ushort background,
+                                     double cx = 0, double cy = 0, double? keepWithin = null)
     {
+        // keepWithin: when the design's own rim is being covered on purpose, pixels beyond its
+        // foot are going under the new rim anyway, and only the design inside it is protected.
         int tol = ContentTolerance(maxValue);
+        double keepSq = keepWithin is double k ? k * k : double.PositiveInfinity;
         long lost = 0;
         for (int y = 0; y < h; y++)
         {
@@ -279,6 +392,7 @@ public static class DepthCanvas
             {
                 int tx = x + ox;
                 if (!rowOff && tx >= 0 && tx < size) continue;
+                if ((x - cx) * (x - cx) + (y - cy) * (y - cy) >= keepSq) continue;
                 if (Math.Abs(p[row + x] - background) > tol) lost++;
             }
         }

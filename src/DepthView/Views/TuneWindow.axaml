@@ -238,6 +238,9 @@
                   <ComboBoxItem Content="Artwork, centred on it" />
                 </ComboBox>
               </Grid>
+              <CheckBox x:Name="CoverRimCheck" Margin="0,4,0,0"
+                        Content="Replace the design's own rim with this one"
+                        ToolTip.Tip="For coin art drawn with its own raised rim. With 'Artwork, centred on it', the blank is sized so the drawn rim lands under this one, which replaces it. Otherwise the drawn rim sits inside the real one and its outer slope cuts a ring-shaped trench to full depth between them. The rim found is reported in the results; if none is found, nothing is covered." />
               <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
                 <TextBlock Grid.Column="0" Classes="label" Text="New space" />
                 <ComboBox Grid.Column="1" x:Name="PadBox" HorizontalAlignment="Stretch" SelectedIndex="0"

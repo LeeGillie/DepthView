@@ -213,6 +213,39 @@ def check_fit_design(exe, work):
     rim = doc.get("rim") or {}
     check(rim.get("contentPixelsClipped") == 0, f"fit design: rim clipped {rim.get('contentPixelsClipped')} px of disc")
 
+    # The plain disc has no rim of its own, so --cover-rim must find none and change nothing.
+    code, doc, _, _ = run(exe, "--tune", src, "--json", "--out", os.path.join(work, "offcentre-norim.png"),
+                          "--blank", "40", "--rim-mm", "1", "--cover-rim", cwd=work)
+    check(code == 0 and doc and (doc.get("fit") or {}).get("designRim") is None,
+          "cover-rim found a rim on a disc that has none")
+    if doc:
+        check(abs((doc.get("size") or {}).get("outWidth", 0) - 424) <= 2, "cover-rim without a rim changed the fit")
+
+    # A coin drawn with its own raised rim: field 30000 inside r 180, a slope up to 50000 by
+    # r 188, flat to r 196, then a bevel down to the black surround at r 200.
+    def coin(x, y):
+        r = ((x - 320) ** 2 + (y - 300) ** 2) ** 0.5
+        if r < 180: return 30000
+        if r < 188: return int(30000 + (r - 180) / 8 * 20000)
+        if r < 196: return 50000
+        if r <= 200: return int(50000 * (200 - r) / 4)
+        return 0
+    rimmed = os.path.join(work, "rimmed.png")
+    write_grey16(rimmed, 600, 800, coin)
+    code, doc, _, _ = run(exe, "--tune", rimmed, "--json", "--out", os.path.join(work, "rimmed-covered.png"),
+                          "--blank", "40", "--rim-mm", "1", "--ramp-mm", "0.3", "--cover-rim", cwd=work)
+    check(code == 0, f"cover-rim: exit {code}")
+    if doc:
+        own = (doc.get("fit") or {}).get("designRim")
+        check(own is not None, "cover-rim did not find the drawn rim")
+        if own:
+            check(abs(own["innerPx"] - 180) <= 3, f"drawn rim foot at {own['innerPx']}, expected ~180")
+        # The foot (r 180) lands on the ramp's inner edge, 18.7 of 20 mm: ceil(360 / 0.935) = 386.
+        side = (doc.get("size") or {}).get("outWidth", 0)
+        check(abs(side - 386) <= 3, f"cover-rim canvas {side}, expected ~386")
+        check((doc.get("rim") or {}).get("contentPixelsClipped") == 0,
+              "cover-rim reported the covered rim as clipped design")
+
 
 def run_text(exe, *args, cwd=None):
     p = subprocess.run([exe, *args], capture_output=True, text=True, cwd=cwd)

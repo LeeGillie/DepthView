@@ -146,6 +146,19 @@ public static class JsonReport
                 w.WriteNumber("offsetX", fit.OffsetX);
                 w.WriteNumber("offsetY", fit.OffsetY);
                 w.WriteBoolean("cropped", fit.Crops(t.InWidth, t.InHeight));
+                // Added 1.7.1 with --cover-rim: the design's own rim, found and put under ours.
+                if (fit.CoveredRim is { } own)
+                {
+                    w.WriteStartObject("designRim");
+                    Num(w, "innerPx", own.Inner);
+                    Num(w, "outerPx", own.Outer);
+                    Num(w, "widthMm", own.Width / fit.PixelsPerMm);
+                    Num(w, "footLevel", own.FootLevel);
+                    Num(w, "topLevel", own.TopLevel);
+                    w.WriteNumber("pixelsCovered", rep.DesignRimCovered);
+                    w.WriteEndObject();
+                }
+                else w.WriteNull("designRim");
                 w.WriteEndObject();
             }
             else w.WriteNull("fit");

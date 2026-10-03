@@ -61,10 +61,26 @@ public static class TuneJob
             ("Source",   sourceName ?? "unknown"),
             ("Comment",  $"black={o.BlackPoint} white={o.WhitePoint} stretch={o.Stretch} " +
                          $"rim={(o.AddRim ? $"r{o.RimRadius:F0}/ramp{o.RimRamp:F0}" : "off")} " +
-                         $"slices={o.Slices} dither={o.Dither} invert={o.Invert}"),
+                         $"slices={o.Slices} dither={o.Dither} invert={o.Invert}" +
+                         FlatNote(o)),
         };
 
         PngEncoder.WriteGrey(output, scaled, width, height, outBits, o.Dpi, notes);
+    }
+
+    /// <summary>
+    /// Flat-area changes, for the notes: which areas, how, and the band each one touched. Empty
+    /// when every area was left alone, so an untouched map's notes read as they always have.
+    /// </summary>
+    private static string FlatNote(TuningOptions o)
+    {
+        var parts = o.FlatActions
+            .Select((a, i) => (a, i))
+            .Where(t => t.a.Mode != FlatMode.Leave)
+            .Select(t => $"#{t.i + 1}:{t.a.Mode.ToString().ToLowerInvariant()}[{t.a.Low}-{t.a.High}" +
+                         (t.a.Mode == FlatMode.Flatten ? $"->{t.a.Level}]" : "]"))
+            .ToList();
+        return parts.Count == 0 ? "" : " flat=" + string.Join(",", parts);
     }
 
     /// <summary>

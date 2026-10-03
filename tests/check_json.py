@@ -247,6 +247,64 @@ def check_fit_design(exe, work):
               "cover-rim reported the covered rim as clipped design")
 
 
+def check_survey(exe, work):
+    """The tuning wizard's measurements, and its --flat / --levels-from on the command line.
+
+    A 600 px coin on a black surround: a dome in the middle (a real slope, never flat), a floor
+    at 20000 with +-40 levels of pixel noise from r 60 to 170, and a drawn rim - a slope up to
+    50000 by r 178, flat to 186, a bevel down to the surround by r 190. The floor is the thing
+    the wizard exists for: one large area, flat but for noise that straddles layer boundaries.
+    """
+    def coin(x, y):
+        r = ((x - 300) ** 2 + (y - 300) ** 2) ** 0.5
+        if r < 60: return int(50000 - r / 60 * 20000)
+        if r < 170: return 20000 + ((x * 73856093) ^ (y * 19349663)) % 81 - 40
+        if r < 178: return int(20000 + (r - 170) / 8 * 30000)
+        if r < 186: return 50000
+        if r <= 190: return int(50000 * (190 - r) / 4)
+        return 0
+    src = os.path.join(work, "floorcoin.png")
+    write_grey16(src, 600, 600, coin)
+
+    code, doc, _, _ = run(exe, "--survey", src, "--json", "--passes", "72", cwd=work)
+    check(code == 0 and bool(doc), f"survey: exit {code}")
+    if not doc:
+        return
+    check(doc.get("schema") == "depthview.survey/1", f"survey schema {doc.get('schema')!r}")
+    bg = doc.get("background") or {}
+    check(bg.get("level") == 0 and bg.get("looksLikeFloor") is False, f"survey background {bg}")
+    rim = doc.get("drawnRim") or {}
+    check(abs(rim.get("innerPx", 0) - 170) <= 4, f"survey drawn rim foot {rim.get('innerPx')}, expected ~170")
+    reading = next((r for r in doc.get("readings", [])
+                    if r["backgroundIsDesign"] is False and r["drawnRimCovered"] is True), None)
+    check(reading is not None, "survey has no reading for a surround with the drawn rim covered")
+    floor = (reading or {}).get("floor") or {}
+    check(floor.get("found") is True and str(floor.get("source", "")).startswith("flat area"),
+          f"survey floor not found from a flat area: {floor}")
+    check(19950 <= floor.get("low", 0) and floor.get("high", 99999) <= 20050 and floor.get("suggested", 0) >= floor.get("high", 0),
+          f"survey floor band {floor.get('low')}..{floor.get('high')} -> {floor.get('suggested')}")
+    areas = doc.get("flatAreas") or []
+    check(bool(areas) and areas[0].get("floor") is True and areas[0].get("mostlyJitter") is True,
+          f"survey: the largest flat area should be the noisy floor: {areas[:1]}")
+    # Quoted at the suggested level points, which make the floor one depth already - so the
+    # floor crosses no boundary. That is the black point doing the flattening.
+    check(bool(areas) and areas[0].get("boundariesCrossed") == 0,
+          f"survey: the floor should cross no boundary at its own black point, crosses {areas[0].get('boundariesCrossed') if areas else None}")
+
+    out = os.path.join(work, "floorcoin-tuned.png")
+    code, doc, _, _ = run(exe, "--tune", src, "--json", "--out", out, "--blank", "40", "--rim-mm", "1",
+                          "--cover-rim", "--levels-from", "design", "--flat", "flatten", "--passes", "72", cwd=work)
+    check(code == 0 and bool(doc), f"tune with --flat: exit {code}")
+    if doc:
+        check((doc.get("applied") or {}).get("blackPoint") == floor.get("suggested"),
+              f"--levels-from design black {(doc.get('applied') or {}).get('blackPoint')}, survey says {floor.get('suggested')}")
+        flat = doc.get("flat") or {}
+        modes = [a.get("mode") for a in flat.get("areas", [])]
+        check(modes[:1] == ["flatten"] and all(m == "leave" for m in modes[1:]), f"--flat modes {modes}")
+        check(flat.get("pixelsChanged", 0) > 0 and flat.get("maxChange", 99) <= 60,
+              f"--flat changed {flat.get('pixelsChanged')} px by at most {flat.get('maxChange')}")
+
+
 def run_text(exe, *args, cwd=None):
     p = subprocess.run([exe, *args], capture_output=True, text=True, cwd=cwd)
     return p.returncode, None, p.stdout, p.stderr
@@ -339,6 +397,9 @@ def main(exe):
 
         # --- a coin drawn off-centre on a tall canvas: --fit design --------------------
         check_fit_design(exe, work)
+
+        # --- the wizard's survey, and --flat / --levels-from -------------------------
+        check_survey(exe, work)
 
         # --- the original is never written over -------------------------------------
         size = os.path.getsize(src)

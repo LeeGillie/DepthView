@@ -48,6 +48,11 @@ internal static partial class Program
     public static double? StartupSpot;
     public static bool StartupCoverRim, StartupOutline, StartupWriteDpi;
 
+    /// <summary>Open the tuning wizard over the Tune window; optionally at a step (1-based) and for a target.</summary>
+    public static bool StartupWizard;
+    public static int? StartupWizardStep;
+    public static WizardTarget? StartupWizardTarget;
+
     /// <summary>Open the About box straight away. Exists so its screenshot is reproducible too.</summary>
     public static bool StartupAbout;
     public static bool StartupWhatsNew;
@@ -86,6 +91,10 @@ internal static partial class Program
                                           Either relief view also takes --blank <mm>,
                                           --thick <mm>, --depth-mm <mm> and --exag <stops>,
                                           as in --render
+          DepthView <image> --wizard      open the tuning wizard over the Tune window;
+                                          --wizard-step <n> opens it at step n, and
+                                          --wizard-target <makeit|lightburn|slicer> picks
+                                          the first answer (for screenshots)
           DepthView --about               open the About box: version, platforms, credits
           DepthView --licence             open the About box on its licence page
           DepthView <image> --screenshot <out.png> [--relief] [--delay <ms>]
@@ -152,6 +161,12 @@ internal static partial class Program
             --size <px>         output width (default 900)
             --out <file>        output PNG (default <image>-relief.png)
 
+        What the tuning wizard measures, without changing anything
+          DepthView --survey <image> [--passes <n>] [--json]
+                              background or floor, placement, the artwork's own rim, the
+                              floor and top, pixel noise, and the nearly level areas with how
+                              many slice boundaries each crosses at the pass count
+
         Tune a depth map (writes a new file, never over the original)
           DepthView --tune <image> [options]
             --out <file>        output PNG (default <image>-tuned.png)
@@ -174,6 +189,16 @@ internal static partial class Program
                                 rim - for a coin drawn off-centre, or on a wide surround of
                                 background. It may crop, but only background: a crop that
                                 would remove one pixel of design is refused
+            --levels-from <design|floor>
+                                level points as the tuning wizard suggests them: from the
+                                design itself, leaving out a surround ("design"), or with the
+                                background counted as a cut-away floor ("floor"). A floor or a
+                                flat top that holds a real share of the design becomes one
+                                exact level
+            --flat <leave|smooth|flatten,...>
+                                one word per nearly level area, largest first, as --survey
+                                lists them: smooth removes pixel jitter only, flatten makes the
+                                area one level (and changes the design to do it)
             --cover-rim         with --fit design: if the artwork has a raised rim of its own,
                                 size the blank so that rim lands under the new one, which
                                 replaces it. What was found is reported; if no rim is found,
@@ -220,6 +245,8 @@ internal static partial class Program
             --spot <um>         beam spot size, to check the map's resolution (default 7)
             --dpi <n>           override the resolution written into the PNG; with --blank
                                 it is worked out for you, so the map imports at true size
+            --no-dpi            write no resolution at all, as the Tune window does when its
+                                "write DPI" box is clear
           Black and white default to the 0.1 and 99.9 percentiles, because one stray pixel
           at an extreme is enough to make a min/max stretch do nothing.
 
@@ -311,6 +338,9 @@ internal static partial class Program
         int ridx = Array.FindIndex(args, a => a is "--render");
         if (ridx >= 0) return RunRender(args.Skip(ridx + 1).ToArray());
 
+        int svidx = Array.FindIndex(args, a => a is "--survey");
+        if (svidx >= 0) return RunSurvey(args.Skip(svidx + 1).ToArray());
+
         int gidx = Array.FindIndex(args, a => a is "--gcode");
         if (gidx >= 0) return RunGcode(args.Skip(gidx + 1).ToArray());
 
@@ -327,6 +357,20 @@ internal static partial class Program
                           .FirstOrDefault(a => !a.StartsWith('-') && File.Exists(a));
         StartupRelief = args.Any(a => a is "--relief" or "-3d");
         StartupTune = args.Any(a => a is "--tune-ui");
+
+        // --wizard opens the tuning wizard over the Tune window, at a step and for a target if
+        // asked - so every step's layout can be captured from a script, not just the first.
+        StartupWizard = args.Any(a => a is "--wizard");
+        if (StartupWizard) StartupTune = true;
+        StartupWizardStep = Flag(args, "--wizard-step") is double wsStep ? (int)wsStep : null;
+        int wti = Array.IndexOf(args, "--wizard-target");
+        if (wti >= 0 && wti + 1 < args.Length)
+            StartupWizardTarget = args[wti + 1].ToLowerInvariant() switch
+            {
+                "lightburn" or "lb" => WizardTarget.LightBurn,
+                "slicer" or "slice" or "galvo" => WizardTarget.Slicer,
+                _ => WizardTarget.MakeIt,
+            };
         // Read whatever opens a relief view: --relief, --tune-ui, or --orbit further down.
         StartupBlankMm = Flag(args, "--blank");
         StartupThickMm = Flag(args, "--thick");
@@ -878,6 +922,72 @@ internal static partial class Program
     // ------------------------------------------------------------------ headless tuning
 
     /// <summary>
+    /// --survey: what the tuning wizard measures, without opening it. Background or floor,
+    /// placement, the artwork's own rim, the floor and top, pixel noise, and the nearly level
+    /// areas with what each would do at a pass count. Changes nothing.
+    /// </summary>
+    private static int RunSurvey(string[] rest)
+    {
+        AttachParentConsole();
+        string? input = rest.FirstOrDefault(a => !a.StartsWith('-'));
+        bool json = rest.Contains("--json");
+        int passes = Flag(rest, "--passes") is double p && p >= 2 ? (int)p : 256;
+        if (input is null || !File.Exists(input))
+        {
+            if (json) Console.WriteLine(JsonReport.Error(JsonReport.SurveySchema, input is null ? "No input file." : $"No such file: {input}"));
+            else Console.Error.WriteLine("Usage: DepthView --survey <image> [--passes n] [--json]");
+            return 2;
+        }
+
+        var loaded = ImageLoader.Load(File.ReadAllBytes(input), Path.GetFileName(input), input, "survey");
+        var grey = DepthTuner.ExtractGrey(loaded.Image);
+        int max = loaded.Image.MaxValue;
+        var s = DesignSurvey.Run(grey, loaded.Image.Width, loaded.Image.Height, max);
+
+        if (json)
+        {
+            Console.WriteLine(JsonReport.Survey(Path.GetFullPath(input), s, passes));
+            return 0;
+        }
+
+        var floor = s.Floor(s.BackgroundLooksLikeFloor);
+        var top = s.Top(s.BackgroundLooksLikeFloor);
+        Console.WriteLine($"Survey of {Path.GetFileName(input)}  ({s.Width:N0} x {s.Height:N0}, levels 0..{max:N0}, {s.Seconds:F2} s)");
+        Console.WriteLine($"  background      level {s.Background:N0} around the edge, {s.BackgroundShare * 100:F1}% of the image;"
+                        + $" {s.BackgroundInsideShare * 100:F1}% of the design's circle -> "
+                        + (s.BackgroundLooksLikeFloor ? "looks like a cut-away floor" : "looks like a surround"));
+        if (s.HasDesign)
+            Console.WriteLine($"  design          centre {s.CentreX:F0}, {s.CentreY:F0}; radius {s.Radius:F0} px;"
+                            + $" {s.OffCentrePx:F0} px from the canvas centre");
+        Console.WriteLine(s.DrawnRim is { } rim
+            ? $"  drawn rim       r {rim.Inner:F0}..{rim.Outer:F0} px ({rim.Width:F0} px), foot level {rim.FootLevel:F0}, top {rim.TopLevel:F0}"
+            : "  drawn rim       none found");
+        string Ends(bool bgIsDesign, bool rimCovered)
+        {
+            var f = s.Floor(bgIsDesign, rimCovered);
+            var t = s.Top(bgIsDesign, rimCovered);
+            string fs = f.Found
+                ? $"floor {f.Low:N0}..{f.High:N0} ({f.Source}, {f.Share * 100:F1}%, roughness {f.Noise:N0}) -> black {f.Suggested:N0}"
+                : $"no floor, deepest 0.1% at {f.Suggested:N0}";
+            string ts = t.Found
+                ? $"top {t.Low:N0}..{t.High:N0} ({t.Source}, {t.Share * 100:F1}%, roughness {t.Noise:N0}) -> white {t.Suggested:N0}"
+                : $"no flat top, highest 0.1% at {t.Suggested:N0}";
+            return fs + "; " + ts;
+        }
+        foreach (bool bgIsDesign in new[] { s.BackgroundLooksLikeFloor, !s.BackgroundLooksLikeFloor })
+            foreach (bool rimCovered in s.DrawnRim is null ? new[] { false } : new[] { false, true })
+                Console.WriteLine($"  {(bgIsDesign ? "bg is floor" : "bg removed "),-11}{(rimCovered ? " rim covered" : "            ")}  {Ends(bgIsDesign, rimCovered)}");
+        Console.WriteLine($"  pixel noise     about {s.NoiseSigma:F1} levels (Immerkaer, whole design; fine detail reads as noise too)");
+        Console.WriteLine($"  flat areas      {s.FlatAreas.Count} found (slope under {FlatAreas.SlopeLimit * 100:F2}% of the range per pixel)");
+        foreach (var a in s.FlatAreas)
+            Console.WriteLine($"    #{a.Rank}  {a.Pixels,10:N0} px ({a.ShareOfDesign * 100:F1}%)  level {a.Median,6:N0}  spread {a.Spread,6:N0}"
+                            + $"  jitter {a.Jitter,5:F0}  {(a.MostlyJitter ? "jitter" : "slope/dish")}"
+                            + $"  crosses {a.BoundariesCrossed(passes, floor.Suggested, top.Suggested, max)} boundaries at {passes} passes"
+                            + (a.TouchesFloor ? "  (floor)" : "") + (a.TouchesTop ? "  (top)" : ""));
+        return 0;
+    }
+
+    /// <summary>
     /// Writes a tuned copy of a depth map without opening a window, so a whole folder can be
     /// put through the same treatment, and so every part of the tuning path is exercisable
     /// from a script and from CI rather than only by hand.
@@ -890,7 +1000,8 @@ internal static partial class Program
 
         string? input = null, outPath = null, maskPath = null, outlinePath = null;
         var o = new TuningOptions();
-        bool haveBlack = false, haveWhite = false, wantOutline = false, json = false;
+        bool haveBlack = false, haveWhite = false, wantOutline = false, json = false, noDpi = false;
+        string? flatSpec = null, levelsFrom = null;
         double? rimPct = null, rampPct = null;
         int passes = 256;
         // WeCreat support give 6-8 um for the Lumos Ultra UV spot; 7 sits in the middle.
@@ -953,6 +1064,14 @@ internal static partial class Program
                 case "--depth-mm": if (double.TryParse(Next(), out double dm)) o.TargetDepthMm = dm; break;
                 case "--bits": if (int.TryParse(Next(), out int bd)) o.OutputBitDepth = bd; break;
                 case "--json": json = true; break;
+                case "--no-dpi": noDpi = true; break;
+
+                // The wizard's choices, from the command line. --flat takes one word per flat
+                // area, largest first (leave, smooth, flatten), as the wizard found them.
+                // --levels-from picks level points the way the wizard suggests them: from the
+                // design without its surround, or with the background counted as a floor.
+                case "--flat": flatSpec = Next(); break;
+                case "--levels-from": levelsFrom = Next()?.ToLowerInvariant(); break;
                 default:
                     if (!a.StartsWith('-') && input is null) input = a;
                     break;
@@ -998,12 +1117,39 @@ internal static partial class Program
             // pixels at either extreme is common, and one of them makes a min/max stretch
             // do nothing at all.
             var (sb, sw) = DepthTuner.SuggestLevels(before.GreyHistogram);
+
+            // The wizard's measurements, when anything asks for them.
+            DesignSurvey? survey = flatSpec is not null || levelsFrom is not null
+                ? DesignSurvey.Run(grey, loaded.Image.Width, loaded.Image.Height, maxValue)
+                : null;
+            if (survey is not null && levelsFrom is "design" or "floor")
+            {
+                bool bgIsDesign = levelsFrom == "floor";
+                sb = survey.Floor(bgIsDesign, o.CoverDesignRim).Suggested;
+                sw = survey.Top(bgIsDesign, o.CoverDesignRim).Suggested;
+            }
             if (!haveBlack) o.BlackPoint = sb;
             if (!haveWhite) o.WhitePoint = sw;
+
+            if (survey is not null && flatSpec is not null)
+            {
+                var words = flatSpec.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                for (int k = 0; k < words.Length && k < survey.FlatAreas.Count; k++)
+                {
+                    var mode = words[k].ToLowerInvariant() switch
+                    {
+                        "flatten" => FlatMode.Flatten,
+                        "smooth" => FlatMode.Smooth,
+                        _ => FlatMode.Leave,
+                    };
+                    o.FlatActions.Add(survey.FlatAreas[k].ToAction(mode, maxValue));
+                }
+            }
 
             // Millimetres win over percentages when both are given: one came off a pair of
             // calipers and the other is a guess.
             o.ResolvePhysical(loaded.Image.Width, loaded.Image.Height);
+            if (noDpi) o.Dpi = null;
             if (rimPct is double pct && o.RimWidthMm is null)
             {
                 double half = Math.Min(loaded.Image.Width, loaded.Image.Height) / 2.0;
@@ -1148,6 +1294,10 @@ internal static partial class Program
             }
 
             if (o.AddRim) Console.WriteLine($"  rim             {rep.Summary}");
+            if (rep.FlatChanged > 0)
+                Console.WriteLine($"  flat areas      {o.FlatActions.Count(a => a.Mode == FlatMode.Flatten)} flattened,"
+                                + $" {o.FlatActions.Count(a => a.Mode == FlatMode.Smooth)} smoothed:"
+                                + $" {rep.FlatChanged:N0} px moved, by at most {rep.FlatMaxChange:N0} levels");
             if (rep.FitDesignLost > 0)
                 Console.WriteLine($"                  centring on the design would have cropped {rep.FitDesignLost:N0} px"
                                 + " of it, so it was not done");

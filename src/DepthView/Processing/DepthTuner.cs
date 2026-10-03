@@ -33,6 +33,10 @@ public sealed class TuningReport
     /// <summary>Pixels of the design's own rim that the new rim covers, on request.</summary>
     public long DesignRimCovered;
 
+    /// <summary>Pixels moved by flat-area smoothing or flattening, and the largest move, in source levels.</summary>
+    public long FlatChanged;
+    public int FlatMaxChange;
+
     /// <summary>Distance from the middle of the design to the middle of the blank, when a rim was drawn.</summary>
     public double? DesignOffCentreMm;
 }
@@ -77,6 +81,16 @@ public static class DepthTuner
     {
         report = new TuningReport { MaxValue = maxValue, OutWidth = width, OutHeight = height };
         var outp = new ushort[source.Length];
+
+        // ---- flat areas -------------------------------------------------
+        // First, in source levels, on a copy: smoothing or flattening an area that is meant to
+        // be level is a statement about the drawing, so it happens before the level points
+        // decide what depth anything becomes. The source array itself is never touched.
+        if (o.FlatActions.Exists(a => a.Mode != FlatMode.Leave))
+        {
+            source = (ushort[])source.Clone();
+            (report.FlatChanged, report.FlatMaxChange) = FlatAreas.Apply(source, width, height, o.FlatActions);
+        }
 
         int black = Math.Clamp(o.BlackPoint, 0, maxValue);
         int white = Math.Clamp(o.WhitePoint <= 0 ? maxValue : o.WhitePoint, 0, maxValue);

@@ -493,6 +493,40 @@ Every UI element has a tooltip explaining what it means.
 Inspection tells you a file is wrong. **Tune…** is where you fix it, with the
 original and the corrected map side by side and every number recomputed as you drag.
 
+#### The tuning wizard
+
+Not sure where to start? **Tuning wizard…**, at the top of the Tune window, asks a few
+questions about what you want the coin to be - which program will cut it, whether the
+background is a surround or a cut-away floor, what to do with a rim drawn into the art, what
+should be full depth and what should stay untouched, whether flat areas should engrave flat,
+how many layers - and shows each answer on the picture as you make it: the part of the design
+the question is about is highlighted, and the result can be shown flat or as lit metal at
+any step.
+
+<p align="center">
+  <img src="docs/images/wizard.png" alt="The tuning wizard on its Deepest areas step: the floor highlighted in red on the map, what DepthView measured, and the answers with one recommended" width="820">
+</p>
+
+Every question comes with what DepthView measured to answer it and why it matters, and one
+answer is marked *Recommended* - a suggestion read from the measurements, never a decision.
+**You have the final word.** The wizard only sets the Tune window's own controls; everything
+stays yours to change afterwards, and tuning of your own beyond the wizard is exactly what
+that window is for. Its Review step lists every change with its reason and the command line
+that makes the same file.
+
+Two of its questions are worth knowing about before you start:
+
+- **Replacing a drawn rim.** Many coin maps include a rim. Replacing it turns everything from
+  the foot of the drawn rim outward into pure white - an area the laser never goes - in the
+  same file, so the coin's rim is the blank's own polished surface, with no trench beside it,
+  and all of the depth goes to the design.
+- **Flat areas.** It finds the nearly level areas of the design and offers to *flatten*
+  (one exact level) or *smooth* (pixel noise only) each one, so a floor meant to be flat does
+  not engrave speckled where a layer boundary runs through its noise.
+
+`DepthView --survey <image>` prints what the wizard measures; `--tune` takes its answers as
+`--levels-from` and `--flat` (see `--help` and [docs/INTEGRATION.md](docs/INTEGRATION.md)).
+
 <p align="center">
   <img src="docs/images/tune.png" alt="The tuning dialog: original and tuned previews, draggable level points on the source histogram, and live depth figures" width="820">
 </p>

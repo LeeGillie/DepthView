@@ -121,6 +121,21 @@ where the JSON is a GitHub release document whose asset URLs are local paths.
   everywhere and stays true.
 - **One implementation per job.** `TuneJob` is shared by the dialog and the command line
   so a file written either way with the same settings is the same bytes.
+- **The tuning wizard tunes nothing itself** (`Views/TuningWizard.cs`, after 1.7.0). It asks;
+  `Processing/DesignSurvey` measures (once, full resolution; `--survey` prints the same);
+  `WizardAdvice` recommends, each rule with its reason; `WizardPlan.Build` turns answers into
+  one `TuningOptions` plus the change list and the equivalent `--tune` command line. Its
+  preview is `DepthTuner.Apply` on the Tune window's reduced copy, and Apply sets the Tune
+  window's *controls* - so the wizard, the Tune window and `--tune --levels-from --flat` cannot
+  disagree. Flat-area changes (`FlatAreas`, `TuningOptions.FlatActions`) have no Tune-window
+  control: they are listed in its results and cleared by Reset. **The user has the final word**
+  (Lee, 2026-10-03): recommendations are suggestions, every answer has a by-hand option, and
+  the review step and the Tune window both say the settings stay theirs to change. Keep that
+  wording when touching either. The rim step explains what replacing a drawn rim does (pure
+  white = the laser never goes there; the coin's rim becomes the blank's own surface; no
+  trench; the depth goes to the design) before it asks - that is the concept to get across.
+  Screenshots: `<image> --wizard --wizard-step N [--wizard-target makeit|lightburn|slicer]
+  --blank 40 --screenshot out.png`; steps are numbered over the ones that apply to that map.
 
 ---
 

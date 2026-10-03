@@ -149,6 +149,11 @@ public partial class TuneWindow : Window
         ResetButton.Click += (_, _) => ResetAll(sb, sw);
         SaveButton.Click += async (_, _) => await SaveAsync();
         CloseButton.Click += (_, _) => Close();
+        WizardButton.Click += async (_, _) => await OpenWizardAsync();
+
+        // --wizard: open it over this window as soon as this window is up, for screenshots.
+        if (Program.StartupWizard)
+            Opened += async (_, _) => await OpenWizardAsync();
 
         WireRelief();
 
@@ -589,8 +594,97 @@ public partial class TuneWindow : Window
         Queue();
     }
 
+    // ------------------------------------------------------------------ the wizard
+
+    /// <summary>The wizard while it is open; the screenshot path captures it.</summary>
+    public TuningWizard? Wizard { get; private set; }
+
+    /// <summary>Flat-area changes from the wizard. There is no control for them here, so they
+    /// are listed in the results and cleared by Reset.</summary>
+    private List<FlatAction> _flatActions = new();
+
+    /// <summary>The source histogram after the flat-area changes, measured at full resolution,
+    /// so the figures describe the map that will actually be written.</summary>
+    private long[]? _flatHist;
+
+    /// <summary>The name the wizard offered for the saved file.</summary>
+    private string? _wizardName;
+
+    private async Task OpenWizardAsync()
+    {
+        if (Wizard is not null) { Wizard.Activate(); return; }
+        Wizard = new TuningWizard(new WizardSource(_grey, _w, _h, _maxValue, _previewGrey, _pw, _ph, _previewScale,
+                                                   _source.GreyHistogram, _fileName));
+        try
+        {
+            await Wizard.ShowDialog(this);
+            if (Wizard.Plan is { } plan)
+            {
+                await ApplyWizardAsync(plan);
+                if (Wizard.SaveAfter) await SaveAsync();
+            }
+        }
+        finally { Wizard = null; }
+    }
+
+    /// <summary>
+    /// The wizard's answers, onto this window's own controls. Nothing is tuned here: the
+    /// controls are set and the usual pass runs, so the preview, the figures and the saved file
+    /// all come from <see cref="Build"/> exactly as if the boxes had been ticked by hand.
+    /// </summary>
+    private async Task ApplyWizardAsync(WizardPlan plan)
+    {
+        var o = plan.Options;
+        _loading = true;
+        StretchCheck.IsChecked = true;
+        InvertCheck.IsChecked = false;
+        SliceCheck.IsChecked = false;
+        DitherCheck.IsChecked = false;
+        RimCheck.IsChecked = o.AddRim;
+        if (o.AddRim)
+        {
+            RimBox.Value = (decimal)Math.Round(o.RimWidthMm ?? 1.0, 2);
+            RampBox.Value = (decimal)Math.Round(o.RimRampMm ?? 0.0, 2);
+        }
+        FitCheck.IsChecked = o.Fit != FitPolicy.None;
+        FitPolicyBox.SelectedIndex = o.Fit switch { FitPolicy.Canvas => 1, FitPolicy.Design => 2, _ => 0 };
+        CoverRimCheck.IsChecked = o.CoverDesignRim;
+        PadBox.SelectedIndex = o.PadWith == PadFill.Untouched ? 1 : 0;
+        PassBox.Value = plan.Passes;
+        BitBox.SelectedIndex = o.OutputBitDepth == 8 ? 1 : 0;
+        DpiCheck.IsChecked = o.Dpi is not null;
+        OutlineCheck.IsChecked = plan.Outline;
+        _loading = false;
+        ApplyLevels(plan.Black, plan.White);
+
+        _flatActions = o.FlatActions.Where(a => a.Mode != FlatMode.Leave).ToList();
+        _wizardName = plan.SuggestedName;
+        _flatHist = null;
+        if (_flatActions.Count > 0)
+        {
+            StatusText.Text = "Measuring the flat-area changes at full resolution ...";
+            var actions = _flatActions;
+            _flatHist = await Task.Run(() =>
+            {
+                var g = (ushort[])_grey.Clone();
+                FlatAreas.Apply(g, _w, _h, actions);
+                var hist = new long[_maxValue + 1];
+                foreach (var v in g) hist[v]++;
+                return hist;
+            });
+        }
+        Recompute();
+
+        // Recompute writes the status line; this replaces it once, so the hand-over is said.
+        StatusText.Text = "The wizard's answers are set on the controls above. They are a starting point, not a lock: "
+                        + "change anything you like - the preview and the figures follow. Reset puts everything back.";
+    }
+
     private void ResetAll(int suggestedBlack, int suggestedWhite)
     {
+        _flatActions = new List<FlatAction>();
+        _flatHist = null;
+        _wizardName = null;
         _loading = true;
         StretchCheck.IsChecked = true;
         InvertCheck.IsChecked = false;
@@ -652,6 +746,7 @@ public partial class TuneWindow : Window
             o.CoverDesignRim = CoverRimCheck.IsChecked == true && o.Fit == FitPolicy.Design;
         }
 
+        o.FlatActions = new List<FlatAction>(_flatActions);
         o.ResolvePhysical(_w, _h);
 
         // ResolvePhysical turns the rim on whenever a width was given; the checkbox is the
@@ -690,7 +785,9 @@ public partial class TuneWindow : Window
         // the round trip through a saved file is exactly what made A/B comparison painful.
         PushTunedRelief(tuned, rep.OutWidth, rep.OutHeight);
 
-        _tunedHist = TuneJob.MapHistogram(_source.GreyHistogram, _maxValue, full,
+        // With flat areas changed, the levels going in are the changed map's, measured once at
+        // full resolution when the wizard's answers were applied.
+        _tunedHist = TuneJob.MapHistogram(_flatHist ?? _source.GreyHistogram, _maxValue, full,
                                           out long flattened, out long lifted);
 
         int passes = (int)(PassBox.Value ?? 256);
@@ -745,7 +842,7 @@ public partial class TuneWindow : Window
             // come from the removal model, because focus changes how much each pass removes.
             $"Depth per pass         {Blank.Current.TargetDepthMm / Math.Max(1, passes) * 1000:0.0} um  "
                 + $"({Blank.Current.TargetDepthMm:0.00} mm over {passes:N0})",
-        }.Concat(RimLines(rep, full)));
+        }.Concat(RimLines(rep, full)).Concat(FlatLines()));
 
         UpdateStatus(full);
     }
@@ -815,6 +912,18 @@ public partial class TuneWindow : Window
             yield return $"Design off centre      {rep.DesignOffCentreMm:F1} mm - try fit: centred on it";
     }
 
+    /// <summary>The wizard's flat-area changes, which have no control of their own here.</summary>
+    private IEnumerable<string> FlatLines()
+    {
+        int flat = _flatActions.Count(a => a.Mode == FlatMode.Flatten);
+        int smooth = _flatActions.Count(a => a.Mode == FlatMode.Smooth);
+        if (flat + smooth == 0) yield break;
+        var parts = new List<string>();
+        if (flat > 0) parts.Add($"{flat} flattened");
+        if (smooth > 0) parts.Add($"{smooth} smoothed");
+        yield return $"Flat areas             {string.Join(", ", parts)} (wizard; Reset clears)";
+    }
+
     /// <summary>
     /// The geometry the settings imply, in the footer rather than in the settings panel.
     ///
@@ -879,7 +988,7 @@ public partial class TuneWindow : Window
         var top = GetTopLevel(this);
         if (top?.StorageProvider is null) return;
 
-        string suggested = Path.GetFileNameWithoutExtension(_fileName) + "-tuned.png";
+        string suggested = _wizardName ?? Path.GetFileNameWithoutExtension(_fileName) + "-tuned.png";
 
         var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {

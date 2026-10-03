@@ -131,6 +131,15 @@ The options most useful to a host:
 | `--fit [content\|canvas\|design]` | fit the design inside the rim; nothing is resampled. `design` centres the blank on the design and may crop background (never design) |
 | `--cover-rim` | with `--fit design`: if the artwork has its own raised rim, size the blank so that rim lands under the new one |
 | `--depth-mm <mm>` `--passes <n>` | the job's target depth and pass count, for the figures in the output |
+| `--levels-from <design\|floor>` | level points as the tuning wizard suggests them, from `--survey`'s measurements: from the design without its surround (`design`), or with the background counted as a cut-away floor (`floor`). With `--cover-rim`, only what is inside the drawn rim counts. `--black` / `--white` still win |
+| `--flat <leave\|smooth\|flatten,...>` | one word per nearly level area, in `--survey`'s order: `smooth` removes pixel noise only, `flatten` makes the area one level |
+| `--no-dpi` | write no resolution into the PNG, even with `--blank` |
+
+**Survey** - what the tuning wizard measures; changes nothing:
+
+```
+DepthView --survey <file> --json [--passes <n>]
+```
 
 `--help` lists everything. **`--out` may not name the input file**: DepthView refuses, exits 2,
 and leaves the input untouched. It never writes over an original.
@@ -243,6 +252,7 @@ A complete example, for an 8-bit map saved as 16-bit:
 | `size` | `inWidth`, `inHeight`, `outWidth`, `outHeight` - fitting can grow the canvas |
 | `applied` | the settings actually used: `blackPoint`, `whitePoint`, `stretch`, `invert`, `slices`, `dither`, `bits`, `fit`, `pad`, `rim` |
 | `changedPixels`, `flattenedToBlack`, `liftedToWhite` | what moved |
+| `flat` | (added 1.8.0) `areas[]`: one per nearly level area, in `--survey`'s order - `mode` (`leave`, `smooth`, `flatten`), `low`, `high` (the band of levels it may touch), `level` (what `flatten` sets); `pixelsChanged`, `maxChange` (levels). Empty `areas` without `--flat` |
 | `fit` | `canvasPx`, `artAcrossMm`, `pixelsPerMm`, and (added 1.7.1) `recentred`, `offsetX`, `offsetY` - where the input's top-left corner lands on the output, negative where background was cropped - `cropped`, and `designRim`: with `--cover-rim`, the artwork's own rim that was found and put under the new one (`innerPx`, `outerPx` from the design's centre, `widthMm`, `footLevel`, `topLevel`, `pixelsCovered`), else `null`; or `null` |
 | `designOffCentreMm` | (added 1.7.1) how far the middle of the design sits from the middle of the blank, when a rim was drawn with `--blank`; else `null`. Above about 0.5 mm, `--fit design` is worth trying |
 | `rim` | `widthMm`, `rampMm`, `radiusPx`, `rampPx`, `pixelsPainted`, `contentPixelsClipped`, `contentClippedFraction`, `summary`, or `null` |
@@ -250,6 +260,25 @@ A complete example, for an 8-bit map saved as 16-bit:
 | `target` | with `--depth-mm`: `depthMm`, `passes`, `targetMicronsPerPass`; else `null`. **This is the target divided by the passes, not a prediction** of what each pass will cut |
 | `passes` | the pass count the figures were computed for |
 | `before`, `after` | full report entries, as above, for the input and for the file written. `after` is measured by reading the new file back, not predicted |
+
+---
+
+## `depthview.survey/1`
+
+What the tuning wizard measures before it asks anything. Nothing is written. Levels are source
+levels, before any level points.
+
+| Field | Meaning |
+|---|---|
+| `ok`, `path`, `width`, `height`, `maxValue` | the file |
+| `background` | `level` (taken from around the image's edge), `share` of the image, `shareInsideDesign` (of the area inside the design's circle), `looksLikeFloor` (`shareInsideDesign` of 15% or more: a cut-away floor rather than a surround), `isLow` (below the middle of the design), `low`, `high` (its 1st and 99th percentiles) |
+| `design` | `centreX`, `centreY`, `radiusPx`, `offCentrePx` (from the canvas centre), or `null` |
+| `drawnRim` | the artwork's own raised rim: `innerPx` (its foot), `outerPx`, `footLevel`, `topLevel`, or `null` |
+| `readings[]` | the floor and top under each reading of the design: `backgroundIsDesign`, `drawnRimCovered`, then `floor` and `top`, each `found`, `low`, `high`, `noise` (`high - low`: the roughness a level point removes), `pixels`, `share`, `suggested` (the level point that makes it one exact level), `source` (`background`, `flat area N`, or `percentile` when nothing was found - then `suggested` is the 0.1st or 99.9th percentile) |
+| `noiseSigma` | Immerkaer's whole-design noise estimate, in levels. Fine detail reads as noise too, so treat it as an upper figure; each flat area's `jitter` is the one that matters |
+| `passes` | the pass count `boundariesCrossed` is quoted at |
+| `flatAreas[]` | nearly level areas inside the design (inside any drawn rim), largest first: `rank`, `pixels`, `shareOfDesign`, `median`, `low`, `high`, `jitter` (median pixel-to-pixel deviation), `mostlyJitter` (spread no wider than the jitter explains), `floor`, `top` (at that end of the design), `boundariesCrossed` (slice boundaries the area straddles at `passes`, after the default reading's suggested level points), `centreX`, `centreY` |
+| `seconds` | time taken |
 
 ---
 

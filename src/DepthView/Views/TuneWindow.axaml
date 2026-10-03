@@ -80,8 +80,12 @@
           <TextBlock x:Name="SubtitleText" FontSize="11" Foreground="#79818D"
                      Text="Black is deepest, white is untouched. Nothing is written until you save, and the original file is never modified." />
         </StackPanel>
-        <TextBlock Grid.Column="1" x:Name="SourceText" VerticalAlignment="Center"
-                   FontSize="11" Foreground="#5E6773" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+          <TextBlock x:Name="SourceText" VerticalAlignment="Center"
+                     FontSize="11" Foreground="#5E6773" />
+          <Button x:Name="WizardButton" Classes="primary" Content="Tuning wizard ..."
+                  ToolTip.Tip="A few questions about what you want the coin to be - machine, background, rim, floor, flat areas, layers - each shown on the picture as you answer. It sets this window's controls; nothing is written until you save." />
+        </StackPanel>
       </Grid>
     </Border>
 

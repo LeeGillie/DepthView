@@ -71,6 +71,15 @@ public sealed class TuningOptions
     /// </summary>
     public bool CoverDesignRim;
 
+    // --- flat areas -----------------------------------------------------
+
+    /// <summary>
+    /// Changes to areas that are meant to be level: smoothed or flattened, in source levels,
+    /// before anything else runs. Usually set by the tuning wizard; --flat sets them from the
+    /// command line. Empty leaves every area exactly as drawn.
+    /// </summary>
+    public List<FlatAction> FlatActions = new();
+
     // --- slicing --------------------------------------------------------
 
     /// <summary>Quantise to exactly this many levels, matching a pass count. 0 leaves it alone.</summary>
@@ -156,7 +165,8 @@ public sealed class TuningOptions
 
     /// <summary>True when nothing here would change a single pixel.</summary>
     public bool IsNoOp(int maxValue) =>
-        BlackPoint <= 0 && WhitePoint >= maxValue && !AddRim && Slices <= 0 && !Invert;
+        BlackPoint <= 0 && WhitePoint >= maxValue && !AddRim && Slices <= 0 && !Invert
+        && FlatActions.TrueForAll(a => a.Mode == FlatMode.Leave);
 }
 
 /// <summary>How the file's resolution compares with what the machine can actually resolve.</summary>

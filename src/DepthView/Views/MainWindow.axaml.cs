@@ -154,7 +154,8 @@ public partial class MainWindow : Window
         {
             Interval = TimeSpan.FromMilliseconds(
                 Program.ScreenshotDelayMs
-                ?? (Program.StartupTune ? (Program.StartupRelief ? 5500 : 3000)
+                ?? (Program.StartupWizard ? 4500
+                    : Program.StartupTune ? (Program.StartupRelief ? 5500 : 3000)
                     : Program.StartupRelief ? 4500 : Program.StartupAbout ? 1400 : 2200))
         };
 
@@ -167,6 +168,7 @@ public partial class MainWindow : Window
                 Window target =
                     Program.StartupAbout && _about is not null ? _about :
                     Program.StartupWhatsNew && _notes is not null ? _notes :
+                    Program.StartupWizard && _tune?.Wizard is { } wizard ? wizard :
                     Program.StartupTune && _tune is not null ? _tune :
                     Program.StartupRelief && _relief is not null ? _relief : this;
                 var size = new PixelSize(Math.Max(1, (int)target.ClientSize.Width),

@@ -54,6 +54,11 @@ public sealed class Preferences
     /// release notes once - see <see cref="Updates.ReleaseNotes"/>.</summary>
     public string? LastRunVersion { get; set; }
 
+    /// <summary>The tuning wizard's answers that belong to the person, not to one map: which
+    /// program cuts the job, the rim they measure, the output they want. Offered as the
+    /// starting answers next time.</summary>
+    public WizardMemory? WizardLast { get; set; }
+
     // ------------------------------------------------------------------ storage
 
     private const int MinPasses = 2;
@@ -118,4 +123,17 @@ public sealed class Preferences
             return false;
         }
     }
+}
+
+/// <summary>What the tuning wizard remembers between runs. Nothing about any one map.</summary>
+public sealed class WizardMemory
+{
+    public Processing.WizardTarget Target { get; set; }
+    public bool WantRim { get; set; } = true;
+    public double RimMm { get; set; } = 1.0;
+    public double RampMm { get; set; } = 0.30;
+    public Processing.FlatScope FlatScope { get; set; } = Processing.FlatScope.Floor;
+    public int Bits { get; set; } = 8;
+    public bool WriteDpi { get; set; } = true;
+    public bool Outline { get; set; }
 }

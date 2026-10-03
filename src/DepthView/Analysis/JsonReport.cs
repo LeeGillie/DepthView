@@ -33,6 +33,106 @@ public static class JsonReport
 {
     public const string ReportSchema = "depthview.report/1";
     public const string TuneSchema = "depthview.tune/1";
+    public const string SurveySchema = "depthview.survey/1";
+
+    /// <summary>What the tuning wizard measures (--survey --json). Changes nothing.</summary>
+    public static string Survey(string path, DesignSurvey s, int passes)
+    {
+        void Ext(Utf8JsonWriter w, string name, Extreme e)
+        {
+            w.WriteStartObject(name);
+            w.WriteBoolean("found", e.Found);
+            w.WriteNumber("low", e.Low);
+            w.WriteNumber("high", e.High);
+            w.WriteNumber("noise", e.Noise);
+            w.WriteNumber("pixels", e.Pixels);
+            Num(w, "share", e.Share);
+            w.WriteNumber("suggested", e.Suggested);
+            w.WriteString("source", e.Source);
+            w.WriteEndObject();
+        }
+
+        return Write(w =>
+        {
+            w.WriteStartObject();
+            w.WriteString("schema", SurveySchema);
+            w.WriteString("depthview", BuildInfo.Version);
+            w.WriteBoolean("ok", true);
+            w.WriteString("path", path);
+            w.WriteNumber("width", s.Width);
+            w.WriteNumber("height", s.Height);
+            w.WriteNumber("maxValue", s.MaxValue);
+            w.WriteStartObject("background");
+            w.WriteNumber("level", s.Background);
+            Num(w, "share", s.BackgroundShare);
+            Num(w, "shareInsideDesign", s.BackgroundInsideShare);
+            w.WriteBoolean("looksLikeFloor", s.BackgroundLooksLikeFloor);
+            w.WriteBoolean("isLow", s.BackgroundIsLow);
+            w.WriteNumber("low", s.BackgroundLow);
+            w.WriteNumber("high", s.BackgroundHigh);
+            w.WriteEndObject();
+            if (s.HasDesign)
+            {
+                w.WriteStartObject("design");
+                Num(w, "centreX", s.CentreX);
+                Num(w, "centreY", s.CentreY);
+                Num(w, "radiusPx", s.Radius);
+                Num(w, "offCentrePx", s.OffCentrePx);
+                w.WriteEndObject();
+            }
+            else w.WriteNull("design");
+            if (s.DrawnRim is { } rim)
+            {
+                w.WriteStartObject("drawnRim");
+                Num(w, "innerPx", rim.Inner);
+                Num(w, "outerPx", rim.Outer);
+                Num(w, "footLevel", rim.FootLevel);
+                Num(w, "topLevel", rim.TopLevel);
+                w.WriteEndObject();
+            }
+            else w.WriteNull("drawnRim");
+            // The floor and top under each reading of the design: is the background part of
+            // it, and is the drawn rim being replaced. The wizard asks; these are the answers.
+            w.WriteStartArray("readings");
+            foreach (bool bgIsDesign in new[] { false, true })
+                foreach (bool rimCovered in s.DrawnRim is null ? new[] { false } : new[] { false, true })
+                {
+                    w.WriteStartObject();
+                    w.WriteBoolean("backgroundIsDesign", bgIsDesign);
+                    w.WriteBoolean("drawnRimCovered", rimCovered);
+                    Ext(w, "floor", s.Floor(bgIsDesign, rimCovered));
+                    Ext(w, "top", s.Top(bgIsDesign, rimCovered));
+                    w.WriteEndObject();
+                }
+            w.WriteEndArray();
+            Num(w, "noiseSigma", s.NoiseSigma);
+            w.WriteNumber("passes", passes);
+            var floor = s.Floor(s.BackgroundLooksLikeFloor);
+            var top = s.Top(s.BackgroundLooksLikeFloor);
+            w.WriteStartArray("flatAreas");
+            foreach (var a in s.FlatAreas)
+            {
+                w.WriteStartObject();
+                w.WriteNumber("rank", a.Rank);
+                w.WriteNumber("pixels", a.Pixels);
+                Num(w, "shareOfDesign", a.ShareOfDesign);
+                w.WriteNumber("median", a.Median);
+                w.WriteNumber("low", a.Low);
+                w.WriteNumber("high", a.High);
+                Num(w, "jitter", a.Jitter);
+                w.WriteBoolean("mostlyJitter", a.MostlyJitter);
+                w.WriteBoolean("floor", a.TouchesFloor);
+                w.WriteBoolean("top", a.TouchesTop);
+                w.WriteNumber("boundariesCrossed", a.BoundariesCrossed(passes, floor.Suggested, top.Suggested, s.MaxValue));
+                Num(w, "centreX", a.CentreX);
+                Num(w, "centreY", a.CentreY);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+            Num(w, "seconds", s.Seconds);
+            w.WriteEndObject();
+        });
+    }
 
     /// <summary>Pass counts every report carries unless the caller names its own.</summary>
     public static readonly int[] DefaultPassCounts = { 64, 100, 128, 200, 256, 512, 1024 };
@@ -133,6 +233,23 @@ public static class JsonReport
             w.WriteNumber("changedPixels", rep.Changed);
             w.WriteNumber("flattenedToBlack", rep.FlattenedToBlack);
             w.WriteNumber("liftedToWhite", rep.LiftedToWhite);
+
+            // Added with --flat: one entry per nearly level area, in --survey's order.
+            w.WriteStartObject("flat");
+            w.WriteStartArray("areas");
+            foreach (var a in o.FlatActions)
+            {
+                w.WriteStartObject();
+                w.WriteString("mode", a.Mode.ToString().ToLowerInvariant());
+                w.WriteNumber("low", a.Low);
+                w.WriteNumber("high", a.High);
+                w.WriteNumber("level", a.Level);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+            w.WriteNumber("pixelsChanged", rep.FlatChanged);
+            w.WriteNumber("maxChange", rep.FlatMaxChange);
+            w.WriteEndObject();
 
             if (rep.Fit is { } fit)
             {

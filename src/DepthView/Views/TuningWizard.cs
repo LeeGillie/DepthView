@@ -568,8 +568,7 @@ public sealed class TuningWizard : Window
     /// <summary>Does this source pixel count as design under the answers so far?</summary>
     private bool InReading(int x, int y, int v)
     {
-        int tol = DepthCanvas.ContentTolerance(Max);
-        if (!BgIsDesign && Math.Abs(v - _s.Background) <= tol) return false;
+        if (!BgIsDesign && IsBackground(x, y)) return false;
         if (RimCovered && _s.DrawnRim is { } rim)
         {
             double dx = x - _s.CentreX * Scale, dy = y - _s.CentreY * Scale, lim = rim.Inner * 0.98 * Scale;
@@ -577,6 +576,14 @@ public sealed class TuningWizard : Window
         }
         return true;
     }
+
+    /// <summary>
+    /// Is this preview pixel background, as the survey found it - one level, or a shaded
+    /// surround followed from the edge? The preview is a nearest-neighbour reduction, so each
+    /// of its pixels is one source pixel, found the same way.
+    /// </summary>
+    private bool IsBackground(int px, int py)
+        => _s.IsSurround((int)((long)px * _src.Width / _src.PreviewWidth), (int)((long)py * _src.Height / _src.PreviewHeight));
 
     private int[]? _areaAt;
 
@@ -605,12 +612,11 @@ public sealed class TuningWizard : Window
     /// <summary>The highlight for a step: the part of the picture its question is about.</summary>
     private Overlay? SourceOverlay(StepId id)
     {
-        int tol = DepthCanvas.ContentTolerance(Max);
         var (black, white) = Levels;
         switch (id)
         {
             case StepId.Background:
-                return (x, y, v) => Math.Abs(v - _s.Background) <= tol ? (CBackground, 0.62) : (Colors.Black, 0.35);
+                return (x, y, v) => IsBackground(x, y) ? (CBackground, 0.62) : (Colors.Black, 0.35);
 
             case StepId.Rim when _s.DrawnRim is { } rim:
             {
@@ -789,7 +795,10 @@ public sealed class TuningWizard : Window
                 return $"The design is {2 * _s.Radius / CanvasPxPerMm:F1} mm across at this blank, and its centre is "
                      + $"{WizardAdvice.OffCentreMm(_s, BlankMm):F1} mm from the middle of the image.";
             case StepId.Background:
-                return $"Level {_s.Background:N0}, around the edge of the image: {_s.BackgroundShare * 100:F1}% of the image, "
+                return (_s.SurroundShaded
+                         ? $"Levels {_s.BackgroundLow:N0} to {_s.BackgroundHigh:N0}, followed in from the edge of the image: "
+                         : $"Level {_s.Background:N0}, around the edge of the image: ")
+                     + $"{_s.BackgroundShare * 100:F1}% of the image, "
                      + $"and {_s.BackgroundInsideShare * 100:F1}% of the area inside the design's circle.";
             case StepId.Rim:
                 return _s.DrawnRim is { } rim
@@ -1213,7 +1222,9 @@ public sealed class TuningWizard : Window
         var p = new StackPanel();
         p.Children.Add(Header("Background", "Is the background part of the coin?"));
         p.Children.Add(Measured(() => Rows(
-            ("Level", $"{_s.Background:N0}, from around the edge of the image"),
+            ("Level", _s.SurroundShaded
+                ? $"not one level: {_s.BackgroundLow:N0} to {_s.BackgroundHigh:N0}, shaded or marked - followed in from the edge of the image"
+                : $"{_s.Background:N0}, from around the edge of the image"),
             ("Covers", $"{_s.BackgroundShare * 100:F1}% of the image"),
             ("Inside the design", $"{_s.BackgroundInsideShare * 100:F1}% of the design's circle"),
             ("Sits", _s.BackgroundIsLow ? "below the design: it would be cut deep" : "above the design: it would be left high"),
@@ -1226,7 +1237,9 @@ public sealed class TuningWizard : Window
                 RecommendLevels(_a);
             },
             new Opt<BackgroundRole>(BackgroundRole.Surround, "A surround to remove",
-                "It is outside the coin, like the backdrop of a photo. It does not set the depth range, and the rim leaves it uncut.", R(BackgroundRole.Surround)),
+                "It is outside the coin, like the backdrop of a photo. It does not set the depth range, and the rim leaves it uncut."
+                + (_s.SurroundShaded ? " Because it is not one level, it is first made one, so its shading or marks cannot be mistaken for design." : ""),
+                R(BackgroundRole.Surround)),
             new Opt<BackgroundRole>(BackgroundRole.Floor, "Part of the design: a cut-away floor",
                 "The design was cut down to it on purpose. It counts when the depth range is set, and is engraved where it lies.", R(BackgroundRole.Floor))));
         p.Children.Add(Why("Black means deepest. A black surround taken for part of the design drags the black point down to "
@@ -1448,6 +1461,11 @@ public sealed class TuningWizard : Window
                 rows.Add(("Found from", ext.Source == "background" ? "the background, which you said is part of the design" : $"a nearly level area ({ext.Source})"));
             }
             else rows.Add((deepest ? "Floor" : "Flat top", $"none - no large level area at the {(deepest ? "bottom" : "top")} of the range"));
+            if (ext.Source == "gap")
+            {
+                rows.Add(("Pockets", $"{ext.Share * 100:F2}% of the design, {(deepest ? "below" : "above")} level {(deepest ? ext.Low : ext.High):N0}"));
+                rows.Add(("Empty gap", $"levels {ext.Low:N0} to {ext.High:N0} hold nothing - about {GapLayers(ext, pct)} of {_a.Passes} layers would cut nothing new"));
+            }
             rows.Add((deepest ? "Deepest 0.1%" : "Highest 0.1%", $"from level {pct:N0}"));
             rows.Add((deepest ? "Lowest level" : "Highest level", $"{end:N0}"));
             rows.Add((deepest ? "Full depth now" : "Untouched now", $"{Pct(n, total)} of the design, level {(deepest ? black : white):N0} and {(deepest ? "below" : "above")}"));
@@ -1463,6 +1481,16 @@ public sealed class TuningWizard : Window
                         : $"{point} {ext.Suggested:N0}. The whole top stays at the blank's surface: no passes at all.", R(LevelChoice.Feature)));
             opts.Add(new(LevelChoice.Percentile, $"Keep the {floorWord}'s texture",
                 $"{point} {pct:N0}. Only the extreme 0.1% clips; the {floorWord} keeps its variation and engraves with it.", R(LevelChoice.Percentile)));
+        }
+        else if (ext.Source == "gap")
+        {
+            string side = deepest ? "deepest" : "highest";
+            opts.Add(new(LevelChoice.Feature, "Close the empty gap",
+                $"{point} {ext.Suggested:N0}. The small pockets beyond the gap are already the {side} part of the design and stay so; "
+                + $"the {GapLayers(ext, pct)} layers the gap would spend cutting nothing go to the relief instead.", R(LevelChoice.Feature)));
+            opts.Add(new(LevelChoice.Percentile, "Keep the gap",
+                $"{point} {pct:N0}, the {side} 0.1%. The pockets set the depth range, and the empty gap costs layers that cut nothing new.",
+                R(LevelChoice.Percentile)));
         }
         else
         {
@@ -1491,6 +1519,15 @@ public sealed class TuningWizard : Window
               + "blank's own polished surface, level with the rim. A white point a little below the very top costs nothing you "
               + "would see, and keeps the top from being skimmed by a layer that only just reaches it."));
         return p;
+    }
+
+    /// <summary>Roughly how many layers an empty gap would spend, with the level point left at the percentile.</summary>
+    private int GapLayers(Extreme gap, int percentilePoint)
+    {
+        var (black, white) = Levels;
+        int lo = Math.Min(percentilePoint, black), hi = Math.Max(white, percentilePoint);
+        double span = Math.Max(1, hi - lo);
+        return (int)Math.Round((gap.High - gap.Low + 1) / span * _a.Passes);
     }
 
     private Control StepFlat()

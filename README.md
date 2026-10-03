@@ -15,7 +15,7 @@ mechanism behind each one.
 
 ![Analysis of an imposter file](docs/images/analysis-imposter.png)
 
-*A file that declares 16 bits per sample and contains 256 distinct levels. The evenly spaced
+*A file that declares 16 bits per sample and contains only 254 distinct levels. The evenly spaced
 teeth across the whole histogram are the giveaway — every level lands on a multiple of 257,
 because an 8-bit map was saved as 16-bit by copying each byte twice.*
 
@@ -194,7 +194,7 @@ unique colours; GIMP will draw a 16-bit histogram. What none of them do is inter
 
 ![Analysis of a genuine 16-bit map](docs/images/analysis-genuine.png)
 
-*The same panel on a genuine 16-bit depth map: 56,299 distinct levels, a step of 1, and a
+*The same coin from its genuine 16-bit depth map: 61,898 distinct levels, a step of 1, and a
 histogram with no comb in it. This is what you want to see.*
 
 **Container** (from the file header)
@@ -308,6 +308,13 @@ Identical depth counts. Raised by Nathaniel Klumb on the LightBurn forum; see
 | `QuantisedLadder` | Levels form a perfectly even ladder with step > 1 — catches 10-bit, 12-bit and any other depth hiding in a larger container, not just the 8-in-16 case. |
 | `SparseLevels` | Far fewer levels than the container holds, with no clean pattern. Usually rescaled or filtered 8-bit source. |
 
+One more verdict sits above all of these: **NOT A DEPTH MAP: mostly colour.** When more than
+half of the pixels are coloured rather than grey, the file is a picture of a coin - a render,
+a tinted preview, a photograph - not a depth map, and its grey figures describe only the
+minority that happen to be grey. A picture records light and shade; engraved as depth, its
+shadows are cut deep and its highlights left standing, whichever way the relief really goes.
+DepthView says so plainly and exits 1, however good the level count looks.
+
 ---
 
 ## Installing and running it
@@ -410,7 +417,7 @@ looking at the terracing you will actually get, not a smooth idealisation of it:
 |---|---|
 | ![Continuous relief](docs/images/relief-continuous.png) | ![Terraced relief](docs/images/relief-terraced.png) |
 
-Same depth map, same material, same light, all three drawn at 4× the 1.1 mm target depth so the
+Same depth map, same material, same light, all three drawn at 4× the 0.72 mm target depth so the
 form reads at this size (the badge in the window says so). The right-hand image is what 16
 passes produces.
 Slide the count until the contour lines disappear and you have found the pass count that
@@ -448,7 +455,7 @@ The rest of the preview:
   read as depth rather than as a grey gradient.
 * **True scale and vertical exaggeration** — enter the blank diameter and the depth you intend
   to cut, and the preview opens at true scale: Z drawn in the same millimetres as X and Y. That
-  is honest but shallow (1.1 mm on a 25 mm coin is a 4% aspect ratio), so the exaggeration
+  is honest but shallow (0.72 mm on a 40 mm coin is under a 2% aspect ratio), so the exaggeration
   slider doubles the drawn depth per step to magnify terracing and noise. The slider, its text
   and a badge on the picture shade from green at true scale through yellow to red, so a
   magnified view is never mistaken for the real thing. Find problems exaggerated; judge whether
@@ -493,6 +500,12 @@ Every UI element has a tooltip explaining what it means.
 Inspection tells you a file is wrong. **Tune…** is where you fix it, with the
 original and the corrected map side by side and every number recomputed as you drag.
 
+**[docs/TUNING-GUIDE.md](docs/TUNING-GUIDE.md)** walks through one coin tuned twice for the
+WeCreat Lumos Ultra's 100 W MOPA source, once for MakeIt and once for LightBurn, explaining each
+change and why the two differ - then through more coins with different outcomes: a drawn rim
+kept or replaced, a surround or a cut-away floor, an export with grid lines in its backdrop,
+and a picture of a coin that is not a depth map at all.
+
 #### The tuning wizard
 
 Not sure where to start? **Tuning wizard…**, at the top of the Tune window, asks a few
@@ -504,7 +517,7 @@ the question is about is highlighted, and the result can be shown flat or as lit
 any step.
 
 <p align="center">
-  <img src="docs/images/wizard.png" alt="The tuning wizard on its Deepest areas step: the floor highlighted in red on the map, what DepthView measured, and the answers with one recommended" width="820">
+  <img src="docs/images/wizard.png" alt="The tuning wizard on its Deepest areas step: the deepest pockets highlighted in red on the map, what DepthView measured including an empty gap below the design, and the answers with one recommended" width="820">
 </p>
 
 Every question comes with what DepthView measured to answer it and why it matters, and one
@@ -514,8 +527,13 @@ stays yours to change afterwards, and tuning of your own beyond the wizard is ex
 that window is for. Its Review step lists every change with its reason and the command line
 that makes the same file.
 
-Two of its questions are worth knowing about before you start:
+Three of its questions are worth knowing about before you start:
 
+- **A surround that is not one level.** Some maps sit on a shaded or vignetted backdrop, or
+  carry grid lines and marks left over from the program that exported them. The wizard
+  follows the surround in from the edge of the image, shows exactly what it counts in blue,
+  and - if you call it a surround - makes it one level first (**Even out a shaded surround**
+  in the Tune window), so none of it is mistaken for design when the depth range is set.
 - **Replacing a drawn rim.** Many coin maps include a rim. Replacing it turns everything from
   the foot of the drawn rim outward into pure white - an area the laser never goes - in the
   same file, so the coin's rim is the blank's own polished surface, with no trench beside it,
@@ -538,9 +556,13 @@ untouched. What remains is stretched to fill the range, and the shaded ends show
 exactly which pixels you are giving up to get that.
 
 The panel underneath answers the only question that matters: **at the pass count you
-intend to run, how many distinct depths do you actually get, before and after.** On
-the sample above that is 88 → 255 at 256 passes, with 168 passes that were repeating
-a depth reduced to one.
+intend to run, how many distinct depths do you actually get, before and after.** The
+coin above is a well-made 16-bit map, so the count barely moves: 254 → 256 at 256 passes,
+and the two passes that were cutting a flat recess now carry shape. A good map gains
+most from tuning elsewhere - the floor, the rim, the surround - and the
+[tuning guide](docs/TUNING-GUIDE.md) goes through each. A poor one shows it here: a map
+whose levels fill a third of the range resolves under a hundred depths at 256 passes until
+the levels are set.
 
 **Leave an untouched rim at the edge** paints the raised rim of a coin blank white, so
 the laser skips it, and ramps the engraving up to meet it rather than ending in a wall.
@@ -802,7 +824,7 @@ DepthView --render depth.png --material "Brushed brass" --brushed --micstr 1.3
 DepthView --render depth.png --slices 40 --light 300 25 --depth-mm 1.1 --blank 40 --exag 3 --out terrace-check.png
 ```
 
-Exit codes: `0` all clean, `1` at least one file flagged as an imposter, `2` a
+Exit codes: `0` all clean, `1` at least one file flagged (an imposter, or a picture that is mostly colour), `2` a
 file failed to load — so it drops straight into a build script or a batch check.
 
 > **Windows scripting note.** DepthView is built as a windowed executable so that

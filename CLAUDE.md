@@ -40,7 +40,13 @@ python tests\check_fit.py
 
 `docs\make-screenshots.ps1` regenerates every README image. The app screenshots its own
 windows (`--screenshot`) and renders its own relief art (`--render`), so documentation
-images are reproducible rather than hand-grabbed.
+images are reproducible rather than hand-grabbed. The demonstration coins are Lee's and are
+never committed: `-Coin` (Blodgett Arch), `-SecondCoin` (wolf), `-ThirdCoin` (Huey),
+`-FourthCoin` (FOE Eagle) and `-PictureCoin` (a coloured picture, not a depth map) are
+copied into the ignored `samples\doc-maps` under neutral names first, so no screenshot shows
+the folders they live in. Without `-Coin` it falls back to the committed fixtures. It backs
+up and restores `%APPDATA%\DepthView\preferences.json`. `docs\make-profiles.py` draws the
+guide's radial profile charts.
 
 ### Releasing
 
@@ -104,14 +110,27 @@ where the JSON is a GitHub release document whose asset URLs are local paths.
 - **Never resample a depth map.** Interpolation invents grey levels that were not in the
   file, which is the exact fault this program exists to detect. Fitting artwork inside a
   rim grows the canvas by padding instead — see `DepthCanvas`. `--fit design` (added after
-  1.7.0, for a coin drawn off-centre on a tall canvas: "2026 Liberty.png") may also *crop*,
+  1.7.0, for a coin drawn off-centre on a tall canvas) may also *crop*,
   but only background: `DepthCanvas.DesignOutside` counts design pixels a crop would drop and
   the tuner refuses the plan if there is even one. Cropping and padding both copy pixels;
   neither resamples. `--cover-rim` / "Replace the design's own rim" goes one step further for
   art with a drawn rim: `DepthCanvas.DetectDesignRim` finds the rim's foot from the mean level
   per radius, and the blank is sized so the foot lands on the ramp's inner edge. The detector
-  is deliberately narrow and reports what it found; it found 1175..1245 px on the Liberty map
-  and correctly finds nothing on a plain disc (both in `tests/check_json.py`).
+  is deliberately narrow and reports what it found: a synthetic drawn rim at r 180 and nothing
+  on a plain disc (both in `tests/check_json.py`); on Lee's maps, Blodgett Arch 1914..2045 px
+  and the Huey coin 1877..2042. It tries a 6% window first, then 15%, because lettering that
+  stands higher than the rim (the FOE Aerie coin) hides the rim's foot in the wide window.
+- **A surround is not always one level** (after 1.7.0). `DepthCanvas.SurroundMask` starts from
+  the level mask, floods in from the border inside a narrow p2..p98 band (a vignette, as on
+  Blodgett Arch), and takes marks beyond the coin's edge (grid lines from an exporter, as on
+  the FOE Eagle) - returning null when it adds nothing, so a clean coin is unchanged.
+  `DesignSurvey` uses it for every reading; `--uniform-surround` / "Even out a shaded
+  surround" sets it to the background level before levels, so none of it reads as design.
+- **An empty gap is not depth.** `DesignSurvey` reports a "gap" floor when a few detached
+  pockets sit below an empty stretch of the range (Blodgett: nothing between 1,442 and
+  6,509, about 6 of 72 layers); the wizard offers to close it.
+- **A picture of a coin is not a depth map.** `DepthAnalyzer` puts "NOT A DEPTH MAP: mostly
+  colour" (Alert, exit 1) ahead of everything else when over half the pixels are coloured.
 - **Measure, do not assert.** Every claim the tool makes about an improvement is a number
   it computed. `--tune` re-reads the file it just wrote and analyses it as a stranger's
   file; the Tune dialog does the same on save. If a prediction and a measurement ever

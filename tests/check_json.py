@@ -272,7 +272,8 @@ def check_survey(exe, work):
         return
     check(doc.get("schema") == "depthview.survey/1", f"survey schema {doc.get('schema')!r}")
     bg = doc.get("background") or {}
-    check(bg.get("level") == 0 and bg.get("looksLikeFloor") is False, f"survey background {bg}")
+    check(bg.get("level") == 0 and bg.get("looksLikeFloor") is False and bg.get("shaded") is False,
+          f"survey background {bg}")
     rim = doc.get("drawnRim") or {}
     check(abs(rim.get("innerPx", 0) - 170) <= 4, f"survey drawn rim foot {rim.get('innerPx')}, expected ~170")
     reading = next((r for r in doc.get("readings", [])
@@ -303,6 +304,77 @@ def check_survey(exe, work):
         check(modes[:1] == ["flatten"] and all(m == "leave" for m in modes[1:]), f"--flat modes {modes}")
         check(flat.get("pixelsChanged", 0) > 0 and flat.get("maxChange", 99) <= 60,
               f"--flat changed {flat.get('pixelsChanged')} px by at most {flat.get('maxChange')}")
+
+
+def write_rgb8(path, w, h, pixel):
+    """An 8-bit RGB PNG from pixel(x, y) -> (r, g, b)."""
+    import struct
+    import zlib
+    rows = bytearray()
+    for y in range(h):
+        rows.append(0)
+        for x in range(w):
+            rows += bytes(pixel(x, y))
+
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
+
+    with open(path, "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n")
+        f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)))
+        f.write(chunk(b"IDAT", zlib.compress(bytes(rows))))
+        f.write(chunk(b"IEND", b""))
+
+
+def check_surround_and_gap(exe, work):
+    """A shaded surround, an empty gap below the design, and a picture that is not a depth map.
+
+    A 600 px coin whose surround is a vignette - 1000 at the corners rising to 4000 by r 300,
+    so no one level covers it - around a dome from 50000 down to 20000 at r 230.
+    Three 6 px pockets at 300 sit far below the rest of the design, with nothing between them
+    and 20000: an empty gap that would spend layers cutting nothing.
+    """
+    pockets = [(300, 200), (220, 330), (380, 340)]
+
+    def coin(x, y):
+        r = ((x - 300) ** 2 + (y - 300) ** 2) ** 0.5
+        if r > 230:
+            return int(1000 + 3000 * (424 - min(max(r, 300), 424)) / 124)
+        if any(abs(x - px) < 3 and abs(y - py) < 3 for px, py in pockets):
+            return 300
+        return int(50000 - r / 230 * 30000)
+    src = os.path.join(work, "vignette.png")
+    write_grey16(src, 600, 600, coin)
+
+    code, doc, _, _ = run(exe, "--survey", src, "--json", "--passes", "72", cwd=work)
+    check(code == 0 and bool(doc), f"survey vignette: exit {code}")
+    if doc:
+        bg = doc.get("background") or {}
+        check(bg.get("shaded") is True, f"survey: a vignetted surround should read as shaded: {bg}")
+        reading = next((r for r in doc.get("readings", [])
+                        if r["backgroundIsDesign"] is False and r["drawnRimCovered"] is False), None)
+        floor = (reading or {}).get("floor") or {}
+        check(floor.get("source") == "gap" and floor.get("suggested", 0) > 15000,
+              f"survey: the pockets beyond the empty gap should give a 'gap' floor closing it: {floor}")
+
+    out = os.path.join(work, "vignette-even.png")
+    code, doc, _, _ = run(exe, "--tune", src, "--json", "--out", out, "--uniform-surround", cwd=work)
+    check(code == 0 and bool(doc), f"tune --uniform-surround: exit {code}")
+    if doc:
+        check((doc.get("applied") or {}).get("uniformSurround") is True, "applied.uniformSurround not true")
+        check(doc.get("surroundPixelsEvened", 0) > 10000,
+              f"--uniform-surround evened only {doc.get('surroundPixelsEvened')} px of a vignette")
+
+    # A coloured picture of a coin is not a depth map, whatever its grey minority looks like.
+    pic = os.path.join(work, "picture.png")
+    write_rgb8(pic, 64, 64, lambda x, y: (255, 255, 255) if (x < 8 or y < 8)
+               else (180 + x % 40, 140 + y % 30, 60 + (x + y) % 20))
+    code, doc, _, _ = run(exe, "--report", pic, "--json", cwd=work)
+    check(code == 1, f"a colour picture: expected exit 1, got {code}")
+    if doc:
+        v = doc["files"][0].get("verdict") or {}
+        check(v.get("severity") == "alert" and str(v.get("title", "")).startswith("NOT A DEPTH MAP")
+              and v.get("imposter") == "none", f"a colour picture's verdict: {v}")
 
 
 def run_text(exe, *args, cwd=None):
@@ -400,6 +472,9 @@ def main(exe):
 
         # --- the wizard's survey, and --flat / --levels-from -------------------------
         check_survey(exe, work)
+
+        # --- a shaded surround, an empty gap, a picture that is not a depth map -------
+        check_surround_and_gap(exe, work)
 
         # --- the original is never written over -------------------------------------
         size = os.path.getsize(src)

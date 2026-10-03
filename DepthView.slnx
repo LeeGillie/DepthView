@@ -2,6 +2,7 @@
   <Folder Name="/Solution Items/">
     <File Path=".gitattributes" />
     <File Path=".gitignore" />
+    <File Path=".nojekyll" />
     <File Path="ACKNOWLEDGEMENTS.md" />
     <File Path="CLAUDE.md" />
     <File Path="CONTRIBUTING.md" />
@@ -26,9 +27,23 @@
     <File Path=".github/workflows/release.yml" />
   </Folder>
   <Folder Name="/artwork/">
+    <File Path="artwork/depthview-icon-1024.png" />
+    <File Path="artwork/depthview-icon-128.png" />
+    <File Path="artwork/depthview-icon-16.png" />
+    <File Path="artwork/depthview-icon-24.png" />
+    <File Path="artwork/depthview-icon-256.png" />
+    <File Path="artwork/depthview-icon-32.png" />
+    <File Path="artwork/depthview-icon-48.png" />
+    <File Path="artwork/depthview-icon-64.png" />
+    <File Path="artwork/depthview.ico" />
     <File Path="artwork/make_banner.py" />
     <File Path="artwork/make_hero.py" />
     <File Path="artwork/make_icon.py" />
+  </Folder>
+  <Folder Name="/artwork/banner/">
+    <File Path="artwork/banner/depthview-banner-1280x640.png" />
+    <File Path="artwork/banner/depthview-banner-1920x1080.png" />
+    <File Path="artwork/banner/hero-keyed.png" />
   </Folder>
   <Folder Name="/brainstorm/">
     <File Path="brainstorm/index.html" />
@@ -49,17 +64,56 @@
   <Folder Name="/docs/">
     <File Path="docs/DEPTH-PREDICTION.md" />
     <File Path="docs/INTEGRATION.md" />
+    <File Path="docs/make-profiles.py" />
     <File Path="docs/make-screenshots.ps1" />
+    <File Path="docs/TUNING-GUIDE.md" />
+  </Folder>
+  <Folder Name="/docs/images/">
+    <File Path="docs/images/about.png" />
+    <File Path="docs/images/analysis-genuine.png" />
+    <File Path="docs/images/analysis-imposter.png" />
+    <File Path="docs/images/fit-pad-background.png" />
+    <File Path="docs/images/fit-pad-untouched.png" />
+    <File Path="docs/images/relief-continuous.png" />
+    <File Path="docs/images/relief-preview.png" />
+    <File Path="docs/images/relief-terraced.png" />
+    <File Path="docs/images/tune.png" />
+    <File Path="docs/images/wizard.png" />
+  </Folder>
+  <Folder Name="/docs/images/tuning/">
+    <File Path="docs/images/tuning/01-before.png" />
+    <File Path="docs/images/tuning/02-makeit-settings.png" />
+    <File Path="docs/images/tuning/03-makeit-relief.png" />
+    <File Path="docs/images/tuning/04-lightburn-settings.png" />
+    <File Path="docs/images/tuning/05-lightburn-relief.png" />
+    <File Path="docs/images/tuning/06-wizard-rim.png" />
+    <File Path="docs/images/tuning/07-wizard-deepest.png" />
+    <File Path="docs/images/tuning/08-wolf-background.png" />
+    <File Path="docs/images/tuning/09-huey-rim-profile.png" />
+    <File Path="docs/images/tuning/10-wolf-background-profile.png" />
+    <File Path="docs/images/tuning/11-eagle-analysis.png" />
+    <File Path="docs/images/tuning/12-eagle-background.png" />
+    <File Path="docs/images/tuning/13-picture-analysis.png" />
+    <File Path="docs/images/tuning/14-picture-as-relief.png" />
   </Folder>
   <Folder Name="/docs/research/">
     <File Path="docs/research/laser-ablation-baselines.md" />
   </Folder>
   <Folder Name="/packaging/">
+    <File Path="packaging/DepthView.icns" />
     <File Path="packaging/install-menu-entry.sh" />
     <File Path="packaging/make_bundle.py" />
     <File Path="packaging/README.txt" />
   </Folder>
   <Folder Name="/samples/">
+    <File Path="samples/01-genuine-16bit.png" />
+    <File Path="samples/02-imposter-x257.png" />
+    <File Path="samples/03-imposter-high-byte.png" />
+    <File Path="samples/04-quantised-1024.png" />
+    <File Path="samples/05-grey-stored-as-rgb.png" />
+    <File Path="samples/06-honest-8bit.png" />
+    <File Path="samples/07-wasted-headroom.png" />
+    <File Path="samples/08-colour-contaminated.png" />
     <File Path="samples/make_samples.py" />
     <File Path="samples/README.md" />
   </Folder>
@@ -71,6 +125,7 @@
     <File Path="tests/check_json.py" />
     <File Path="tests/check_lbcontrol.ps1" />
     <File Path="tests/check_report.py" />
+    <File Path="tests/check_slnx.py" />
     <File Path="tests/extract-lbrn-image.ps1" />
     <File Path="tests/fake-lightburn.ps1" />
     <File Path="tests/make_fixtures.py" />

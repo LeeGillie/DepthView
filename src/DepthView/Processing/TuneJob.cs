@@ -62,6 +62,7 @@ public static class TuneJob
             ("Comment",  $"black={o.BlackPoint} white={o.WhitePoint} stretch={o.Stretch} " +
                          $"rim={(o.AddRim ? $"r{o.RimRadius:F0}/ramp{o.RimRamp:F0}" : "off")} " +
                          $"slices={o.Slices} dither={o.Dither} invert={o.Invert}" +
+                         (o.UniformSurround ? " surround=even" : "") +
                          FlatNote(o)),
         };
 

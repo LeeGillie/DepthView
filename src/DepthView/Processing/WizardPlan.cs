@@ -160,7 +160,8 @@ public static class WizardAdvice
     public static double OffCentreMm(DesignSurvey s, double blankMm)
         => blankMm > 0 ? s.OffCentrePx / (Math.Min(s.Width, s.Height) / blankMm) : 0;
 
-    public static LevelChoice Level(Extreme e) => e.Found ? LevelChoice.Feature : LevelChoice.Percentile;
+    /// <summary>A floor or flat top, or a detached tail across an empty gap: use it. Otherwise the percentile.</summary>
+    public static LevelChoice Level(Extreme e) => e.Found || e.Source == "gap" ? LevelChoice.Feature : LevelChoice.Percentile;
 
     /// <summary>
     /// What to do with one nearly level area, and the reason in a sentence. The rules: an area
@@ -221,14 +222,14 @@ public sealed class WizardPlan
 
         int black = a.Floor switch
         {
-            LevelChoice.Feature when floor.Found => floor.Suggested,
+            LevelChoice.Feature when floor.Found || floor.Source == "gap" => floor.Suggested,
             LevelChoice.Extreme => s.PercentileLevel(0, bg, rim),
             LevelChoice.Custom => a.BlackCustom,
             _ => s.PercentileLevel(0.001, bg, rim),
         };
         int white = a.Top switch
         {
-            LevelChoice.Feature when top.Found => top.Suggested,
+            LevelChoice.Feature when top.Found || top.Source == "gap" => top.Suggested,
             LevelChoice.Extreme => s.PercentileLevel(1, bg, rim),
             LevelChoice.Custom => a.WhiteCustom,
             _ => s.PercentileLevel(0.999, bg, rim),
@@ -283,6 +284,9 @@ public sealed class WizardPlan
             o.CoverDesignRim = a.Rim == RimChoice.Replace;
             o.PadWith = a.Background == BackgroundRole.Surround ? PadFill.Untouched : PadFill.Background;
         }
+        // A shaded surround the user called a surround is evened out first, so the tuner sees
+        // the design where the survey did.
+        o.UniformSurround = a.Background == BackgroundRole.Surround && s.SurroundShaded;
         o.ResolvePhysical(s.Width, s.Height);
         if (a.Rim == RimChoice.None) o.AddRim = false;
         if (!a.WriteDpi) o.Dpi = null;
@@ -305,6 +309,9 @@ public sealed class WizardPlan
         {
             LevelChoice.Feature when floor.Found => $"Makes the floor ({floor.Share * 100:F0}% of the design"
                 + (floor.Noise > 0 ? $", with {floor.Noise:N0} levels of roughness" : "") + ") one exact depth.",
+            LevelChoice.Feature when floor.Source == "gap" =>
+                $"Closes the empty gap from {floor.Low:N0} to {floor.High:N0}: the {floor.Share * 100:F2}% of the design below it - small, "
+                + "already-deepest pockets - stays full depth, and the layers the gap would have spent cutting nothing new go to the relief.",
             LevelChoice.Extreme => "The design's lowest level: nothing below it to clip.",
             LevelChoice.Custom => "Set by hand.",
             _ => "Where the design's own deepest 0.1% begins, so a few stray pixels cannot hold the depth back.",
@@ -312,6 +319,9 @@ public sealed class WizardPlan
         c.Add(new($"White point {p.White:N0}", a.Top switch
         {
             LevelChoice.Feature when top.Found => $"Makes the flat top ({top.Share * 100:F0}% of the design) untouched surface.",
+            LevelChoice.Feature when top.Source == "gap" =>
+                $"Closes the empty gap from {top.Low:N0} to {top.High:N0}: the {top.Share * 100:F2}% of the design above it stays untouched, "
+                + "and the gap's layers go to the relief.",
             LevelChoice.Extreme => "The design's highest level: nothing above it to clip.",
             LevelChoice.Custom => "Set by hand.",
             _ => "Where the design's own highest 0.1% begins: the high points become untouched surface.",
@@ -321,7 +331,9 @@ public sealed class WizardPlan
             c.Add(new(p.BackgroundIsDesign ? "Background kept as a floor" : "Background treated as a surround",
                 p.BackgroundIsDesign ? "It is part of the design: a cut-away floor engraved to its depth."
                                      : "It is not part of the coin, so it does not set the levels" +
-                                       (a.Rim == RimChoice.None ? " - but with no rim it is still engraved where it lies." : ", and the rim leaves it uncut.")));
+                                       (a.Rim == RimChoice.None ? " - but with no rim it is still engraved where it lies." : ", and the rim leaves it uncut.")
+                                       + (o.UniformSurround ? $" It is not one level ({s.BackgroundLow:N0} to {s.BackgroundHigh:N0}), so it is first made one: "
+                                                              + "otherwise its shading or marks read as design out to the corners and the coin is shrunk to fit them." : "")));
 
         if (a.Rim != RimChoice.None)
         {
@@ -388,6 +400,7 @@ public sealed class WizardPlan
             else if (o.Fit == FitPolicy.Content) cmd.AddRange(new[] { "--fit", "content" });
             if (o.Fit != FitPolicy.None && o.PadWith == PadFill.Untouched) cmd.AddRange(new[] { "--pad", "untouched" });
         }
+        if (o.UniformSurround) cmd.Add("--uniform-surround");
         cmd.AddRange(new[] { "--black", p.Black.ToString(inv), "--white", p.White.ToString(inv),
             "--passes", p.Passes.ToString(inv), "--bits", o.OutputBitDepth.ToString(inv) });
         if (!a.WriteDpi) cmd.Add("--no-dpi");

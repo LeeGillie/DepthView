@@ -71,6 +71,14 @@ public sealed class TuningOptions
     /// </summary>
     public bool CoverDesignRim;
 
+    /// <summary>
+    /// Make a shaded surround one level before anything else runs: every pixel joined to the
+    /// image's edge at the edge's own levels becomes the edge's most common level. For art on a
+    /// vignetted or textured backdrop, which otherwise reads as design out to the corners.
+    /// The design is never touched; the count is reported.
+    /// </summary>
+    public bool UniformSurround;
+
     // --- flat areas -----------------------------------------------------
 
     /// <summary>
@@ -165,7 +173,7 @@ public sealed class TuningOptions
 
     /// <summary>True when nothing here would change a single pixel.</summary>
     public bool IsNoOp(int maxValue) =>
-        BlackPoint <= 0 && WhitePoint >= maxValue && !AddRim && Slices <= 0 && !Invert
+        BlackPoint <= 0 && WhitePoint >= maxValue && !AddRim && Slices <= 0 && !Invert && !UniformSurround
         && FlatActions.TrueForAll(a => a.Mode == FlatMode.Leave);
 }
 

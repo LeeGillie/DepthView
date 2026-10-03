@@ -99,6 +99,12 @@ jobs:
         shell: bash
         run: '"${{ steps.exe.outputs.path }}" --version | grep -E "^DepthView [0-9]+\.[0-9]+"'
 
+      # Visual Studio's Solution Explorer only shows files outside the projects if
+      # DepthView.slnx lists them. This fails when a committed file is missing from it.
+      - name: Solution lists every file
+        if: runner.os == 'Linux'
+        run: python3 tests/check_slnx.py
+
       # After an update the new version offers its release notes, which are built in from
       # .github/RELEASE_TEMPLATE.md. This exits 1 unless they are this version's notes, so a
       # release cannot ship with the previous release's notes inside it.

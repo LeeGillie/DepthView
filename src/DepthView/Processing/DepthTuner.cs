@@ -33,6 +33,9 @@ public sealed class TuningReport
     /// <summary>Pixels of the design's own rim that the new rim covers, on request.</summary>
     public long DesignRimCovered;
 
+    /// <summary>Surround pixels set to the edge's level by <see cref="TuningOptions.UniformSurround"/>.</summary>
+    public long SurroundEvened;
+
     /// <summary>Pixels moved by flat-area smoothing or flattening, and the largest move, in source levels.</summary>
     public long FlatChanged;
     public int FlatMaxChange;
@@ -90,6 +93,19 @@ public static class DepthTuner
         {
             source = (ushort[])source.Clone();
             (report.FlatChanged, report.FlatMaxChange) = FlatAreas.Apply(source, width, height, o.FlatActions);
+        }
+
+        // ---- surround ---------------------------------------------------
+        // A shaded surround, made the one level everything below assumes a surround is: the
+        // most common level on the edge. Only pixels joined to the edge at the edge's own levels
+        // are touched (DepthCanvas.SurroundMask), so the design never is. Without this, a coin
+        // on a vignetted surround reads as a design reaching the corners of the square.
+        if (o.UniformSurround && DepthCanvas.SurroundMask(source, width, height, maxValue) is { } surround)
+        {
+            if (!o.FlatActions.Exists(a => a.Mode != FlatMode.Leave)) source = (ushort[])source.Clone();
+            ushort level = DepthCanvas.BackgroundLevel(source, width, height);
+            for (long i = 0; i < source.Length; i++)
+                if (surround[i] && source[i] != level) { source[i] = level; report.SurroundEvened++; }
         }
 
         int black = Math.Clamp(o.BlackPoint, 0, maxValue);

@@ -46,7 +46,7 @@ internal static partial class Program
     /// <summary>More of the tuning dialog's settings from the command line, as --tune takes them.</summary>
     public static int? StartupBlack, StartupWhite, StartupBits;
     public static double? StartupSpot;
-    public static bool StartupCoverRim, StartupOutline, StartupWriteDpi;
+    public static bool StartupCoverRim, StartupOutline, StartupWriteDpi, StartupUniformSurround;
 
     /// <summary>Open the tuning wizard over the Tune window; optionally at a step (1-based) and for a target.</summary>
     public static bool StartupWizard;
@@ -87,7 +87,8 @@ internal static partial class Program
                                           up: --blank <mm> --rim-mm <mm> --ramp-mm <mm>
                                           --passes <n> --black <level> --white <level>
                                           --bits <8|16> --spot <um> --fit [mode] --cover-rim
-                                          --outline --write-dpi (tick those two boxes)
+                                          --outline --write-dpi --uniform-surround (tick
+                                          those boxes)
                                           Either relief view also takes --blank <mm>,
                                           --thick <mm>, --depth-mm <mm> and --exag <stops>,
                                           as in --render
@@ -203,6 +204,11 @@ internal static partial class Program
                                 size the blank so that rim lands under the new one, which
                                 replaces it. What was found is reported; if no rim is found,
                                 nothing is covered
+            --uniform-surround  for art on a shaded or vignetted backdrop: everything joined to
+                                the image's edge at the edge's own levels becomes one level
+                                before anything else, so the shading is not taken for design
+                                reaching the corners (which would shrink the coin to fit
+                                them). --survey says when a surround is shaded
             --pad <background|untouched>
                                 what the new ring between the artwork and the rim is cut to.
                                 "background" (the default) carries the design's own field out
@@ -282,7 +288,8 @@ internal static partial class Program
           gives the removal efficiency the depth model runs on. No labels are engraved:
           anything engraved counts as removed mass.
 
-        Exit codes: 0 all clean, 1 at least one file flagged as an imposter, 2 a file failed to load.
+        Exit codes: 0 all clean, 1 at least one file flagged (an imposter, or a picture that is mostly
+        colour rather than a depth map), 2 a file failed to load.
         """;
 
     [STAThread]
@@ -399,6 +406,7 @@ internal static partial class Program
             if (StartupCoverRim) StartupFit = FitPolicy.Design;
             StartupOutline = args.Any(a => a is "--outline");
             StartupWriteDpi = args.Any(a => a is "--write-dpi");
+            StartupUniformSurround = args.Any(a => a is "--uniform-surround");
 
             int fi = Array.IndexOf(args, "--fit");
             if (fi >= 0)
@@ -953,7 +961,9 @@ internal static partial class Program
         var floor = s.Floor(s.BackgroundLooksLikeFloor);
         var top = s.Top(s.BackgroundLooksLikeFloor);
         Console.WriteLine($"Survey of {Path.GetFileName(input)}  ({s.Width:N0} x {s.Height:N0}, levels 0..{max:N0}, {s.Seconds:F2} s)");
-        Console.WriteLine($"  background      level {s.Background:N0} around the edge, {s.BackgroundShare * 100:F1}% of the image;"
+        Console.WriteLine((s.SurroundShaded
+                              ? $"  background      not one level, {s.BackgroundLow:N0}..{s.BackgroundHigh:N0} (followed from the edge; --uniform-surround evens it), {s.BackgroundShare * 100:F1}% of the image;"
+                              : $"  background      level {s.Background:N0} around the edge, {s.BackgroundShare * 100:F1}% of the image;")
                         + $" {s.BackgroundInsideShare * 100:F1}% of the design's circle -> "
                         + (s.BackgroundLooksLikeFloor ? "looks like a cut-away floor" : "looks like a surround"));
         if (s.HasDesign)
@@ -968,9 +978,13 @@ internal static partial class Program
             var t = s.Top(bgIsDesign, rimCovered);
             string fs = f.Found
                 ? $"floor {f.Low:N0}..{f.High:N0} ({f.Source}, {f.Share * 100:F1}%, roughness {f.Noise:N0}) -> black {f.Suggested:N0}"
+                : f.Source == "gap"
+                ? $"no floor; empty gap {f.Low:N0}..{f.High:N0} above {f.Share * 100:F2}% of pockets -> black {f.Suggested:N0}"
                 : $"no floor, deepest 0.1% at {f.Suggested:N0}";
             string ts = t.Found
                 ? $"top {t.Low:N0}..{t.High:N0} ({t.Source}, {t.Share * 100:F1}%, roughness {t.Noise:N0}) -> white {t.Suggested:N0}"
+                : t.Source == "gap"
+                ? $"no flat top; empty gap {t.Low:N0}..{t.High:N0} below {t.Share * 100:F2}% of peaks -> white {t.Suggested:N0}"
                 : $"no flat top, highest 0.1% at {t.Suggested:N0}";
             return fs + "; " + ts;
         }
@@ -1065,6 +1079,7 @@ internal static partial class Program
                 case "--bits": if (int.TryParse(Next(), out int bd)) o.OutputBitDepth = bd; break;
                 case "--json": json = true; break;
                 case "--no-dpi": noDpi = true; break;
+                case "--uniform-surround": o.UniformSurround = true; break;
 
                 // The wizard's choices, from the command line. --flat takes one word per flat
                 // area, largest first (leave, smooth, flatten), as the wizard found them.

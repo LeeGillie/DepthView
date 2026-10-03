@@ -445,6 +445,23 @@ public static class DepthAnalyzer
             r.VerdictSeverity = Severity.Good;
         }
 
+        // A picture, not a depth map. When most of the image is colour, every grey figure above
+        // describes the minority that happens to be grey - on a rendered coin, mostly its white
+        // background - and a clean verdict on that would be the worst kind of wrong answer.
+        if (r.PixelCount > 0 && r.NonGreyPixels * 2 > r.PixelCount)
+        {
+            double pct = 100.0 * r.NonGreyPixels / r.PixelCount;
+            r.Imposter = ImposterKind.None;   // a level pattern in the grey minority means nothing here
+            r.Verdict = "NOT A DEPTH MAP: mostly colour";
+            r.VerdictDetail =
+                $"{pct:F0}% of the pixels are coloured, not grey, so the grey figures here describe only the " +
+                $"{100 - pct:F0}% that are. A depth map is grey - one value per pixel, and the value is depth. " +
+                "A picture of a coin (a render, a photograph, a tinted preview) records light and shadow instead: " +
+                "engraved as depth, its shadows are cut deep and its highlights left standing, whichever way the " +
+                "relief really goes. Get the depth map the picture was made from.";
+            r.VerdictSeverity = Severity.Alert;
+        }
+
         // ---- supporting findings ----
 
         if (r.NonGreyPixels > 0)

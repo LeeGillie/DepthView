@@ -119,3 +119,6 @@ docs/images/Screenshot*
 # above; its worksheet and everything from --calibrate --mass were not.
 depthview-calibration*-worksheet.txt
 depthview-mass-coupon*
+
+# Windows Explorer thumbnail caches
+Thumbs.db

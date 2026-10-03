@@ -119,6 +119,7 @@ public partial class TuneWindow : Window
 
         StretchCheck.IsCheckedChanged += (_, _) => Queue();
         InvertCheck.IsCheckedChanged += (_, _) => Queue();
+        SurroundCheck.IsCheckedChanged += (_, _) => Queue();
         RimCheck.IsCheckedChanged += (_, _) => Queue();
         FitCheck.IsCheckedChanged += (_, _) => Queue();
         FitPolicyBox.SelectionChanged += (_, _) => Queue();
@@ -229,6 +230,7 @@ public partial class TuneWindow : Window
             };
         }
         if (Program.StartupCoverRim) CoverRimCheck.IsChecked = true;
+        if (Program.StartupUniformSurround) SurroundCheck.IsChecked = true;
 
         if (Program.StartupBlack is not null || Program.StartupWhite is not null)
             ApplyLevels(Program.StartupBlack ?? (int)(BlackBox.Value ?? 0),
@@ -638,6 +640,7 @@ public partial class TuneWindow : Window
         _loading = true;
         StretchCheck.IsChecked = true;
         InvertCheck.IsChecked = false;
+        SurroundCheck.IsChecked = o.UniformSurround;
         SliceCheck.IsChecked = false;
         DitherCheck.IsChecked = false;
         RimCheck.IsChecked = o.AddRim;
@@ -688,6 +691,7 @@ public partial class TuneWindow : Window
         _loading = true;
         StretchCheck.IsChecked = true;
         InvertCheck.IsChecked = false;
+        SurroundCheck.IsChecked = false;
         RimCheck.IsChecked = false;
         SliceCheck.IsChecked = false;
         DitherCheck.IsChecked = false;
@@ -724,6 +728,7 @@ public partial class TuneWindow : Window
             WhitePoint = (int)(WhiteBox.Value ?? _maxValue),
             Stretch = StretchCheck.IsChecked == true,
             Invert = InvertCheck.IsChecked == true,
+            UniformSurround = SurroundCheck.IsChecked == true,
             Slices = SliceCheck.IsChecked == true ? passes : 0,
             Dither = DitherCheck.IsChecked == true,
             OutputBitDepth = BitBox.SelectedIndex == 1 ? 8 : 16,

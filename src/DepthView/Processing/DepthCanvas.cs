@@ -116,6 +116,134 @@ public static class DepthCanvas
         return best;
     }
 
+    /// <summary>
+    /// The surround, as a mask: every pixel that is background, whatever level it happens to
+    /// be. Null when the background is simply one level and there is nothing more to find.
+    ///
+    /// <see cref="BackgroundLevel"/> assumes the surround is one level, and on a clean map it
+    /// is. Two kinds of real map are not, and both make a one-level test call part of the
+    /// corners design - which puts "design" out at the corners of the square and shrinks the
+    /// coin to fit a circle round them:
+    /// <list type="bullet">
+    /// <item>a <b>shaded</b> surround: the Blodgett Arch coin sits on a vignette running from
+    /// about 500 to 6,100. Followed by a flood from the edge that moves through levels inside
+    /// the band the edge itself spans, by steps no bigger than 0.6% of the range. A coin's
+    /// edge is a cliff, so the flood stops there.</item>
+    /// <item>a <b>marked</b> surround: the FOE Eagle coin was exported with faint grid lines
+    /// left in its white corners. Lines are abrupt, so no flood follows them. Instead the coin's
+    /// own edge is found - the furthest radius at which rings are still mostly design - and
+    /// stray pixels beyond it, where rings are almost all background, count as surround.</item>
+    /// </list>
+    /// The result also includes every pixel at the background level, as the one-level test
+    /// always has, so a floor showing through the design is still background.
+    /// </summary>
+    public static bool[]? SurroundMask(ushort[] p, int w, int h, int maxValue)
+    {
+        if (w < 3 || h < 3) return null;
+        int tol = ContentTolerance(maxValue);
+        ushort level = BackgroundLevel(p, w, h);
+        var mask = new bool[(long)w * h];
+        for (long i = 0; i < mask.Length; i++) mask[i] = Math.Abs(p[i] - level) <= tol;
+        long added = 0;
+
+        // ---- a shaded surround: flood from the edge
+        var border = new List<int>(2 * (w + h));
+        long last = (long)(h - 1) * w;
+        for (int x = 0; x < w; x++) { border.Add(p[x]); border.Add(p[last + x]); }
+        for (int y = 1; y < h - 1; y++) { long r = (long)y * w; border.Add(p[r]); border.Add(p[r + w - 1]); }
+        border.Sort();
+        int n = border.Count;
+        // The 2nd and 98th percentiles, not the extremes: a coin drawn to the edge of its canvas
+        // touches the border at a few points, and those are design, not surround.
+        int p2 = border[(int)(0.02 * (n - 1))], p98 = border[(int)(0.98 * (n - 1))];
+        if (p98 - p2 <= maxValue * 0.15)
+        {
+            int lo = Math.Max(0, p2 - (int)(maxValue * 0.01));
+            int hi = Math.Min(maxValue, p98 + (int)(maxValue * 0.01));
+            int step = Math.Max(1, (int)(maxValue * 0.006));
+            var flooded = new bool[mask.Length];
+            var queue = new Queue<long>();
+            void Seed(long i)
+            {
+                int v = p[i];
+                if (v < lo || v > hi || flooded[i]) return;
+                flooded[i] = true;
+                queue.Enqueue(i);
+            }
+            for (int x = 0; x < w; x++) { Seed(x); Seed(last + x); }
+            for (int y = 0; y < h; y++) { Seed((long)y * w); Seed((long)y * w + w - 1); }
+            while (queue.Count > 0)
+            {
+                long i = queue.Dequeue();
+                if (!mask[i]) { mask[i] = true; added++; }
+                int v = p[i];
+                int x = (int)(i % w), y = (int)(i / w);
+                void Visit(long j)
+                {
+                    if (flooded[j]) return;
+                    int u = p[j];
+                    if (u < lo || u > hi || Math.Abs(u - v) > step) return;
+                    flooded[j] = true;
+                    queue.Enqueue(j);
+                }
+                if (x > 0) Visit(i - 1);
+                if (x < w - 1) Visit(i + 1);
+                if (y > 0) Visit(i - w);
+                if (y < h - 1) Visit(i + w);
+            }
+        }
+
+        // ---- a marked surround: stray pixels beyond the coin's own edge
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if (!mask[(long)y * w + x])
+                {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+        if (maxX >= 0)
+        {
+            double cx = (minX + maxX) / 2.0, cy = (minY + maxY) / 2.0;
+            int bins = (int)Math.Ceiling(Math.Sqrt(Math.Max(cx, w - cx) * Math.Max(cx, w - cx) + Math.Max(cy, h - cy) * Math.Max(cy, h - cy))) + 2;
+            var design = new long[bins];
+            var all = new long[bins];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int r = (int)Math.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+                    all[r]++;
+                    if (!mask[(long)y * w + x]) design[r]++;
+                }
+            // The coin's edge: the furthest ring still at least half design. Only rings with at
+            // least a quarter of their circumference inside the image count - out in the corners
+            // a ring is a few pixels, and one stray mark would make it "half design".
+            int edge = -1;
+            for (int r = 1; r < bins; r++)
+                if (all[r] >= Math.PI * r / 2 && design[r] * 2 >= all[r]) edge = r;
+            // Beyond it, past the coin's own soft edge, rings must be almost all background - a
+            // few percent of stray marks. Art that fills its square never gets here.
+            int margin = Math.Max(3, (int)Math.Ceiling(edge * 0.01));
+            long outsideDesign = 0, outsideAll = 0;
+            for (int r = edge + margin; r < bins; r++) { outsideDesign += design[r]; outsideAll += all[r]; }
+            if (edge > 0 && outsideAll > 0 && outsideDesign > 0 && outsideDesign <= outsideAll * 0.05)
+            {
+                double lim = edge + margin;
+                for (int y = 0; y < h; y++)
+                    for (int x = 0; x < w; x++)
+                    {
+                        long i = (long)y * w + x;
+                        if (mask[i]) continue;
+                        if ((x - cx) * (x - cx) + (y - cy) * (y - cy) > lim * lim) { mask[i] = true; added++; }
+                    }
+            }
+        }
+
+        return added > 0 ? mask : null;
+    }
+
     /// <summary>Distance from the centre to the furthest pixel that is not background.</summary>
     public static double ContentRadius(ushort[] p, int w, int h, int maxValue,
                                        ushort background, out long contentPixels,
@@ -173,7 +301,7 @@ public static class DepthCanvas
     /// wrong answer is visible rather than silent.
     /// </summary>
     public static DesignRim? DetectDesignRim(ushort[] p, int w, int h, int maxValue, ushort background,
-                                            double cx, double cy, double outer)
+                                            double cx, double cy, double outer, bool[]? backgroundMask = null)
     {
         int bins = (int)Math.Ceiling(outer) + 2;
         if (bins < 50) return null;
@@ -188,7 +316,8 @@ public static class DepthCanvas
             for (int x = 0; x < w; x++)
             {
                 int v = p[row + x];
-                if (Math.Abs(v - background) <= tol) continue;
+                // A shaded surround is passed as a mask; otherwise background is one level.
+                if (backgroundMask is not null ? backgroundMask[row + x] : Math.Abs(v - background) <= tol) continue;
                 double dx = x - cx;
                 int r = (int)Math.Round(Math.Sqrt(dx * dx + dy * dy));
                 if (r >= bins) continue;
@@ -216,30 +345,41 @@ public static class DepthCanvas
         // are a sliver of a ring and would otherwise read as a cliff.
         bool Solid(int r) => count[r] > 0 && !double.IsNaN(smooth[r]) && count[r] >= Math.PI * r * 0.9;
 
-        int topFrom = (int)(outer * 0.85), topTo = (int)outer;
-        int top = -1;
-        for (int r = topFrom; r <= topTo && r < bins; r++)
-            if (Solid(r) && (top < 0 || smooth[r] > smooth[top])) top = r;
-        if (top < 0) return null;
+        // A rim sits at the very edge, so its top is looked for in the outermost 6% first. A
+        // coin whose lettering ring stands higher than its rim (the FOE Aerie 2 map: lettering
+        // means ~31,000 at 85% of the radius, the rim ~25,800 at 96%) would otherwise have the
+        // lettering taken for the top, and no rim found. The original 15% window is the fallback.
+        foreach (double window in new[] { 0.06, 0.15 })
+            if (FindRim(window) is { } rim) return rim;
+        return null;
 
-        int footFrom = Math.Max(0, top - (int)(outer * 0.12));
-        int low = -1;
-        for (int r = footFrom; r < top; r++)
-            if (Solid(r) && (low < 0 || smooth[r] < smooth[low])) low = r;
-        if (low < 0) return null;
+        DesignRim? FindRim(double window)
+        {
+            int topFrom = (int)(outer * (1 - window)), topTo = (int)outer;
+            int top = -1;
+            for (int r = topFrom; r <= topTo && r < bins; r++)
+                if (Solid(r) && (top < 0 || smooth[r] > smooth[top])) top = r;
+            if (top < 0) return null;
 
-        double step = smooth[top] - smooth[low];
-        if (step < maxValue * 0.08) return null;
+            int footFrom = Math.Max(0, top - (int)(outer * 0.12));
+            int low = -1;
+            for (int r = footFrom; r < top; r++)
+                if (Solid(r) && (low < 0 || smooth[r] < smooth[low])) low = r;
+            if (low < 0) return null;
 
-        // The foot is where the rim's inner slope starts to rise: the outermost radius still
-        // within a tenth of the step of the low point. Taking the low point itself would put
-        // the foot anywhere on a flat field, which is as far in as the search reaches.
-        int foot = low;
-        for (int r = low; r < top; r++)
-            if (Solid(r) && smooth[r] <= smooth[low] + step * 0.1) foot = r;
-        if (outer - foot > outer * 0.12) return null;
+            double step = smooth[top] - smooth[low];
+            if (step < maxValue * 0.08) return null;
 
-        return new DesignRim(foot, outer, smooth[top], smooth[foot]);
+            // The foot is where the rim's inner slope starts to rise: the outermost radius still
+            // within a tenth of the step of the low point. Taking the low point itself would put
+            // the foot anywhere on a flat field, which is as far in as the search reaches.
+            int foot = low;
+            for (int r = low; r < top; r++)
+                if (Solid(r) && smooth[r] <= smooth[low] + step * 0.1) foot = r;
+            if (outer - foot > outer * 0.12) return null;
+
+            return new DesignRim(foot, outer, smooth[top], smooth[foot]);
+        }
     }
 
     /// <summary>How far from the background a level has to be to count as design.</summary>

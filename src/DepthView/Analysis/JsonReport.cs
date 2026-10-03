@@ -68,6 +68,7 @@ public static class JsonReport
             Num(w, "shareInsideDesign", s.BackgroundInsideShare);
             w.WriteBoolean("looksLikeFloor", s.BackgroundLooksLikeFloor);
             w.WriteBoolean("isLow", s.BackgroundIsLow);
+            w.WriteBoolean("shaded", s.SurroundShaded);
             w.WriteNumber("low", s.BackgroundLow);
             w.WriteNumber("high", s.BackgroundHigh);
             w.WriteEndObject();
@@ -228,9 +229,11 @@ public static class JsonReport
             w.WriteString("fit", o.Fit.ToString().ToLowerInvariant());
             w.WriteString("pad", o.PadWith.ToString().ToLowerInvariant());
             w.WriteBoolean("rim", o.AddRim);
+            w.WriteBoolean("uniformSurround", o.UniformSurround);
             w.WriteEndObject();
 
             w.WriteNumber("changedPixels", rep.Changed);
+            w.WriteNumber("surroundPixelsEvened", rep.SurroundEvened);
             w.WriteNumber("flattenedToBlack", rep.FlattenedToBlack);
             w.WriteNumber("liftedToWhite", rep.LiftedToWhite);
 

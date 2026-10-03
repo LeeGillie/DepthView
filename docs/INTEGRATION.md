@@ -92,7 +92,7 @@ and does not mean the output is missing.
 | Code | `--report` | `--tune` |
 |---|---|---|
 | 0 | every file analysed, none flagged | tuned file written |
-| 1 | analysed, and at least one file's verdict is `alert` (an imposter) | - |
+| 1 | analysed, and at least one file's verdict is `alert` (an imposter, or a picture that is mostly colour and so not a depth map) | - |
 | 2 | at least one file could not be read | nothing written: bad input, refused path, or an error |
 
 ### Commands
@@ -133,6 +133,7 @@ The options most useful to a host:
 | `--depth-mm <mm>` `--passes <n>` | the job's target depth and pass count, for the figures in the output |
 | `--levels-from <design\|floor>` | level points as the tuning wizard suggests them, from `--survey`'s measurements: from the design without its surround (`design`), or with the background counted as a cut-away floor (`floor`). With `--cover-rim`, only what is inside the drawn rim counts. `--black` / `--white` still win |
 | `--flat <leave\|smooth\|flatten,...>` | one word per nearly level area, in `--survey`'s order: `smooth` removes pixel noise only, `flatten` makes the area one level |
+| `--uniform-surround` | (added 1.8.0) when the surround is not one level - shaded, vignetted, or marked by the program that exported it (`--survey`'s `background.shaded`) - set all of it to the background level before the level points, so none of it is taken for design. Does nothing on a clean surround |
 | `--no-dpi` | write no resolution into the PNG, even with `--blank` |
 
 **Survey** - what the tuning wizard measures; changes nothing:
@@ -176,7 +177,7 @@ entry:
 | Field | Meaning |
 |---|---|
 | `path`, `name`, `ok` | the file, and `true` |
-| `verdict.severity` | `good`, `info`, `warn` or `alert`. `alert` means the file is not what it claims |
+| `verdict.severity` | `good`, `info`, `warn` or `alert`. `alert` means the file is not what it claims - an imposter, or (added 1.8.0) a picture that is mostly colour, titled `NOT A DEPTH MAP: mostly colour`, with `imposter` `none` |
 | `verdict.imposter` | `none`, `replicated257` (8-bit bytes doubled into 16), `highByteOnly` (8-bit shifted into the high byte), `quantisedLadder` (evenly spaced levels, e.g. 10-bit), `sparseLevels` |
 | `verdict.title`, `verdict.detail` | plain-English explanation, ready to show a user |
 | `container.*` | what the file declares: `format`, `colorModel`, `declaredBitDepth`, `declaredChannels`, `hasAlpha`, `isPalette`, `bitExactDecode`, `dpiX`, `dpiY`, `fileBytes` |
@@ -250,8 +251,8 @@ A complete example, for an 8-bit map saved as 16-bit:
 | `ok`, `input`, `output` | `true`, and the two files. On failure: `ok: false` and `error`, nothing else |
 | `mask`, `outline` | extra files written by `--mask` / `--outline`, else `null` |
 | `size` | `inWidth`, `inHeight`, `outWidth`, `outHeight` - fitting can grow the canvas |
-| `applied` | the settings actually used: `blackPoint`, `whitePoint`, `stretch`, `invert`, `slices`, `dither`, `bits`, `fit`, `pad`, `rim` |
-| `changedPixels`, `flattenedToBlack`, `liftedToWhite` | what moved |
+| `applied` | the settings actually used: `blackPoint`, `whitePoint`, `stretch`, `invert`, `slices`, `dither`, `bits`, `fit`, `pad`, `rim`, and (added 1.8.0) `uniformSurround` |
+| `changedPixels`, `flattenedToBlack`, `liftedToWhite` | what moved; (added 1.8.0) `surroundPixelsEvened`, surround pixels `--uniform-surround` set to the background level |
 | `flat` | (added 1.8.0) `areas[]`: one per nearly level area, in `--survey`'s order - `mode` (`leave`, `smooth`, `flatten`), `low`, `high` (the band of levels it may touch), `level` (what `flatten` sets); `pixelsChanged`, `maxChange` (levels). Empty `areas` without `--flat` |
 | `fit` | `canvasPx`, `artAcrossMm`, `pixelsPerMm`, and (added 1.7.1) `recentred`, `offsetX`, `offsetY` - where the input's top-left corner lands on the output, negative where background was cropped - `cropped`, and `designRim`: with `--cover-rim`, the artwork's own rim that was found and put under the new one (`innerPx`, `outerPx` from the design's centre, `widthMm`, `footLevel`, `topLevel`, `pixelsCovered`), else `null`; or `null` |
 | `designOffCentreMm` | (added 1.7.1) how far the middle of the design sits from the middle of the blank, when a rim was drawn with `--blank`; else `null`. Above about 0.5 mm, `--fit design` is worth trying |
@@ -271,10 +272,10 @@ levels, before any level points.
 | Field | Meaning |
 |---|---|
 | `ok`, `path`, `width`, `height`, `maxValue` | the file |
-| `background` | `level` (taken from around the image's edge), `share` of the image, `shareInsideDesign` (of the area inside the design's circle), `looksLikeFloor` (`shareInsideDesign` of 15% or more: a cut-away floor rather than a surround), `isLow` (below the middle of the design), `low`, `high` (its 1st and 99th percentiles) |
+| `background` | `level` (taken from around the image's edge), `share` of the image, `shareInsideDesign` (of the area inside the design's circle), `looksLikeFloor` (`shareInsideDesign` of 15% or more: a cut-away floor rather than a surround), `isLow` (below the middle of the design), `low`, `high` (its 1st and 99th percentiles), `shaded` (the surround is not one level: a vignette or exporter marks, followed in from the edge; `--uniform-surround` evens it out) |
 | `design` | `centreX`, `centreY`, `radiusPx`, `offCentrePx` (from the canvas centre), or `null` |
 | `drawnRim` | the artwork's own raised rim: `innerPx` (its foot), `outerPx`, `footLevel`, `topLevel`, or `null` |
-| `readings[]` | the floor and top under each reading of the design: `backgroundIsDesign`, `drawnRimCovered`, then `floor` and `top`, each `found`, `low`, `high`, `noise` (`high - low`: the roughness a level point removes), `pixels`, `share`, `suggested` (the level point that makes it one exact level), `source` (`background`, `flat area N`, or `percentile` when nothing was found - then `suggested` is the 0.1st or 99.9th percentile) |
+| `readings[]` | the floor and top under each reading of the design: `backgroundIsDesign`, `drawnRimCovered`, then `floor` and `top`, each `found`, `low`, `high`, `noise` (`high - low`: the roughness a level point removes), `pixels`, `share`, `suggested` (the level point that makes it one exact level), `source` (`background`, `flat area N`, `gap` - a few detached pockets beyond an empty stretch of the range, with `suggested` closing the gap - or `percentile` when nothing was found, when `suggested` is the 0.1st or 99.9th percentile) |
 | `noiseSigma` | Immerkaer's whole-design noise estimate, in levels. Fine detail reads as noise too, so treat it as an upper figure; each flat area's `jitter` is the one that matters |
 | `passes` | the pass count `boundariesCrossed` is quoted at |
 | `flatAreas[]` | nearly level areas inside the design (inside any drawn rim), largest first: `rank`, `pixels`, `shareOfDesign`, `median`, `low`, `high`, `jitter` (median pixel-to-pixel deviation), `mostlyJitter` (spread no wider than the jitter explains), `floor`, `top` (at that end of the design), `boundariesCrossed` (slice boundaries the area straddles at `passes`, after the default reading's suggested level points), `centreX`, `centreY` |

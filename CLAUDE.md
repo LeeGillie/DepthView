@@ -56,7 +56,19 @@ bookkeeping step. `workflow_dispatch` with `dry_run` builds the artefacts withou
 use that to check the machinery.
 
 `<Version>` in `src/DepthView/DepthView.csproj` is the single source of truth and feeds the
-About box and the updater. Bump it in the same commit as the tag.
+About box and the updater. Bump it in the same commit as the tag. The banner's version badge
+is baked into its PNGs: after a bump, `python make_banner.py` in `artwork\` (no re-render
+needed). Build `DepthView.slnx`, not just the csproj, before tagging: `tests/updater`
+compiles `Preferences.cs` alone, so anything `Preferences` names must live in a file with no
+dependencies (`Processing/WizardChoices.cs`) - 1.8.0's first push broke CI on exactly that.
+
+**Every release carries the guides as PDFs** (Lee, 2026-10-03: the Markdown stays
+authoritative, the PDF is made from it). `docs/make-pdfs.py` prints README.md and
+docs/TUNING-GUIDE.md through headless Chrome/Edge to `DepthView-<version>-User-Guide.pdf` and
+`-Tuning-Guide.pdf`; the `guides` job in release.yml runs it, so the PDFs are in
+SHA256SUMS.txt. Relative links become GitHub URLs and heading ids follow GitHub's, so the
+guides' own contents lists work in the PDF. Locally: `pip install markdown`, then
+`python docs\make-pdfs.py --out dist`.
 
 **`.github/RELEASE_TEMPLATE.md` is compiled into the program** (added 1.7.0). Its "What's new
 in X" section is what the release page leads with *and* what the program shows the first time

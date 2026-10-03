@@ -326,6 +326,10 @@ Linux PC; the release page lists the rest. Unzip it somewhere you can write to. 
 whole installation: the program has the .NET runtime inside it, and there is no installer,
 no dependency and no administrator prompt.
 
+Every release also carries this guide and the [tuning guide](docs/TUNING-GUIDE.md) as PDFs
+(`DepthView-<version>-User-Guide.pdf`, `DepthView-<version>-Tuning-Guide.pdf`), for reading
+offline or printing. They are made from these pages, which stay the authoritative version.
+
 * **Windows** — double-click `DepthView\DepthView.exe`
 * **macOS** — double-click `DepthView/DepthView.app` (drag it to Applications if you like)
 * **Linux** — double-click `DepthView/DepthView`; `./install-menu-entry.sh` adds it to the
@@ -947,7 +951,10 @@ artwork/
   banner/                 hero renders and the finished banners
 docs/
   INTEGRATION.md          how another program calls DepthView and reads its JSON
+  TUNING-GUIDE.md         tuning worked through real coins, for MakeIt and LightBurn
   make-screenshots.ps1    regenerates every image the README uses
+  make-profiles.py        draws the tuning guide's cross-section charts
+  make-pdfs.py            the release's PDFs of this guide and the tuning guide
   images/                 the generated screenshots and relief renders
 samples/
   make_samples.py         generates the eight sample encodings from one height field
@@ -1064,7 +1071,8 @@ before Avalonia is initialised, so those two are genuinely headless and are what
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`, which publishes all seven
 self-contained binaries, packs each into `DepthView-<version>-<rid>.zip`, generates
-`SHA256SUMS.txt` and attaches the lot to a GitHub Release. Two bundles are smoke-tested
+`SHA256SUMS.txt`, prints this guide and the tuning guide to PDF (`docs/make-pdfs.py`, headless
+Chrome) and attaches the lot to a GitHub Release. Two bundles are smoke-tested
 first: `linux-x64` has to answer `--version` and `--help`, analyse the fixtures and pass the
 assertion script, and `osx-arm64` has to pass `codesign --verify` and answer `--version` on
 a real Apple-silicon runner — because a download that will not run is not a delivery.

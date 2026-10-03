@@ -64,6 +64,7 @@
   <Folder Name="/docs/">
     <File Path="docs/DEPTH-PREDICTION.md" />
     <File Path="docs/INTEGRATION.md" />
+    <File Path="docs/make-pdfs.py" />
     <File Path="docs/make-profiles.py" />
     <File Path="docs/make-screenshots.ps1" />
     <File Path="docs/TUNING-GUIDE.md" />

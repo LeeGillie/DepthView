@@ -16,6 +16,8 @@
 # (src/DepthView/Updates/UpdateService.cs), which finds its platform's zip on the latest
 # release by name and verifies it against the digest GitHub publishes for the asset, with
 # SHA256SUMS.txt as the fallback. Rename either and every installed copy stops updating.
+# The release also carries DepthView-<version>-User-Guide.pdf and -Tuning-Guide.pdf, printed
+# from README.md and docs/TUNING-GUIDE.md by docs/make-pdfs.py.
 #
 # Windows and Linux cross-compile on one Linux runner. macOS builds on a macOS runner,
 # because Apple silicon will not run unsigned native code at all: the .app is signed ad hoc
@@ -125,9 +127,34 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
 
+  # The user guide (README.md) and the tuning guide as PDFs, for reading offline and printing.
+  # Made from the Markdown every time - the Markdown is the authoritative version and the PDFs
+  # are never edited by hand. Runs on a dry run too, so a guide that will not print shows up
+  # before a tag is spent on it.
+  guides:
+    name: Guides as PDF
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Print the guides
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          case "$version" in
+            refs/*|main|"") version="dev" ;;
+          esac
+          python3 -m pip install --quiet markdown
+          python3 docs/make-pdfs.py --version "$version" --out dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: DepthView-guides
+          path: dist/*.pdf
+          if-no-files-found: error
+
   release:
     name: Create the release
-    needs: publish
+    needs: [publish, guides]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
     permissions:

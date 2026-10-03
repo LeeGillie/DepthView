@@ -74,6 +74,10 @@ folder and DepthView is gone.
 **Unzip it first**, somewhere you can write to — Documents or your home folder, not
 `C:\Program Files`. On Windows, right-click the zip and choose *Extract All…*.
 
+**The guides, as PDFs:** `DepthView-*-User-Guide.pdf` is the whole user guide and
+`DepthView-*-Tuning-Guide.pdf` the tuning guide, for reading offline or printing. Both are
+made from the pages on GitHub, which stay the authoritative version.
+
 ## Running it
 
 **Windows** — double-click `DepthView.exe`.

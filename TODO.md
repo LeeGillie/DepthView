@@ -31,8 +31,10 @@ Next up, roughly in order:
 - **1.8.0 (2026-10-03)**: the tuning wizard (`Views/TuningWizard.cs`; the user has the final
   word), `--fit design`, `--cover-rim`, `--uniform-surround`, `--flat`, `--survey`, the
   empty-gap floor, the NOT A DEPTH MAP verdict, and `docs/TUNING-GUIDE.md` worked through
-  Lee's coins (Blodgett Arch is the worked example everywhere). Listen for
-  how users get on with the wizard's recommendations.
+  Lee's coins (Blodgett Arch is the worked example everywhere). Released and announced
+  2026-10-03 (LUOM post, plus a new 1.8.0 article in Guide 4); from 1.8.0 on, every release
+  carries the user guide and tuning guide as PDFs (`docs/make-pdfs.py`). Listen for how
+  users get on with the wizard's recommendations.
 - **G-code capture watcher** (planned `GcodeCapture.cs`, `CaptureArchive.cs` - not yet
   written; `GcodeStream` and now `GcodeAnalyzer` are what they build on).
 - Decide the `--calibrate` default `--size`.

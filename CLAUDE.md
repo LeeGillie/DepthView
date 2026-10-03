@@ -109,8 +109,8 @@ where the JSON is a GitHub release document whose asset URLs are local paths.
   the run only and are not saved.
 - **Never resample a depth map.** Interpolation invents grey levels that were not in the
   file, which is the exact fault this program exists to detect. Fitting artwork inside a
-  rim grows the canvas by padding instead — see `DepthCanvas`. `--fit design` (added after
-  1.7.0, for a coin drawn off-centre on a tall canvas) may also *crop*,
+  rim grows the canvas by padding instead — see `DepthCanvas`. `--fit design` (added 1.8.0,
+  for a coin drawn off-centre on a tall canvas) may also *crop*,
   but only background: `DepthCanvas.DesignOutside` counts design pixels a crop would drop and
   the tuner refuses the plan if there is even one. Cropping and padding both copy pixels;
   neither resamples. `--cover-rim` / "Replace the design's own rim" goes one step further for
@@ -120,7 +120,7 @@ where the JSON is a GitHub release document whose asset URLs are local paths.
   on a plain disc (both in `tests/check_json.py`); on Lee's maps, Blodgett Arch 1914..2045 px
   and the Huey coin 1877..2042. It tries a 6% window first, then 15%, because lettering that
   stands higher than the rim (the FOE Aerie coin) hides the rim's foot in the wide window.
-- **A surround is not always one level** (after 1.7.0). `DepthCanvas.SurroundMask` starts from
+- **A surround is not always one level** (1.8.0). `DepthCanvas.SurroundMask` starts from
   the level mask, floods in from the border inside a narrow p2..p98 band (a vignette, as on
   Blodgett Arch), and takes marks beyond the coin's edge (grid lines from an exporter, as on
   the FOE Eagle) - returning null when it adds nothing, so a clean coin is unchanged.
@@ -140,7 +140,7 @@ where the JSON is a GitHub release document whose asset URLs are local paths.
   everywhere and stays true.
 - **One implementation per job.** `TuneJob` is shared by the dialog and the command line
   so a file written either way with the same settings is the same bytes.
-- **The tuning wizard tunes nothing itself** (`Views/TuningWizard.cs`, after 1.7.0). It asks;
+- **The tuning wizard tunes nothing itself** (`Views/TuningWizard.cs`, 1.8.0). It asks;
   `Processing/DesignSurvey` measures (once, full resolution; `--survey` prints the same);
   `WizardAdvice` recommends, each rule with its reason; `WizardPlan.Build` turns answers into
   one `TuningOptions` plus the change list and the equivalent `--tune` command line. Its

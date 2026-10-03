@@ -3,7 +3,7 @@
 Everything discussed and consciously set aside, with enough context to pick it up cold.
 Ordered by my estimate of value per unit of work, not by size.
 
-### Resume here (updated 2026-09-30, after 1.7.0)
+### Resume here (updated 2026-10-03, 1.8.0)
 
 1.4.0 brought true-scale relief, one program-wide blank, zip installers and the in-place
 updater; 1.5.0 added JSON output for host programs and enforces never writing over the input;
@@ -28,6 +28,11 @@ Next up, roughly in order:
   (`layerChecks` in JSON). On Lee's cleaning-on job it found MakeIt 3.0.6 writing each cleaning
   layer as a copy of the previous engraving layer, with none of the cleaning settings in the
   file (CLAUDE.md). Lee to decide whether to raise it with WeCreat.
+- **1.8.0 (2026-10-03)**: the tuning wizard (`Views/TuningWizard.cs`; the user has the final
+  word), `--fit design`, `--cover-rim`, `--uniform-surround`, `--flat`, `--survey`, the
+  empty-gap floor, the NOT A DEPTH MAP verdict, and `docs/TUNING-GUIDE.md` worked through
+  Lee's coins (Blodgett Arch is the worked example everywhere). Listen for
+  how users get on with the wizard's recommendations.
 - **G-code capture watcher** (planned `GcodeCapture.cs`, `CaptureArchive.cs` - not yet
   written; `GcodeStream` and now `GcodeAnalyzer` are what they build on).
 - Decide the `--calibrate` default `--size`.

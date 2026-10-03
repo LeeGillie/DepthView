@@ -260,13 +260,13 @@ public static class JsonReport
                 w.WriteNumber("canvasPx", fit.Size);
                 Num(w, "artAcrossMm", fit.ArtAcrossMm);
                 Num(w, "pixelsPerMm", fit.PixelsPerMm);
-                // Added 1.7.1 with "fit": "design". Offsets place the input's top-left corner on
+                // Added 1.8.0 with "fit": "design". Offsets place the input's top-left corner on
                 // the output and are negative where background was cropped away.
                 w.WriteBoolean("recentred", fit.Recentred);
                 w.WriteNumber("offsetX", fit.OffsetX);
                 w.WriteNumber("offsetY", fit.OffsetY);
                 w.WriteBoolean("cropped", fit.Crops(t.InWidth, t.InHeight));
-                // Added 1.7.1 with --cover-rim: the design's own rim, found and put under ours.
+                // Added 1.8.0 with --cover-rim: the design's own rim, found and put under ours.
                 if (fit.CoveredRim is { } own)
                 {
                     w.WriteStartObject("designRim");

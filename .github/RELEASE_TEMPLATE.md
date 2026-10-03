@@ -2,32 +2,51 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.7.0 — release notes in the program, and cleaning layers in G-code
+## What's new in 1.8.0 — a tuning wizard, and a guide to tuning
 
-**DepthView now tells you what changed when it updates.** The first time a new version
-starts, the green bar says so and **What's new** opens that version's release notes in the
-program. They are built in, so this works offline. You can read them again any time from
-**About → What's new**, or print them with `DepthView --whats-new`.
+**A tuning wizard.** **Tuning wizard…**, at the top of the Tune window, asks a few questions
+about what you want the coin to be — which program will cut it, whether the background is a
+surround or a cut-away floor, what to do with a rim drawn into the art, what should be full
+depth and what should stay untouched, whether flat areas should engrave flat, how many
+layers — and shows every answer on the picture as you make it, flat or as lit metal. Each
+question shows what DepthView measured and why it matters, and one answer is marked
+*Recommended*. That is a suggestion, never a decision: the wizard only sets the Tune window's
+own controls, and **you have the final word**, there and afterwards.
 
-**G-code reports now show repeated layers and cleaning layers.** Open a `.gc` job and a new
-section, *Repeated layers and cleaning*, lists:
+**A tuning guide.** [docs/TUNING-GUIDE.md](https://github.com/LeeGillie/DepthView/blob/main/docs/TUNING-GUIDE.md)
+tunes one coin for MakeIt and for LightBurn, change by change, then shows more coins with
+different outcomes: a drawn rim kept or replaced, a surround or a floor, an export with grid
+lines in its backdrop, and a picture of a coin that is not a depth map.
 
-- **Layers that are exact copies of the layer before them**, at the same height, and how
-  often they recur.
-- **Layers that run at settings of their own**, and how often.
-- **Layers that move to a cutting height and burn nothing.**
+**New in the Tune window, and on the command line:**
 
-Turn on MakeIt's *Cleaning Layer* and this is where the cleaning layers show up, along with
-the power, speed, frequency, pulse width and line density the file actually runs them at.
+- **Centre the blank on the design** (`--fit design`) for a coin drawn off-centre. It may
+  crop background, never design, and still resamples nothing. DepthView says when a design
+  sits off centre.
+- **Replace the design's own rim** (`--cover-rim`). A rim drawn into the art goes under the
+  new, untouched rim, so the coin's rim is the blank's own surface, with no trench beside it,
+  and all of the depth goes to the design.
+- **Even out a shaded surround** (`--uniform-surround`). A vignetted backdrop, or marks left
+  by the program that exported the map, is made one level so none of it is taken for design.
+- **Flat areas** (`--flat`). Nearly level areas can be flattened to one level or smoothed of
+  pixel noise, so a floor meant to be flat does not engrave speckled.
+- **Empty gaps.** When a few small pockets sit far below the rest of the design, the wizard
+  offers to close the empty range between them rather than spend layers cutting nothing.
+- `--survey` prints everything the wizard measures, and `--levels-from` takes its suggested
+  level points.
 
-For other programs, the same findings are in `--gcode --json` as a new `layerChecks` object
-(schema `depthview.gcode/1`, fields added, none changed; see
-[docs/INTEGRATION.md](https://github.com/LeeGillie/DepthView/blob/main/docs/INTEGRATION.md)).
+**A picture is not a depth map.** A file that is mostly colour — a render, a tinted preview,
+a photograph of a coin — is now reported as **NOT A DEPTH MAP** instead of being judged on
+its few grey pixels. A batch report exits 1 for it, as it does for an imposter.
+
+For other programs: `--survey --json` is new (schema `depthview.survey/1`), and
+`depthview.tune/1` and `depthview.report/1` gain fields, none changed; see
+[docs/INTEGRATION.md](https://github.com/LeeGillie/DepthView/blob/main/docs/INTEGRATION.md).
 
 ## Updating
 
-**From 1.4.0, 1.5.0 or 1.6.0:** the green bar will offer this release — click **Update now**.
-When 1.7.0 starts, it offers these notes.
+**From 1.4.0 to 1.7.0:** the green bar will offer this release — click **Update now**.
+When 1.8.0 starts, it offers these notes.
 
 **From 1.3.0 or earlier:** those versions cannot update themselves. Download this release by
 hand once; from then on, updates come to you.

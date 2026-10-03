@@ -6,19 +6,6 @@ using System.Linq;
 
 namespace DepthView.Processing;
 
-/// <summary>What will turn the map into a job. Decides the defaults, never the measurements.</summary>
-public enum WizardTarget
-{
-    /// <summary>WeCreat MakeIt, Relief (Emboss): 8 bits, at most 256 layers, Z 0.01 mm a layer.</summary>
-    MakeIt,
-
-    /// <summary>LightBurn on a G-code machine: an Image layer in Grayscale mode, no slicing.</summary>
-    LightBurn,
-
-    /// <summary>A slicer that cuts one band of levels per pass: LightBurn 3D Slice on a galvo, and the like.</summary>
-    Slicer,
-}
-
 /// <summary>The image's background: something around the design, or part of it.</summary>
 public enum BackgroundRole { Surround, Floor }
 
@@ -63,9 +50,6 @@ public enum LevelChoice
     /// <summary>A level the user dragged to.</summary>
     Custom,
 }
-
-/// <summary>Which nearly level areas the wizard offers to change.</summary>
-public enum FlatScope { None, Floor, All }
 
 /// <summary>
 /// The tuning wizard's answers. Every field is a decision the user made, or the default they

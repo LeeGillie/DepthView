@@ -28,5 +28,6 @@
     <Compile Include="../../src/DepthView/BuildInfo.cs" />
     <Compile Include="../../src/DepthView/Preferences.cs" />
     <Compile Include="../../src/DepthView/Blank.cs" />
+    <Compile Include="../../src/DepthView/Processing/WizardChoices.cs" />
   </ItemGroup>
 </Project>

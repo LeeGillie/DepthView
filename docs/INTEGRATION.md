@@ -23,6 +23,7 @@ so the host needs no .NET runtime and nothing else installed.
 | Tune a depth map into a new file: level points, stretch, rim, fit, quantise, invert, bit depth | **Built.** `--tune --json` |
 | Exchange engraving settings (power, speed, passes, frequency, pulse width, ...) with the host | **Not built.** Designed below so a host can plan for it |
 | Read a G-code job: power levels actually sent, line spacing, heights, settings in MakeIt's units | **Built.** `--gcode --json` |
+| Where a map will terrace at a pass count, judged against the spot (geometry, not a depth prediction) | **Built** (1.9.0). `--terraces --json` |
 | Predict physical depth from material and settings | **Not built.** Needs calibration measurements that have not been made yet. Nothing in the output below is a depth prediction |
 
 ---
@@ -142,6 +143,16 @@ The options most useful to a host:
 DepthView --survey <file> --json [--passes <n>]
 ```
 
+**Terraces** (added 1.9.0) - where a map will terrace when it is cut at a pass count, measured
+on the map as it stands; changes nothing unless `--out` asks for an overlay picture:
+
+```
+DepthView --terraces <file> --json [--passes <n>] [--blank <mm>] [--depth-mm <mm>] [--spot <um>] [--out <overlay.png>]
+```
+
+The blank and target depth default to the ones last saved in the window, and the spot to
+7 um; pass all three for a repeatable answer.
+
 `--help` lists everything. **`--out` may not name the input file**: DepthView refuses, exits 2,
 and leaves the input untouched. It never writes over an original.
 
@@ -177,11 +188,11 @@ entry:
 | Field | Meaning |
 |---|---|
 | `path`, `name`, `ok` | the file, and `true` |
-| `verdict.severity` | `good`, `info`, `warn` or `alert`. `alert` means the file is not what it claims - an imposter, or (added 1.8.0) a picture that is mostly colour, titled `NOT A DEPTH MAP: mostly colour`, with `imposter` `none` |
+| `verdict.severity` | `good`, `info`, `warn` or `alert`. `alert` means the file is not what it claims - an imposter, or (added 1.8.0) a picture that is mostly colour, titled `NOT A DEPTH MAP: mostly colour`, with `imposter` `none`. (Added 1.9.0) `warn` titled `LOOKS LIT, NOT DEPTH: a shaded picture?` when a grey image is shaded from one side like a render; see `content.litScore` |
 | `verdict.imposter` | `none`, `replicated257` (8-bit bytes doubled into 16), `highByteOnly` (8-bit shifted into the high byte), `quantisedLadder` (evenly spaced levels, e.g. 10-bit), `sparseLevels` |
 | `verdict.title`, `verdict.detail` | plain-English explanation, ready to show a user |
 | `container.*` | what the file declares: `format`, `colorModel`, `declaredBitDepth`, `declaredChannels`, `hasAlpha`, `isPalette`, `bitExactDecode`, `dpiX`, `dpiY`, `fileBytes` |
-| `content.*` | what the pixels contain: `width`, `height`, `channels`, `bitDepth`, `maxValue`, `isFloat`, `uniqueGreyLevels`, `greyPixels`, `nonGreyPixels`, `greyStoredAsColor` |
+| `content.*` | what the pixels contain: `width`, `height`, `channels`, `bitDepth`, `maxValue`, `isFloat`, `uniqueGreyLevels`, `greyPixels`, `nonGreyPixels`, `greyStoredAsColor`, and (added 1.9.0) `litScore` - how one-sided the shading is, near 0 for a depth map and a few hundredths for a render lit from one side - and `litThreshold`, the score at which the verdict says it looks lit |
 | `levels.*` | `min`, `max`, `rangeUse` (0-1), `occupancy` (0-1), `effectiveBits`, `step` (1 for genuine data; 257, 256, 64... for imposters), `uniformLadder`, `gaps`, `largestGap`, `mean`, `median`, `stdDev`, `p1`, `p99`, `pureBlackPixels`, `pureWhitePixels`, `headroomTop`, `headroomBottom` |
 | `passCounts[]` | one row per pass count: `passes`; `depths` (distinct engraved depths actually produced); `uniform`, `relief`, `empty` (what the passes do - they always sum to `passes`); `stretched` (depths if the range were filled); `bandSpread` (`min`, `max`, `ratio` of levels per band; `null` when the map has fewer levels than passes) |
 | `findings[]` | `severity`, `title`, `detail` - everything the window's report lists |
@@ -260,6 +271,7 @@ A complete example, for an 8-bit map saved as 16-bit:
 | `physical` | with `--blank`: `blankDiameterMm`, `pixelsPerMm`, `dpi`, `micronsPerPixel`, `spotMicrons`, `resolutionNote`; else `null` |
 | `target` | with `--depth-mm`: `depthMm`, `passes`, `targetMicronsPerPass`; else `null`. **This is the target divided by the passes, not a prediction** of what each pass will cut |
 | `passes` | the pass count the figures were computed for |
+| `terraces` | (added 1.9.0) with `--blank` and `--depth-mm`: `before` and `after`, each the fields of a `depthview.terrace/1` document below (from `width` to `seconds`) for the input and for the file as written; else `null` |
 | `before`, `after` | full report entries, as above, for the input and for the file written. `after` is measured by reading the new file back, not predicted |
 
 ---
@@ -279,6 +291,29 @@ levels, before any level points.
 | `noiseSigma` | Immerkaer's whole-design noise estimate, in levels. Fine detail reads as noise too, so treat it as an upper figure; each flat area's `jitter` is the one that matters |
 | `passes` | the pass count `boundariesCrossed` is quoted at |
 | `flatAreas[]` | nearly level areas inside the design (inside any drawn rim), largest first: `rank`, `pixels`, `shareOfDesign`, `median`, `low`, `high`, `jitter` (median pixel-to-pixel deviation), `mostlyJitter` (spread no wider than the jitter explains), `floor`, `top` (at that end of the design), `boundariesCrossed` (slice boundaries the area straddles at `passes`, after the default reading's suggested level points), `centreX`, `centreY` |
+| `seconds` | time taken |
+
+---
+
+## `depthview.terrace/1`
+
+Where a map will terrace when it is cut at a pass count (added 1.9.0). Each layer edge - where
+the slice a pixel falls in changes - is judged by the flat treads either side of it, walked
+across the contours: wider than the spot on both sides and the step survives as a step;
+narrower and the beam smears it into the slope. Geometry only - not a depth prediction, and
+not a promise about what the eye will see, which also depends on step height, finish and light.
+
+| Field | Meaning |
+|---|---|
+| `ok`, `path`, `overlay` | the file; `overlay` is the picture written by `--out`, else `null` |
+| `width`, `height`, `passes` | the map and the pass count |
+| `pixelsPerMm`, `micronsPerPixel` | the blank spans the short side |
+| `spotMicrons`, `targetDepthMm`, `stepMicrons` | the spot, the depth, and one pass's share of it |
+| `blankRadiusPx` | radius of the circle measured: the blank, centred, spanning the short side. Everything here - levels, edges, overlay colour - is inside it; the corners are not on the coin, so a shaded background there is not counted |
+| `usedLevels` | distinct levels the map holds inside the blank |
+| `edges` | `pixels` (layer-edge pixels), `lengthMm` (about), `shareWiderThanSpot`, `shareWiderThan3Spots` (0-1), `medianTreadMicrons`, `p90TreadMicrons` (the narrower tread at each edge), `treadCapped` (the 90th percentile hit the four-spot measuring limit, so the true figure is larger) |
+| `passesToBlend90` | passes at which nine edges in ten would have treads no wider than the spot; equal to `passes` when they already do; `null` when the map cannot supply that many depths |
+| `limitedByLevels` | `true` when more passes cannot help: the map's own levels are the steps |
 | `seconds` | time taken |
 
 ---

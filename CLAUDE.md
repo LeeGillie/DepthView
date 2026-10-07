@@ -70,6 +70,20 @@ SHA256SUMS.txt. Relative links become GitHub URLs and heading ids follow GitHub'
 guides' own contents lists work in the PDF. Locally: `pip install markdown`, then
 `python docs\make-pdfs.py --out dist`.
 
+**In the program, Help opens the guides on GitHub at this copy's release tag** (Lee,
+2026-10-06). The point: a user who only ever updates in place never visits GitHub, and the
+tuning guide keeps evolving. `Guides.cs` builds `blob/v<Version>/README.md` and
+`blob/v<Version>/docs/TUNING-GUIDE.md` for a published (single-file) copy and `blob/main/...`
+for a build from source; the main window's **Help** flyout and the Tune window's **Tuning
+guide** button use it, and About shows which edition. Tag-pinned, not main, so nobody reads
+about controls their copy lacks. **Shipping the PDFs inside the zip was built and then
+dropped the same day**: about 11 MB on every download and update, for offline reading the
+release page's PDFs already cover. Do not re-add it without asking. Consequence to remember:
+**renaming or moving README.md or docs/TUNING-GUIDE.md breaks Help in every installed copy
+from then on** - old tags keep the old paths, but a new copy's links follow the new tag, so
+only rename together with `Guides.Path`. A `publish.ps1` copy of an unreleased version links
+to a tag that does not exist yet (404 until the release).
+
 **`.github/RELEASE_TEMPLATE.md` is compiled into the program** (added 1.7.0). Its "What's new
 in X" section is what the release page leads with *and* what the program shows the first time
 a newer version starts (`Updates/ReleaseNotes.cs`, `Views/ReleaseNotesWindow.cs`). So rewrite
@@ -545,6 +559,57 @@ Facts worth not re-deriving:
   The difference between a mass result and a profile result *is* the recast.
 - **Cleaning chemistry that etches produces fake depth.** Water and dish detergent only; no
   ammonia on brass, no acids. The blank-coupon control detects a violation.
+
+## Terrace map, profile line, lit check (built 2026-10-06, for 1.9.0)
+
+Three inspection features that need no measured constant, built before the bench work.
+
+**Terrace map** (`Processing/TerraceMap.cs`, `--terraces`, the Tune window's "Show where the
+layers will show as steps"). The question is *where will the layers show as visible steps*.
+For every layer-edge pixel it takes the Sobel direction of the **slice indices** (not the raw
+grey), walks down-slope across the pixel's own tread and up-slope across the next one, and
+keeps the narrower. A tread narrower than the spot blends; wider than the spot it shows;
+wider than three spots it is a terrace.
+
+- **It measures a run length, not a gradient**, on purpose. A gradient reads the tread only on
+  a uniform ramp; a walk is right on curved treads and on treads that end in a plateau.
+- Treads are capped near four spots (`TreadCapped`): past that it is plainly a terrace and
+  walking further only costs time.
+- `PassesToBlend90 = ceil(passes · p90 / spot)`. `LimitedByLevels` is set when that exceeds the
+  distinct levels in the file — **more passes cannot help an 8-bit map**. This is the 8 vs 16
+  bit argument made measurable, and the test pins it (shallow cone, 8-bit at 4096 passes).
+- Overlay: lines when the map is under twice the output size, otherwise a tint by the **share
+  of showing edges** over a 3×3 block neighbourhood, amber to red. Max-per-block plus dilation
+  painted the whole pane red; do not go back to it.
+- Spot defaults to 7 µm (the UV figure, same as `--tune`); blank and depth to the saved ones.
+- **Only the blank is measured** (centred circle spanning the short side, `BlankRadiusPx`;
+  the overlay dims outside it). The first version measured the whole square, and Blodgett's
+  shaded background drew red contour lines in the corners - metal that does not exist,
+  counted in the figures. Lee spotted it on the Original pane. `wholeCanvas` opts out.
+
+**Tune window wiring.** The preview is downscaled, so terraces are measured on a
+**full-resolution background pass** (`StartFullPass`), discarded by a generation counter when
+settings change and cancelled on close. **When the output is 8-bit the tuned map is scaled
+to 8 bits before measuring** — measuring the 16-bit in-memory result overstated blending.
+`--tune --json` reports `terraces.before/after` the same way: before on the input, after on
+the file as written and reloaded.
+
+**Profile line.** Drag across either pane; `Controls/LineProfilePlot.cs` draws the file's
+curve and the staircase the laser will actually cut, with a spot bar. Relief and terrace
+modes are mutually exclusive. `--show-terraces` and `--profile-line u0,v0,u1,v1` (fractions of
+the image) exist so `docs/make-screenshots.ps1` can capture `terraces.png` unattended.
+
+**Lit check** (`Analysis/LitCheck.cs`). A shaded render of a relief is not a depth map, and
+it used to pass as Good. The statistic is third-order: over 24 directions, the covariance of
+the central difference with the squared deviation from the mean; score = first-harmonic
+amplitude over mean |v − mean|³. The mean difference is removed, so **a plain ramp scores 0**.
+
+- Measured: grey renders 0.037–0.057, genuine maps 0.0004–0.006. **Threshold 0.015, warn
+  only** ("LOOKS LIT, NOT DEPTH"), suppressed when the image is mostly colour.
+- Rejected first: a rim harmonic and a structure tensor. Off-centring and the design itself
+  fooled both.
+- **Known miss**: a synthetic Lambert render of smooth bumps with no cast shadow is not
+  caught. It is documented, not a bug to chase — real renders have the asymmetry.
 
 ---
 

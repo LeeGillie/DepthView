@@ -3,7 +3,7 @@
 Everything discussed and consciously set aside, with enough context to pick it up cold.
 Ordered by my estimate of value per unit of work, not by size.
 
-### Resume here (updated 2026-10-03, 1.8.0)
+### Resume here (updated 2026-10-07, 1.9.0)
 
 1.4.0 brought true-scale relief, one program-wide blank, zip installers and the in-place
 updater; 1.5.0 added JSON output for host programs and enforces never writing over the input;
@@ -13,8 +13,8 @@ Next up, roughly in order:
 - **JSON interface for host programs** released in 1.5.0 (2026-09-30), and the cover note
   pointing WeCreat at `docs/INTEGRATION.md` sent the same day. Waiting on them (§8).
 - **Listen for Mac and Linux reports** on the 1.4.0 zips - only CI has run them (§6).
-- **§7.3-7.5** (terrace width, noise floor, dither detection) need no measured constant and
-  can ship before any coupon is cut.
+- **§7.4 spikes and §7.5 dither detection** need no measured constant and can ship before
+  any coupon is cut. (§7.3 is built; §7.4's noise floor already ships in `--survey`.)
 - **§7.9** target-vs-simulated depth comparison and the suggested Z advance with an override
   warning - designed, not built.
 - **G-code reading released in 1.6.0 (2026-09-30)** (§8), in the window too (browse or drop a
@@ -35,6 +35,15 @@ Next up, roughly in order:
   2026-10-03 (LUOM post, plus a new 1.8.0 article in Guide 4); from 1.8.0 on, every release
   carries the user guide and tuning guide as PDFs (`docs/make-pdfs.py`). Listen for how
   users get on with the wizard's recommendations.
+- **1.9.0 (2026-10-07)**: the terrace map (§7.3: `--terraces`, `tune.terraces` in JSON,
+  and "Show where the layers will show as steps" in the Tune window, measured inside the
+  blank), the depth-profile line (§9.5: drag across either Tune pane), the lit-render check
+  (§9.1: "LOOKS LIT, NOT DEPTH", warn only), and Help buttons that open the guides on GitHub
+  at the copy's own release tag (Lee chose links over PDFs in the zip, to keep downloads
+  small). Design notes in CLAUDE.md. Next: the bench work (§7.1 spot coupon, §7.2 mass loss).
+- **§9 still open: inspection beyond the depth map** - flattened peaks (§9.2), a noise map
+  (§9.3), an antiqued finish in the preview (§9.4), "as stored" vs "as if linear" (§9.6), fine
+  detail against the spot (§9.7, the strongest) and jagged edges (§9.8).
 - **G-code capture watcher** (planned `GcodeCapture.cs`, `CaptureArchive.cs` - not yet
   written; `GcodeStream` and now `GcodeAnalyzer` are what they build on).
 - Decide the `--calibrate` default `--size`.
@@ -82,15 +91,16 @@ at 256 layers, other toolchains differ. Hard-coding any one ceiling bakes a part
 version of a particular program into the analysis. "At N passes, what do I get" is true
 everywhere and stays true.
 
-Still open, and the natural next step:
+Follow-ups, status 2026-10-06:
 
-- Let the user **enter their pass count** and have the whole report speak in those terms.
-- Pixel area per slice, for a time estimate.
-- **Terracing risk**: the largest area jump between adjacent slices, which is where a
-  visible contour step lands on the workpiece.
-- Overlay the slice boundaries on the histogram control.
+- ~~Let the user **enter their pass count**~~ **Done** - `--passes` everywhere, and the
+  Tune window's pass box.
+- Pixel area per slice, for a time estimate. *Still open.*
+- ~~**Terracing risk**~~ **Superseded by the terrace map (§7.3)**, which says where the
+  steps will show rather than how big the largest area jump is.
+- Overlay the slice boundaries on the histogram control. *Still open.*
 
-### 1.1 Pass-count simulator  *(highest value, mostly arithmetic on data we already have)*
+### 1.1 Pass-count simulator  *(mostly done - see the 1.0 follow-ups; what is left is listed there)*
 
 Enter N passes; report:
 
@@ -105,7 +115,7 @@ Enter N passes; report:
 Partially prototyped already: the relief preview's *Quantise to steps* control shows the
 terracing visually. This item is the numeric half.
 
-### 1.2 Depth budget
+### 1.2 ~~Depth budget~~  **Done for the forward direction** - the Tune window and `--tune --json` (`targetMicronsPerPass`) give depth per pass; the reverse (measured depth per pass in, pass count out) waits on §7.2
 
 Target depth ÷ passes = µm per slice, worked in both directions. For the brass coin work
 that is 1.1 mm per side; at ~110 passes that is 10 µm steps, which means 110 is the real
@@ -382,7 +392,7 @@ repository would find absent, ordered by how much each one costs the project's c
   Windows is the parts a screenshot cannot reach: the **native file dialog**, **drag and
   drop**, and **clipboard paste**, all of which are platform-specific and none of which a
   headless runner can drive. One person opening the binary and using it closes that.
-- **No published binaries — but the machinery is now built and proven.**
+- ~~**No published binaries**~~ **Done** - releases from 1.4.0 on, latest v1.8.0. History:
   `.github/workflows/release.yml` publishes all seven self-contained binaries, names them
   per platform, checksums them and attaches them to a Release, and a dry run has been
   exercised end to end: seven green jobs in about 45 seconds, 36 to 41 MB each. All that
@@ -398,10 +408,11 @@ repository would find absent, ordered by how much each one costs the project's c
   the `xattr -d com.apple.quarantine` line, and ships SHA256SUMS.txt so a download can be
   verified in the absence of a signature. Actually signing still costs money and an Apple
   developer account, and is the only real fix.
-- **No macOS `.app` bundle.** `publish.ps1` emits a bare Mach-O executable, so on macOS
+- ~~**No macOS `.app` bundle.**~~ **Done** - `packaging/make_bundle.py` and
+  `packaging/DepthView.icns`. Was: `publish.ps1` emits a bare Mach-O executable, so on macOS
   there is no icon, no Finder double-click, and no bundle identifier. A `.app` is a
   directory with an `Info.plist`, an `.icns` and the binary — scriptable, but not free.
-- **No Linux desktop integration.** No `.desktop` entry and no icon theme install, so the
+- ~~**No Linux desktop integration.**~~ **Done** - `packaging/install-menu-entry.sh`. Was: no `.desktop` entry and no icon theme install, so the
   program has no menu entry and no icon in a launcher.
 - ~~**No CI.**~~ **Done.** `.github/workflows/build.yml`.
 - ~~**No automated test project.**~~ **Mostly done.** `tests/check_report.py` asserts every
@@ -597,7 +608,16 @@ measurement and the entry path for it.
   the depth beyond which constant `d_pass` is not trusted is stated as a number.
 - Blocked on: brass and stainless coupons cut at the chosen pass count. Nothing else.
 
-### 7.3 Terrace-width prediction  *(code only — ship this first)*
+### 7.3 ~~Terrace-width prediction~~  **Built 2026-10-06** (unreleased, for 1.9.0)
+
+Shipped as `Processing/TerraceMap.cs`: `--terraces [--out overlay.png] [--json]`
+(`depthview.terrace/1`), `terraces.before/after` in `--tune --json`, and the Tune window's
+"Show where the layers will show as steps" with a full-resolution overlay. The formula
+below became a tread *walk* along the slope direction rather than step/|gradient| - CLAUDE.md
+has why. Still open: the "visible" threshold is the spot alone until §7.1 measures it, and
+the main window's relief preview does not draw the overlay yet (the Tune window does).
+
+Original plan:
 
 Needs **no measured constant whatsoever**, which is why it goes ahead of everything else.
 Pure cartography: the spacing between contour lines on a slope.
@@ -617,8 +637,16 @@ gradient field is most of the way to existing.
 - **Done when:** the analysis reports terrace width statistics, and the preview can overlay
   the regions predicted to band at the current pass count.
 - Depends on: nothing. Available today.
+- **Why it matters.** Contour lines across a smooth, gently curving surface are often read as
+  proof that the map was 8-bit. They are not: a shallow slope spreads each layer's edge far
+  from the next whatever the bit depth, and a genuine 16-bit map at a thousand layers can
+  still show them. The terrace map settles that with a picture rather than an opinion. The
+  "visible" threshold stays a setting until measured (§7.1).
 
-### 7.4 Spike detection and noise floor  *(code only)*
+### 7.4 Spike detection and noise floor  *(code only; noise floor done, spikes open)*
+
+The Immerkær noise floor ships in `--survey` (1.8.0), for the whole design and per flat area.
+Spike detection is still to do.
 
 Two related reports, both purely statistical.
 
@@ -901,3 +929,127 @@ staged job without being given a path.
   so plainly, which is why it can be trusted on everything else.
 - Support correspondence is citable; the private beta stream is not. See CLAUDE.md — the dates
   nearly touch, so check which stream a fact came from rather than assuming.
+
+---
+
+## 9. Beyond the depth map - inspection ideas (2026-10-06)
+
+Two points shape these: the depth map is only part of a finished piece (machine timing and
+finishing matter as much), and the hand fixes a sculptor makes - a flat nose tip remodelled, flat eyes rebuilt,
+noise removed selectively without blurring detail - are specific, nameable defects. DepthView
+can *find* those defects and show them; fixing them stays in a sculpting program. Never
+resample, never edit the user's map without being asked: these are inspection features.
+In order of value per unit of work:
+
+### 9.1 ~~A lit render passed off as a depth map~~  **Built 2026-10-06** (warn only, for 1.9.0)
+
+Shipped as `Analysis/LitCheck.cs`: verdict "LOOKS LIT, NOT DEPTH", finding "Looks lit from
+one side", `litScore`/`litThreshold` in JSON. Neither idea below survived testing - the rim
+harmonic and the summed derivatives were both fooled by off-centring and design content. A
+third-order statistic replaced them (CLAUDE.md). A real render and depth map pair separates cleanly (render
+0.04-0.06, depth under 0.006, line at 0.015). Still to do: try it on many more files before
+it is ever more than a warning. Original plan:
+
+The "NOT A DEPTH MAP: mostly colour" verdict (1.8.0) catches a coloured picture, but a
+*grey* lit render - a shaded preview of the sculpt, which is what AI depth tools and many
+marketplaces show - passes it, and is then judged as a depth map. A render has a tell a depth
+map does not: light from one side. On a depth map the raised rim is the same level all the
+way round; on a render it is bright on the lit side and dark on the far side, rising and
+falling once per turn. `DetectDesignRim` already finds the rim, so measure the mean level
+per angle around it and its first harmonic against its mean. A second, independent check:
+on a render the brightness gradient of every raised feature is lopsided in the light's
+direction (summed x/y derivatives over the design point one way); on a depth map they cancel.
+- **Test pair:** the same design as a lit render and as its genuine grey depth map - the
+  ideal positive and negative. Never committed.
+- **Must not flag** a genuine depth map rendered from Blender as a Z or mist pass (Lee's own
+  plaque work, and the common sculpt-then-render workflow): those
+  are depth, not light. Also not a map whose rim was drawn deliberately sloped.
+- Verdict wording along the lines of "LOOKS LIT, NOT DEPTH: one side of the rim is N% brighter
+  than the other", as a warning rather than an alert until it has been tried on many files.
+
+### 9.2 Flattened peaks - the "flat nose tip"  *(code only)*
+
+A small area that is perfectly flat at the top of a local bump, below pure white, is usually
+a peak clipped by whatever made the map (an AI depth estimator, an export that ran out of
+range). Find local maxima whose top is a plateau wider than a few pixels and outline them on
+the picture, the way the wizard shows flat areas, with their size and level. Distinct from
+`FlatAreas`, which looks for large level regions; this looks for small flat *tops*. Report it
+in `--survey` and the analysis findings; offer nothing to "fix" it.
+
+### 9.3 A noise map  *(code only; builds on the survey)*
+
+The survey already estimates noise for the whole design (Immerkaer) and for each flat area.
+Show it as an overlay: local noise in a sliding window, warm where pixel noise sits on a
+surface that should be smooth (skin, sky, polished fields), left alone where the detail is
+real. It answers "where should I clean up before cutting" without blurring anything. Must
+separate noise from fine texture (scales, stitching, engraved lines), which is exactly what
+a blur gets wrong - compare local noise with local gradient strength.
+
+### 9.4 An "antiqued" finish in the relief preview  *(rendering)*
+
+Finished coins read because of the finishing: dark recesses, polished high points, a
+patina. The preview already finishes the untouched field and the engraved floor differently;
+add an antiqued preset (brass, silver, copper) that darkens by local cavity (depth relative
+to the neighbourhood, not absolute depth) and brightens local peaks, so a user can see
+whether a map will still read once it is antiqued. Label it as a look, not a prediction.
+
+### 9.5 ~~A depth-profile line~~  **Built 2026-10-06 in the Tune window** (for 1.9.0)
+
+Drag across either Tune pane: `Controls/LineProfilePlot.cs` draws the map's curve and the
+staircase the passes will cut, in mm, with the spot for scale. Built as a new control rather
+than reusing `ProfilePlot`, which is radial. Still open: the same line on the main window's
+inspector and relief preview. Original plan:
+
+Drag a line across the map in the inspector and see the depth along it, in levels and in mm at
+the current blank and target depth, with the slice boundaries at the current pass count marked.
+It shows how depth *progresses* along a surface - the property that decides whether a smooth
+area cuts smooth - which no single number does. Reuse `Controls/ProfilePlot`. Optionally
+draw the same line on the relief preview so the two can be compared.
+
+### 9.6 "As stored" vs "as if linear"  *(small)*
+
+DepthView reads a PNG's gamma, sRGB and ICC declarations and lists them, but does not say
+what they mean for depth: a map exported through a display curve (an sRGB view transform
+instead of Raw, say) has its depth bent, squeezing one end of the range and stretching the
+other. When the file declares a curve, say so in the findings in those terms, and offer a
+view of the map as if the curve were undone. A curve the file does not declare cannot be
+detected from the pixels alone; do not pretend otherwise.
+
+### 9.7 Fine detail against the spot  *(code only; pairs with the terrace map)*
+
+Cut with a larger spot, a design loses its finest detail first: lettering edges round, thin
+lines are nearly lost, and small dots and stippling blur. Which details survive is a question about feature *width* against
+the spot, and the file answers it. Mark every raised or recessed feature narrower than the spot
+(and narrower than two spots, as a second class): a grey-scale morphological opening with a
+flat disc the size of the spot removes ridges and dots narrower than it, and the closing removes
+grooves; the differences (top-hat and black-hat) are exactly the features at risk. Show them as
+an overlay like the terrace map, measured inside the blank at full resolution, and report the
+share of the design's detail they make up. The spot stays a setting until §7.1 measures it -
+which is the honest way to compare lenses: same file, two spot sizes.
+- **Done when:** `--detail` (CLI, JSON) and a Tune-window toggle mark the features narrower than
+  one and two spots, with a figure for how much of the design they are.
+- Mind lettering: a stroke narrower than the spot is the commonest casualty and the one users
+  notice first. A fixture with text at several stroke widths makes the test.
+
+### 9.8 Jagged edges, and the case for supersampling  *(code only)*
+
+A map built at two to three times its final size and then reduced carries in-between levels
+along its edges, which come out smooth (fine hair and whiskers show it best). A map rendered at its final size instead
+jumps between two plateaus in one pixel along every edge, and diagonals and fine curves cut as
+stairs. Detect it: along strong edges, the share that go from one level to another with no
+intermediate value, and where they lie (drawn like the other overlays). When it is high, say so
+and suggest exporting at two to three times the size and reducing in the image editor - never
+resample the map here (DepthView does not edit the user's file unasked). Must not flag a
+deliberate hard step such as the rim or a flat recess wall: judge diagonal and curved edges,
+where a one-pixel jump is a stair, not vertical walls along the pixel grid.
+- **Done when:** the report says what share of the design's edges are aliased, with the overlay,
+  and a supersampled copy of the same art reads clean.
+
+### 9.9 Not for DepthView
+
+- **Laser source timing** (first-pulse, simmer and other JPT source-level settings). They
+  live in the source's own software, never pass through a depth map or a G-code file, and
+  cannot be checked from either, so DepthView has nothing honest to say about them. Settings
+  against results belongs with LaserTuner or MOPAChroma, if anywhere.
+- **Sculpting fixes themselves.** Remodelling a nose or rebuilding an eye is a sculptor's
+  judgement in a sculpting program. DepthView points; it does not reshape.

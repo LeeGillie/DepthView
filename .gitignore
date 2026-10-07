@@ -122,3 +122,6 @@ depthview-mass-coupon*
 
 # Windows Explorer thumbnail caches
 Thumbs.db
+
+# Python bytecode from the test scripts
+__pycache__/

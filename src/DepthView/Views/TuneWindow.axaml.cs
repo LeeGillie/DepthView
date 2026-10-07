@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -62,6 +63,28 @@ public partial class TuneWindow : Window
     private readonly ReliefViewSettings _relief = new();
 
     private ZScaleHint? _zHint;
+
+    // ---- terraces and the profile line (1.9.0) ----
+    //
+    // Both need the tuned map at full resolution: a layer edge is a pixel-scale thing, and the
+    // reduced preview cannot see one. So whenever either is in use, every recompute also starts
+    // a full-resolution pass in the background; a newer recompute cancels an older pass, and a
+    // result that arrives for settings no longer on screen is thrown away (the generation).
+    private CancellationTokenSource? _fullCts;
+    private int _fullGen;
+    private ushort[]? _fullTuned;
+    private int _fullTW, _fullTH, _fullMax = 65535;
+    private TerraceReport? _terOrig, _terTuned;
+    private string _resultBase = "", _origCaptionBase = "", _tunedCaptionBase = "";
+    private int _tunedPreviewW, _tunedPreviewH;
+    private double _ringBlank, _ringRim;
+
+    /// <summary>The profile line: which pane, and its ends as fractions of that image.</summary>
+    private (bool Tuned, double U0, double V0, double U1, double V1)? _line;
+    private bool _dragging, _dragTuned;
+    private double _dragU0, _dragV0;
+
+    private bool TerraceOn => TerraceCheck.IsChecked == true;
 
     private const int PreviewEdge = 560;
 
@@ -157,6 +180,7 @@ public partial class TuneWindow : Window
             Opened += async (_, _) => await OpenWizardAsync();
 
         WireRelief();
+        WireTerraces();
 
         // Whatever pass count you leave the dialog at is the one it opens at next time, on this
         // machine and every future run. Saved on close rather than on every keystroke, so
@@ -168,6 +192,7 @@ public partial class TuneWindow : Window
             // dialog alive and recomputing every time another window touched the blank.
             Blank.Current.Changed -= OnBlankChanged;
             Blank.Current.SaveIfChanged();
+            _fullCts?.Cancel();
 
             int passes = (int)(PassBox.Value ?? _defaultPasses);
             if (passes == Preferences.Current.DefaultPasses) return;
@@ -245,6 +270,246 @@ public partial class TuneWindow : Window
         // or the only thing standing between a broken layout and a release is somebody
         // remembering to tick a box on one machine.
         if (Program.StartupRelief) ReliefCheck.IsChecked = true;
+
+        // --show-terraces and --profile-line, for the same reason: so the terrace view and a
+        // profile can be captured by a script.
+        if (Program.StartupTerraces) TerraceCheck.IsChecked = true;
+        if (Program.StartupProfileLine is { Length: 4 } pl)
+        {
+            _line = (true, pl[0], pl[1], pl[2], pl[3]);
+            TunedLine.Set(pl[0], pl[1], pl[2], pl[3]);
+        }
+    }
+
+    // ------------------------------------------------------------------ terraces and the line
+
+    private void WireTerraces()
+    {
+        TerraceCheck.IsCheckedChanged += (_, _) =>
+        {
+            // The lit panes and the terrace view both take over the pictures; one at a time.
+            if (TerraceOn && ReliefOn) ReliefCheck.IsChecked = false;
+            if (!TerraceOn)
+            {
+                _terOrig = _terTuned = null;
+                RenderOriginal();
+            }
+            Recompute();
+        };
+
+        WirePane(OriginalPane, OriginalLine, tuned: false);
+        WirePane(TunedPane, TunedLine, tuned: true);
+        ProfileClearButton.Click += (_, _) => ClearLine();
+    }
+
+    /// <summary>Drag across a picture to lay a line on it; release to plot the depth along it.</summary>
+    private void WirePane(Grid pane, PaneLine line, bool tuned)
+    {
+        (double U, double V)? Where(Avalonia.Input.PointerEventArgs e, bool clamp)
+        {
+            var p = e.GetPosition(line);
+            var r = line.ImageRect();
+            if (r.Width <= 0 || r.Height <= 0) return null;
+            double u = (p.X - r.X) / r.Width, v = (p.Y - r.Y) / r.Height;
+            if (!clamp && (u < 0 || v < 0 || u > 1 || v > 1)) return null;
+            return (Math.Clamp(u, 0, 1), Math.Clamp(v, 0, 1));
+        }
+
+        pane.PointerPressed += (_, e) =>
+        {
+            if (ReliefOn || !e.GetCurrentPoint(pane).Properties.IsLeftButtonPressed) return;
+            if (Where(e, clamp: false) is not { } at) return;
+            _dragging = true;
+            _dragTuned = tuned;
+            (_dragU0, _dragV0) = at;
+            (tuned ? OriginalLine : TunedLine).Clear();
+            line.Set(at.U, at.V, at.U, at.V);
+            e.Pointer.Capture(pane);
+            e.Handled = true;
+        };
+        pane.PointerMoved += (_, e) =>
+        {
+            if (!_dragging || _dragTuned != tuned || Where(e, clamp: true) is not { } at) return;
+            line.Set(_dragU0, _dragV0, at.U, at.V);
+        };
+        pane.PointerReleased += (_, e) =>
+        {
+            if (!_dragging || _dragTuned != tuned) return;
+            _dragging = false;
+            e.Pointer.Capture(null);
+            if (Where(e, clamp: true) is not { } at) return;
+            if (Math.Abs(at.U - _dragU0) < 0.01 && Math.Abs(at.V - _dragV0) < 0.01) { ClearLine(); return; }
+            _line = (tuned, _dragU0, _dragV0, at.U, at.V);
+            if (tuned && _fullTuned is null) StartFullPass(Build());
+            UpdateProfile();
+        };
+    }
+
+    private void ClearLine()
+    {
+        _line = null;
+        OriginalLine.Clear();
+        TunedLine.Clear();
+        Profile.Clear();
+        ProfilePanel.IsVisible = false;
+    }
+
+    /// <summary>
+    /// Plot the file's own levels along the line - full resolution, nearest neighbour - against
+    /// the staircase they will be cut as. The original is always to hand; the tuned map waits
+    /// for the background pass.
+    /// </summary>
+    private void UpdateProfile()
+    {
+        if (_line is not { } l) { ProfilePanel.IsVisible = false; return; }
+        ProfilePanel.IsVisible = true;
+
+        ushort[] src;
+        int w, h, max;
+        if (!l.Tuned) { src = _grey; w = _w; h = _h; max = _maxValue; }
+        else if (_fullTuned is { } ft) { src = ft; w = _fullTW; h = _fullTH; max = _fullMax; }
+        else
+        {
+            Profile.Clear();
+            ProfileCaption.Text = "Measuring the tuned map at full resolution ...";
+            return;
+        }
+
+        double x0 = l.U0 * (w - 1), y0 = l.V0 * (h - 1), x1 = l.U1 * (w - 1), y1 = l.V1 * (h - 1);
+        var levels = TerraceMap.Profile(src, w, h, x0, y0, x1, y1);
+        double ppmm = Math.Min(w, h) / Blank.Current.DiameterMm;
+        double lengthMm = Math.Sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)) / ppmm;
+        int passes = (int)(PassBox.Value ?? 256);
+        double spot = (double)(SpotBox.Value ?? 7);
+
+        Profile.SetData(levels, max, passes, lengthMm, Blank.Current.TargetDepthMm, spot,
+                        $"{(l.Tuned ? "Tuned" : "Original")}: depth along the line");
+        ProfileCaption.Text = Profile.EdgesCrossed == 0
+            ? $"No layer edge along this line at {passes:N0} passes."
+            : $"{Profile.EdgesCrossed:N0} layer edges along this line; the treads between them are a median"
+              + $" {Profile.MedianTreadMicrons:0} um along it, against a {spot:0} um spot."
+              + " A line crossing the contours at a slant reads them wider than they are.";
+    }
+
+    /// <summary>
+    /// The full-resolution pass behind the terrace view and the tuned profile. Started by every
+    /// recompute while either is in use; a newer one cancels it.
+    /// </summary>
+    private void StartFullPass(TuningOptions full)
+    {
+        bool terraces = TerraceOn;
+        bool needTuned = terraces || _line is { Tuned: true };
+        _fullCts?.Cancel();
+        if (!needTuned) return;
+
+        var cts = _fullCts = new CancellationTokenSource();
+        int gen = ++_fullGen;
+        int passes = (int)(PassBox.Value ?? 256);
+        double spot = (double)(SpotBox.Value ?? 7);
+        double blank = Blank.Current.DiameterMm, depth = Blank.Current.TargetDepthMm;
+        int pw = _tunedPreviewW, ph = _tunedPreviewH;
+        _fullTuned = null;
+        if (_line is { Tuned: true }) UpdateProfile();
+
+        var token = cts.Token;
+        Task.Run(() =>
+        {
+            // A newer recompute cancels this one all the time - every keystroke in a number
+            // box. That is routine, not an error, so it ends here with a null result rather
+            // than as an exception: a throw escaping the lambda stops the debugger as
+            // "user-unhandled" on every edit even though nothing is wrong.
+            try { return FullPass(full, terraces, passes, spot, blank, depth, pw, ph, token); }
+            catch (OperationCanceledException) { return null; }
+        }, token).ContinueWith(t =>
+        {
+            if (t.IsCanceled || t.IsFaulted || t.Result is not { } r) return;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (gen != _fullGen) return;
+                _fullTuned = r.tuned;
+                _fullTW = r.tw;
+                _fullTH = r.th;
+                _fullMax = r.tmax;
+
+                if (r.to is not null && r.tt is not null && TerraceOn && !ReliefOn)
+                {
+                    _terOrig = r.to;
+                    _terTuned = r.tt;
+                    // The original as it would be cut as it stands: the blank spans its short
+                    // side. Only that circle is measured, so it is drawn.
+                    OriginalImage.Source = FinishBitmap(r.oo!, _pw, _ph, Math.Min(_pw, _ph) / 2.0, 0);
+                    TunedImage.Source = FinishBitmap(r.ot!, pw, ph, _ringBlank, _ringRim);
+                    OriginalCaption.Text = _origCaptionBase + TerraceCaption(r.to);
+                    TunedCaption.Text = _tunedCaptionBase + TerraceCaption(r.tt);
+                    ResultText.Text = _resultBase + Environment.NewLine + string.Join(Environment.NewLine, TerraceRows());
+                }
+                UpdateProfile();
+            });
+        }, TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// The work behind <see cref="StartFullPass"/>, off the UI thread. Returns null when
+    /// cancelled between stages; a cancel inside a measurement surfaces as
+    /// OperationCanceledException, which the caller catches.
+    /// </summary>
+    private (ushort[] tuned, int tw, int th, int tmax, TerraceReport? to, TerraceReport? tt, byte[]? oo, byte[]? ot)?
+        FullPass(TuningOptions full, bool terraces, int passes, double spot, double blank, double depth,
+                 int pw, int ph, CancellationToken token)
+    {
+        {
+            var tuned = DepthTuner.Apply(_grey, _w, _h, _maxValue, full, out var rep);
+            if (token.IsCancellationRequested) return null;
+            int tw = rep.OutWidth, th = rep.OutHeight;
+
+            // The file as it will be written: an 8-bit output terraces on its own 256 steps,
+            // which the in-memory map at the source's precision would hide.
+            int tmax = _maxValue;
+            if (full.OutputBitDepth == 8 && _maxValue != 255)
+            {
+                tuned = TuneJob.ScaleForOutput(tuned, _maxValue, 8);
+                tmax = 255;
+            }
+
+            TerraceReport? to = null, tt = null;
+            byte[]? oo = null, ot = null;
+            if (terraces)
+            {
+                to = TerraceMap.Measure(_grey, _w, _h, _maxValue, passes, Math.Min(_w, _h) / blank, depth, spot, true, token);
+                tt = TerraceMap.Measure(tuned, tw, th, tmax, passes, Math.Min(tw, th) / blank, depth, spot, true, token);
+                oo = TerraceMap.Overlay(_grey, _w, _h, _maxValue, to.Classes!, _pw, _ph, to.BlankRadiusPx);
+                ot = TerraceMap.Overlay(tuned, tw, th, tmax, tt.Classes!, pw, ph, tt.BlankRadiusPx);
+                to.Classes = null;
+                tt.Classes = null;
+            }
+            return (tuned, tw, th, tmax, to, tt, oo, ot);
+        }
+    }
+
+    /// <summary>The tuning guide that shipped with this version (see <see cref="Guides"/>).</summary>
+    private async void OnTuningGuide(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (await Guides.OpenAsync(TopLevel.GetTopLevel(this), Guides.Kind.Tuning) is { } problem)
+            SubtitleText.Text = problem;
+    }
+
+    private static string TerraceCaption(TerraceReport r)
+        => r.Edges == 0
+            ? "\nNo layer edges at this pass count."
+            : $"\nLayer edges that will show: {r.ShareWider * 100:F0}% of them have treads wider than the spot"
+            + $" (amber), {r.ShareWider3 * 100:F0}% wider than three spots (red).";
+
+    /// <summary>The terrace rows of the results card, original to tuned.</summary>
+    private IEnumerable<string> TerraceRows()
+    {
+        if (_terOrig is not { } a || _terTuned is not { } b) yield break;
+        yield return $"Steps that will show   {a.ShareWider * 100:F0}%  to  {b.ShareWider * 100:F0}% of the layer edges";
+        yield return $"Length of those steps  {a.EdgeLengthMm * a.ShareWider:N0} mm  to  {b.EdgeLengthMm * b.ShareWider:N0} mm";
+        yield return b.LimitedByLevels
+            ? "To blend 9 in 10       not by passes: the map's own steps"
+            : b.PassesToBlend90 is int need && need > b.Passes
+            ? $"To blend 9 in 10       about {need:N0} passes"
+            : "To blend 9 in 10       already, at this spot";
     }
 
     // ------------------------------------------------------------------ relief panes
@@ -365,6 +630,9 @@ public partial class TuneWindow : Window
     private void ReliefModeChanged()
     {
         bool on = ReliefOn;
+        if (on && TerraceOn) TerraceCheck.IsChecked = false;
+        if (on) { OriginalLine.IsVisible = false; TunedLine.IsVisible = false; }
+        else { OriginalLine.IsVisible = true; TunedLine.IsVisible = true; }
         ReliefPanel.IsVisible = on;
 
         OriginalImage.IsVisible = !on;
@@ -479,6 +747,12 @@ public partial class TuneWindow : Window
             long d = i * 4;
             buf[d] = v; buf[d + 1] = v; buf[d + 2] = v; buf[d + 3] = 255;
         }
+        return FinishBitmap(buf, w, h, blankRadius, rimInner);
+    }
+
+    /// <summary>A BGRA buffer onto the screen, with the blank and rim rings drawn in.</summary>
+    private static WriteableBitmap FinishBitmap(byte[] buf, int w, int h, double blankRadius, double rimInner)
+    {
 
         // Two rings, drawn in colour on a greyscale preview so they cannot be mistaken for
         // data - nothing in a depth map is ever cyan.
@@ -784,6 +1058,12 @@ public partial class TuneWindow : Window
         // the short side of the output, fitted or not.
         double blankRadius = full.AddRim ? Math.Min(rep.OutWidth, rep.OutHeight) / 2.0 : 0;
         TunedImage.Source = ToBitmap(tuned, rep.OutWidth, rep.OutHeight, blankRadius, preview.RimRadius);
+        _tunedPreviewW = rep.OutWidth;
+        _tunedPreviewH = rep.OutHeight;
+        _ringBlank = blankRadius;
+        _ringRim = preview.RimRadius;
+        OriginalLine.ImageSize = new Size(_pw, _ph);
+        TunedLine.ImageSize = new Size(rep.OutWidth, rep.OutHeight);
 
         // The lit pane gets the same array the flat pane was just drawn from. No second run of
         // the pipeline, and no re-reading anything from disk - which is the whole point, since
@@ -849,7 +1129,19 @@ public partial class TuneWindow : Window
                 + $"({Blank.Current.TargetDepthMm:0.00} mm over {passes:N0})",
         }.Concat(RimLines(rep, full)).Concat(FlatLines()));
 
+        // The terrace rows arrive from the full-resolution pass; until they do, say so.
+        _resultBase = ResultText.Text ?? "";
+        _origCaptionBase = OriginalCaption.Text ?? "";
+        _tunedCaptionBase = TunedCaption.Text ?? "";
+        if (TerraceOn && !ReliefOn)
+        {
+            ResultText.Text = _resultBase + Environment.NewLine + "Steps that will show   measuring at full resolution ...";
+            if (_terOrig is { } to) OriginalCaption.Text = _origCaptionBase + TerraceCaption(to);
+        }
+
         UpdateStatus(full);
+        StartFullPass(full);
+        if (_line is { Tuned: false }) UpdateProfile();
     }
 
     /// <summary>

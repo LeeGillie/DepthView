@@ -68,6 +68,20 @@
           <TextBlock x:Name="TimingText" VerticalAlignment="Center"
                      FontSize="11" Foreground="#5E6773"
                      ToolTip.Tip="How long the last decode and analysis pass took." />
+          <Button x:Name="HelpButton" Content="Help" Padding="10,5" FontSize="11"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="The user guide and the tuning guide for this version, and what changed in it. The guides open in your browser, at the edition written for the version you are running.">
+            <Button.Flyout>
+              <MenuFlyout Placement="BottomEdgeAlignedRight">
+                <MenuItem Header="User guide" Click="OnUserGuide"
+                          ToolTip.Tip="Everything DepthView reports and every control. Opens in your browser." />
+                <MenuItem Header="Tuning guide" Click="OnTuningGuide"
+                          ToolTip.Tip="How to tune a depth map for a coin, worked through real coins step by step. Opens in your browser." />
+                <Separator />
+                <MenuItem Header="What's new in this version" Click="OnWhatsNew" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
           <Button x:Name="AboutButton" Content="About" Padding="10,5" FontSize="11"
                   VerticalAlignment="Center"
                   ToolTip.Tip="Version number, the platforms DepthView runs on, everyone who made it, the licence terms, and the update settings." />

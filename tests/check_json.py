@@ -377,6 +377,108 @@ def check_surround_and_gap(exe, work):
               and v.get("imposter") == "none", f"a colour picture's verdict: {v}")
 
 
+def check_terraces(exe, work):
+    """--terraces on a smooth shallow cone, where the answer follows from geometry.
+
+    A 600 px cone on a 6 mm blank (10 um a pixel), 0.5 mm deep, using the top twelfth of the
+    range across a 280 px radius - a gentle, even slope, like a cheek or a neck. Few passes
+    leave wide treads that show; thousands crowd them under the spot. The same cone squeezed
+    to 8 bits has about twenty levels across that slope, so it terraces on its own steps
+    however many passes are run - the case a high layer count cannot rescue.
+    """
+    def dome(x, y):
+        r = ((x - 300) ** 2 + (y - 300) ** 2) ** 0.5 / 280.0
+        return min(65535, int(round(60000 + 5535 * r)))
+    src = os.path.join(work, "cone16.png")
+    write_grey16(src, 600, 600, dome)
+    src8 = os.path.join(work, "cone8.png")
+    write_grey16(src8, 600, 600, lambda x, y: (dome(x, y) // 257) * 257)
+
+    def terr(path, passes, *extra):
+        code, doc, _, _ = run(exe, "--terraces", path, "--json", "--passes", str(passes), "--blank", "6",
+                              "--depth-mm", "0.5", "--spot", "30", *extra, cwd=work)
+        check(code == 0 and bool(doc), f"--terraces {os.path.basename(path)} at {passes}: exit {code}")
+        return doc or {}
+
+    few, many = terr(src, 32), terr(src, 4096)
+    check(few.get("schema") == "depthview.terrace/1", f"terrace schema {few.get('schema')!r}")
+    fe, me = few.get("edges") or {}, many.get("edges") or {}
+    check(fe.get("shareWiderThanSpot", 0) > me.get("shareWiderThanSpot", 1),
+          f"terraces: 32 passes should show more steps than 4096 ({fe.get('shareWiderThanSpot')} vs {me.get('shareWiderThanSpot')})")
+    check(me.get("shareWiderThanSpot", 1) < 0.1, f"terraces: 4096 passes on a 16-bit cone should blend: {me}")
+    check(abs(few.get("micronsPerPixel", 0) - 10) < 0.2, f"terraces: {few.get('micronsPerPixel')} um/pixel, expected 10")
+    check(few.get("limitedByLevels") is False and (few.get("passesToBlend90") or 0) > 32,
+          f"terraces: a smooth 16-bit dome should blend with more passes: {few.get('passesToBlend90')}, limited {few.get('limitedByLevels')}")
+
+    eight = terr(src8, 4096)
+    check(eight.get("usedLevels", 0) <= 256 and eight.get("limitedByLevels") is True,
+          f"terraces: an 8-bit dome at 4096 passes should be limited by its own levels: {eight.get('usedLevels')}, {eight.get('limitedByLevels')}")
+
+    # Only the blank is measured. A flat coin on a shaded background terraces in contour lines
+    # across the corners - which are not on the coin and must not be counted.
+    corners = os.path.join(work, "shaded-corners.png")
+    write_grey16(corners, 600, 600,
+                 lambda x, y: 60000 if (x - 299.5) ** 2 + (y - 299.5) ** 2 <= 300 ** 2 else 20000 + 40 * y)
+    cdoc = terr(corners, 64)
+    check(abs(cdoc.get("blankRadiusPx", 0) - 300) < 0.01, f"terraces: blank radius {cdoc.get('blankRadiusPx')}, expected 300")
+    check((cdoc.get("edges") or {}).get("pixels", -1) == 0 and cdoc.get("usedLevels") == 1,
+          f"terraces: the shaded corners were counted: {cdoc.get('edges')}, {cdoc.get('usedLevels')} levels")
+
+    overlay = os.path.join(work, "dome-terraces.png")
+    terr(src, 32, "--out", overlay)
+    check(os.path.exists(overlay), "--terraces --out did not write the overlay")
+    code, doc, _, _ = run(exe, "--terraces", src, "--json", "--out", src, cwd=work)
+    check(code == 2, f"--terraces --out naming the input: expected exit 2, got {code}")
+
+
+def check_lit(exe, work):
+    """A grey picture of a relief lit from one side, against the depth map it was drawn from.
+
+    Eight raised discs with 4 px bevels on a 400 px field. The depth map is the heights; the
+    render is the same heights shaded by a light from the upper left, with the shadows the
+    discs cast. The depth map must read as genuine and the render as lit.
+    """
+    import math
+    n = 400
+    discs = [(100, 100, 30), (280, 120, 40), (200, 220, 50), (110, 300, 25),
+             (310, 300, 32), (200, 80, 18), (60, 200, 20), (350, 200, 22)]
+    H = [[0.0] * n for _ in range(n)]
+    for y in range(n):
+        for x in range(n):
+            h = 0.0
+            for cx, cy, s in discs:
+                h = max(h, min(1.0, max(0.0, (s - math.hypot(x - cx, y - cy)) / 4)))
+            H[y][x] = h
+
+    def shade(x, y):
+        gx = (H[y][min(n - 1, x + 1)] - H[y][max(0, x - 1)]) * 15
+        gy = (H[min(n - 1, y + 1)][x] - H[max(0, y - 1)][x]) * 15
+        v = max(0.0, (gx + gy + 1.0) / math.sqrt(gx * gx + gy * gy + 1) / math.sqrt(3))
+        for k in range(1, 9):
+            if x - k < 0 or y - k < 0:
+                break
+            if H[y - k][x - k] > H[y][x] + 0.06 * k:
+                return v * 0.35
+        return v
+
+    depth = os.path.join(work, "discs-depth.png")
+    write_grey16(depth, n, n, lambda x, y: int(round(H[y][x] * 65535)))
+    lit = os.path.join(work, "discs-lit.png")
+    write_grey16(lit, n, n, lambda x, y: int(round(shade(x, y) * 65535)))
+
+    code, doc, _, _ = run(exe, "--report", depth, lit, "--json", cwd=work)
+    check(bool(doc), f"lit check: report exit {code}")
+    if doc:
+        files = {f["name"]: f for f in doc.get("files", [])}
+        d, l = files.get("discs-depth.png") or {}, files.get("discs-lit.png") or {}
+        dc, lc = d.get("content") or {}, l.get("content") or {}
+        check(dc.get("litScore", 1) < dc.get("litThreshold", 0),
+              f"lit check: the depth map scored {dc.get('litScore')} against {dc.get('litThreshold')}")
+        check(lc.get("litScore", 0) >= lc.get("litThreshold", 1)
+              and str((l.get("verdict") or {}).get("title", "")).startswith("LOOKS LIT"),
+              f"lit check: the render scored {lc.get('litScore')}, verdict {(l.get('verdict') or {}).get('title')!r}")
+
+
 def run_text(exe, *args, cwd=None):
     p = subprocess.run([exe, *args], capture_output=True, text=True, cwd=cwd)
     return p.returncode, None, p.stdout, p.stderr
@@ -463,6 +565,9 @@ def main(exe):
             check(same_file(after.get("path"), tuned), "after.path should be the written file")
             check(same_file(doc.get("output"), tuned), "output should be the written file")
             check(any(r["passes"] == 200 for r in after.get("passCounts", [])), "tune table lacks --passes 200")
+            ter = doc.get("terraces") or {}
+            check((ter.get("before") or {}).get("passes") == 200 and (ter.get("after") or {}).get("passes") == 200,
+                  f"tune: terraces before/after at the pass count, got {ter}")
 
         # --- G-code: a synthetic job whose answers are known by construction -------------
         check_gcode(exe, work)
@@ -475,6 +580,12 @@ def main(exe):
 
         # --- a shaded surround, an empty gap, a picture that is not a depth map -------
         check_surround_and_gap(exe, work)
+
+        # --- where a map will terrace ------------------------------------------------
+        check_terraces(exe, work)
+
+        # --- a lit render passed off as a depth map ---------------------------------
+        check_lit(exe, work)
 
         # --- the original is never written over -------------------------------------
         size = os.path.getsize(src)

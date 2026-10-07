@@ -119,6 +119,11 @@ if ($useCoin) {
     Capture (@($c, '--tune-ui') + $tuneCommon + $lightburn + @('--write-dpi',
               '--screenshot', "$img\tune.png")) 16
     Capture (@($c, '--wizard', '--wizard-step', '5') + $blank + @('--screenshot', "$img\wizard.png")) 16
+    # Where the layers will show at MakeIt's 72 passes, with a line across the deer's back.
+    # The terrace view measures at full resolution in the background, hence the long delay.
+    Capture (@($c, '--tune-ui') + $tuneCommon + $makeit + @('--show-terraces',
+              '--profile-line', '0.30,0.60,0.62,0.60', '--delay', '9000',
+              '--screenshot', "$img\terraces.png")) 30
 } else {
     Capture @("$fix\imposter_x257.png", '--screenshot', "$img\analysis-imposter.png") 10
     Capture @("$fix\true16.png",        '--screenshot', "$img\analysis-genuine.png")  10
@@ -129,6 +134,9 @@ if ($useCoin) {
               '--rim-mm', '0.9', '--fit', '--screenshot', "$img\tune.png") 10
     Capture @("$root\samples\01-genuine-16bit.png", '--wizard', '--wizard-step', '6',
               '--blank', '40', '--screenshot', "$img\wizard.png") 12
+    Capture @("$root\samples\01-genuine-16bit.png", '--tune-ui', '--blank', '40', '--passes', '72',
+              '--spot', '30', '--show-terraces', '--profile-line', '0.2,0.5,0.8,0.5', '--delay', '6000',
+              '--screenshot', "$img\terraces.png") 20
 }
 
 # The credit roll is moving, so pin the capture to a fixed delay: the same --delay always

@@ -315,6 +315,15 @@ minority that happen to be grey. A picture records light and shade; engraved as 
 shadows are cut deep and its highlights left standing, whichever way the relief really goes.
 DepthView says so plainly and exits 1, however good the level count looks.
 
+A *grey* picture gets past that test, so there is a second one: **LOOKS LIT, NOT DEPTH.** A
+depth map records height, and a raised feature reads the same from every side. A shaded
+render records light: every feature is bright on the side facing the lamp and dark, often
+shadowed, on the far side, the same way across the whole image. DepthView measures that
+one-sidedness. Shaded grey renders of three coins scored 0.037 to 0.057 and every genuine
+depth map tried scored under 0.006, so 0.015 is the line. It is a warning rather than a verdict of its
+own until it has met many more files, and a render of smooth shapes with no shadows can slip
+under it. A depth map rendered from a sculpt is the Z or mist pass, not the shaded view.
+
 ---
 
 ## Installing and running it
@@ -326,9 +335,14 @@ Linux PC; the release page lists the rest. Unzip it somewhere you can write to. 
 whole installation: the program has the .NET runtime inside it, and there is no installer,
 no dependency and no administrator prompt.
 
-Every release also carries this guide and the [tuning guide](docs/TUNING-GUIDE.md) as PDFs
-(`DepthView-<version>-User-Guide.pdf`, `DepthView-<version>-Tuning-Guide.pdf`), for reading
-offline or printing. They are made from these pages, which stay the authoritative version.
+**Help** at the top right of the main window opens this guide or the
+[tuning guide](docs/TUNING-GUIDE.md) in your browser, and the Tune window has its own
+**Tuning guide** button. Each copy opens the guides as they stood at its own release, so they
+describe the program in front of you; after an in-place update, Help opens the new edition -
+nobody has to come looking here to find out what changed. Every release page also offers both
+guides as PDFs (`DepthView-<version>-User-Guide.pdf`, `DepthView-<version>-Tuning-Guide.pdf`)
+for reading offline or printing. They are made from these pages, which stay the
+authoritative version.
 
 * **Windows** — double-click `DepthView\DepthView.exe`
 * **macOS** — double-click `DepthView/DepthView.app` (drag it to Applications if you like)
@@ -576,6 +590,38 @@ the percentage of the design that overlaps and the scale the art would need to c
 Nothing is guessed from the picture; a design that is not circular is handled by
 measuring the overlap rather than assuming there is none.
 
+#### Where the layers will show
+
+A sliced job cuts a stack of flat layers, and every layer edge is a step one pass high.
+Whether that step shows depends on the flat treads either side of it compared with the beam:
+narrower than the spot and the beam smears neighbouring steps into a slope; wider, and the
+staircase survives as contour lines. On a steep surface the edges crowd together and blend.
+On a gentle one - a cheek, a neck, a sky - they spread apart and show, **however many bits
+the file has.** A genuine 16-bit map cut at a thousand layers can still terrace on a smooth
+neck, and an 8-bit map at a thousand layers terraces on its own 256 steps whatever the
+layer count.
+
+**Show where the layers will show as steps** marks it on both pictures, measured at full
+resolution against the spot size, and only inside the blank - the cyan circle. The corners
+of a square map are not on the coin, so a shaded background there is dimmed and not counted.
+Amber: the treads either side of an edge are wider than the spot. Red: more than three spots
+wide. Areas whose edges blend are left grey. The results card says what share of the layer edges will show, and how many passes
+would blend nine in ten - or that more passes cannot help, because the map's own levels are
+the steps.
+
+<p align="center">
+  <img src="docs/images/terraces.png" alt="The Tune window showing where the layers will show as steps at 72 passes, amber and red on the smooth surfaces of the deer, with the depth along a line plotted underneath as the file's surface and the staircase it will be cut as" width="820">
+</p>
+
+**Drag across either picture** to plot the depth along a line: the file's own surface, and
+the staircase it will be cut as at the pass count, with the spot as a scale bar. It shows how
+depth *progresses* across a surface, which no single number does - whether a smooth cheek
+arrives as a slope or as a flight of steps.
+
+It is geometry. Whether a step of a given width is visible to the eye also depends on its
+height, the finish and the light; the spot is the honest dividing line the geometry supports.
+`DepthView --terraces <map>` does the same headlessly, with an overlay image and JSON.
+
 #### Fitting artwork inside the rim
 
 A design that runs to the edge of its own canvas — one whose graphics overlay the
@@ -768,12 +814,14 @@ DepthView --report <image>           full text report (also written beside the i
 DepthView --report <folder>          every image in the folder
 DepthView --report <folder> --summary --out results.txt
 DepthView --report <image> --json    the same analysis as JSON, for another program to read
+DepthView --terraces <image> --passes 256 --spot 30 --out where.png
+                                     where a job will terrace, and how many passes would blend it
 DepthView --gcode <job.gc>           what a G-code job actually sends the machine
 DepthView --project <file.lbrn2>     read a laser project and report its layers
 DepthView --lb <command>             drive a running copy of LightBurn over UDP
 ```
 
-**Calling DepthView from your own program.** `--report --json`, `--tune --json` and `--gcode --json` print one
+**Calling DepthView from your own program.** `--report --json`, `--tune --json`, `--survey --json`, `--terraces --json` and `--gcode --json` print one
 JSON document and nothing else, so a laser program, a script or an Electron app can run
 DepthView as a helper and act on the answer. [docs/INTEGRATION.md](docs/INTEGRATION.md) is the
 specification: the commands, every field, exit codes and a worked example.
@@ -915,6 +963,7 @@ src/DepthView/
   Program.cs              entry point, CLI report mode
   App.axaml               application shell
   BuildInfo.cs            version, build date, host and platform strings for the About box
+  Guides.cs               the Help button's guides: GitHub links at this copy's release tag
   Updates/UpdateService   the GitHub release check and the verified in-place install
   Views/MainWindow        UI, input handling, preview rendering
   Views/ReliefWindow      lit 3D relief preview
@@ -923,17 +972,20 @@ src/DepthView/
   Views/Credits.cs        the credit roll contents, as data rather than markup
   Controls/               HistogramControl - hover readout, wheel zoom, comb strip
                           LevelStripControl - the draggable black and white points
+                          LineProfilePlot - depth along a line, file against staircase
   Imaging/                PngDecoder, PnmDecoder, PfmDecoder, TiffSniffer, ImageLoader
                           PngEncoder - 8/16-bit greyscale out, with pHYs and provenance
   Integrations/WeCreat/Gcode/
                           GcodeStream (allocation-free reader), GcodeAnalyzer and
                           GcodeReport (--gcode)
-  Analysis/               DepthAnalyzer, AnalysisResult, ReportWriter,
+  Analysis/               DepthAnalyzer, AnalysisResult, ReportWriter, LitCheck (does it
+                          look lit rather than deep?),
                           JsonReport (the --json output; docs/INTEGRATION.md is its spec)
   Processing/             DepthTuner (the correction), TuningOptions, TuneJob (shared by
                           the dialog and the command line), DepthCanvas (fitting a design
                           inside the rim by padding, never by resampling),
                           AlignmentOutline (the vector circle the framer can see),
+                          TerraceMap (where the layers will show as steps),
                           CalibrationPattern, TinyFont
   Rendering/              ReliefRenderer (software height-field shading), MaterialPreset
   Assets/                 icon files consumed by the build
@@ -1070,9 +1122,9 @@ before Avalonia is initialised, so those two are genuinely headless and are what
 ### Releases
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`, which publishes all seven
-self-contained binaries, packs each into `DepthView-<version>-<rid>.zip`, generates
-`SHA256SUMS.txt`, prints this guide and the tuning guide to PDF (`docs/make-pdfs.py`, headless
-Chrome) and attaches the lot to a GitHub Release. Two bundles are smoke-tested
+self-contained binaries, prints this guide and the tuning guide to PDF (`docs/make-pdfs.py`,
+headless Chrome), packs each binary with the guides into `DepthView-<version>-<rid>.zip`,
+generates `SHA256SUMS.txt` and attaches the lot to a GitHub Release. Two bundles are smoke-tested
 first: `linux-x64` has to answer `--version` and `--help`, analyse the fixtures and pass the
 assertion script, and `osx-arm64` has to pass `codesign --verify` and answer `--version` on
 a real Apple-silicon runner — because a download that will not run is not a delivery.

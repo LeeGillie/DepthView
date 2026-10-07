@@ -32,6 +32,12 @@ public sealed class AnalysisResult
     // --- grey vs colour -------------------------------------------------
     public long GreyPixels;                 // r == g == b (all pixels, for single-channel images)
     public long NonGreyPixels;
+
+    /// <summary>
+    /// How one-sided the shading is (<see cref="LitCheck"/>): near 0 for a depth map, a few
+    /// hundredths for a picture lit from one side. Added 1.9.0.
+    /// </summary>
+    public double LitScore;
     public int UniqueGreyLevels;
     public long UniqueNonGreyColors;
     public bool NonGreyColorsCapped;

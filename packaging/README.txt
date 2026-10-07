@@ -64,6 +64,11 @@ Linux     Double-click DepthView in your file manager, or in a terminal
 Drop a depth map on the window, click the drop area to browse, or paste an
 image with Ctrl+V. Every control has a tooltip explaining what it does.
 
+The Help button (top right) opens the User Guide and the Tuning Guide in
+your browser, and the Tune window has its own Tuning guide button. They
+open at the edition written for the version you are running. For reading
+offline or printing, each release page also has both guides as PDFs.
+
 DepthView also works from a terminal - try  DepthView --help
 
 
@@ -78,7 +83,8 @@ says so:
     checksum GitHub publishes for it, starts it once to be sure it runs,
     then replaces the program in this folder and restarts. If any check
     fails, nothing is changed. Your settings and anything else you keep
-    in this folder are left alone.
+    in this folder are left alone. Afterwards Help opens the new
+    version's edition of the guides.
   - "What's new" opens the release notes.
   - "Skip this version" hides the bar until the next version comes out.
 

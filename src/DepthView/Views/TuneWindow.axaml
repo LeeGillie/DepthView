@@ -83,6 +83,8 @@
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
           <TextBlock x:Name="SourceText" VerticalAlignment="Center"
                      FontSize="11" Foreground="#5E6773" />
+          <Button x:Name="TuningGuideButton" Content="Tuning guide" Click="OnTuningGuide"
+                  ToolTip.Tip="The tuning guide, at the edition written for this version: every control in this window worked through real coins, step by step. Opens in your browser." />
           <Button x:Name="WizardButton" Classes="primary" Content="Tuning wizard ..."
                   ToolTip.Tip="A few questions about what you want the coin to be - machine, background, rim, floor, flat areas, layers - each shown on the picture as you answer. It sets this window's controls; nothing is written until you save." />
         </StackPanel>
@@ -92,14 +94,15 @@
     <!-- previews and controls -->
     <Grid Grid.Row="1" ColumnDefinitions="*,376" ClipToBounds="True">
 
-      <Grid Grid.Column="0" ColumnDefinitions="*,*">
+      <Grid Grid.Column="0" ColumnDefinitions="*,*" RowDefinitions="*,Auto">
 
         <Border Grid.Column="0" Margin="14,12,7,8" Padding="9"
                 Background="#0C0E11" BorderBrush="#2A303A" BorderThickness="1" CornerRadius="8">
-          <Grid RowDefinitions="Auto,*,Auto">
+          <Grid RowDefinitions="Auto,*,Auto" x:Name="OriginalPane" Background="Transparent">
             <TextBlock Grid.Row="0" Classes="pane" x:Name="OriginalHeader" Text="Original" />
             <Image Grid.Row="1" x:Name="OriginalImage" Stretch="Uniform" Margin="0,7"
                    RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <ctl:PaneLine Grid.Row="1" x:Name="OriginalLine" Margin="0,7" />
             <ctl:ReliefPreview Grid.Row="1" x:Name="OriginalRelief" Margin="0,7" IsVisible="False" />
             <TextBlock Grid.Row="2" x:Name="OriginalCaption" Classes="note" />
           </Grid>
@@ -107,12 +110,28 @@
 
         <Border Grid.Column="1" Margin="7,12,14,8" Padding="9"
                 Background="#0C0E11" BorderBrush="#2A303A" BorderThickness="1" CornerRadius="8">
-          <Grid RowDefinitions="Auto,*,Auto">
+          <Grid RowDefinitions="Auto,*,Auto" x:Name="TunedPane" Background="Transparent">
             <TextBlock Grid.Row="0" Classes="pane" x:Name="TunedHeader" Text="Tuned" Foreground="#8BD49C" />
             <Image Grid.Row="1" x:Name="TunedImage" Stretch="Uniform" Margin="0,7"
                    RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <ctl:PaneLine Grid.Row="1" x:Name="TunedLine" Margin="0,7" />
             <ctl:ReliefPreview Grid.Row="1" x:Name="TunedRelief" Margin="0,7" IsVisible="False" />
             <TextBlock Grid.Row="2" x:Name="TunedCaption" Classes="note" />
+          </Grid>
+        </Border>
+
+        <!-- The profile along a line dragged across either picture. Under the panes rather than
+             in the settings column, because it is a picture of the map and wants the width. -->
+        <Border Grid.Row="1" Grid.ColumnSpan="2" x:Name="ProfilePanel" IsVisible="False"
+                Margin="14,0,14,8" Padding="9,7" Height="200"
+                Background="#0C0E11" BorderBrush="#2A303A" BorderThickness="1" CornerRadius="8">
+          <Grid RowDefinitions="*,Auto">
+            <ctl:LineProfilePlot Grid.Row="0" x:Name="Profile" />
+            <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+              <TextBlock Grid.Column="0" x:Name="ProfileCaption" Classes="note" VerticalAlignment="Center" />
+              <Button Grid.Column="1" x:Name="ProfileClearButton" Content="Clear line" Padding="8,3"
+                      ToolTip.Tip="Remove the line and close the profile." />
+            </Grid>
           </Grid>
         </Border>
       </Grid>
@@ -142,6 +161,12 @@
               <ctl:BlankEditor x:Name="BlankPanel" />
 
               <TextBlock Classes="section" Text="PREVIEW" />
+
+              <CheckBox x:Name="TerraceCheck"
+                        Content="Show where the layers will show as steps"
+                        ToolTip.Tip="Draws the layer edges the job will cut at the pass count below, on both pictures. Amber: the flat treads either side of the edge are wider than the spot, so the step survives as a step. Red: wider than three spots - a plain contour line. Edges with narrower treads are left unmarked: the beam smears them into the slope.&#x0a;&#x0a;Measured on the whole map at full resolution, against the spot size set under Rim. It is geometry: whether a step is visible also depends on its height, the finish and the light." />
+              <TextBlock Classes="note" Margin="24,2,0,0" TextWrapping="Wrap"
+                         Text="Drag across either picture to plot the depth along a line - the file's surface and the staircase it will be cut as." />
 
               <CheckBox x:Name="ReliefCheck"
                         Content="Show both panes as lit 3D relief"

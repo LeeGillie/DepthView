@@ -34,6 +34,47 @@ public static class JsonReport
     public const string ReportSchema = "depthview.report/1";
     public const string TuneSchema = "depthview.tune/1";
     public const string SurveySchema = "depthview.survey/1";
+    public const string TerraceSchema = "depthview.terrace/1";
+
+    /// <summary>--terraces: where a job will terrace, measured on the map as it is.</summary>
+    public static string Terraces(string path, TerraceReport r, string? overlay) => Write(w =>
+    {
+        w.WriteStartObject();
+        w.WriteString("schema", TerraceSchema);
+        w.WriteString("depthview", BuildInfo.Version);
+        w.WriteBoolean("ok", true);
+        w.WriteString("path", path);
+        StringOrNull(w, "overlay", overlay is null ? null : FullPath(overlay));
+        TerraceBody(w, r);
+        w.WriteEndObject();
+    });
+
+    /// <summary>The fields of one terrace measurement, shared by --terraces and --tune.</summary>
+    private static void TerraceBody(Utf8JsonWriter w, TerraceReport r)
+    {
+        w.WriteNumber("width", r.Width);
+        w.WriteNumber("height", r.Height);
+        w.WriteNumber("passes", r.Passes);
+        Num(w, "pixelsPerMm", r.PixelsPerMm);
+        Num(w, "micronsPerPixel", r.MicronsPerPixel);
+        Num(w, "spotMicrons", r.SpotMicrons);
+        Num(w, "targetDepthMm", r.TargetDepthMm);
+        Num(w, "stepMicrons", r.StepMicrons);
+        Num(w, "blankRadiusPx", r.BlankRadiusPx);
+        w.WriteNumber("usedLevels", r.UsedLevels);
+        w.WriteStartObject("edges");
+        w.WriteNumber("pixels", r.Edges);
+        Num(w, "lengthMm", r.EdgeLengthMm);
+        Num(w, "shareWiderThanSpot", r.ShareWider);
+        Num(w, "shareWiderThan3Spots", r.ShareWider3);
+        Num(w, "medianTreadMicrons", r.MedianTreadMicrons);
+        Num(w, "p90TreadMicrons", r.P90TreadMicrons);
+        w.WriteBoolean("treadCapped", r.TreadCapped);
+        w.WriteEndObject();
+        IntOrNull(w, "passesToBlend90", r.PassesToBlend90);
+        w.WriteBoolean("limitedByLevels", r.LimitedByLevels);
+        Num(w, "seconds", r.Seconds);
+    }
 
     /// <summary>What the tuning wizard measures (--survey --json). Changes nothing.</summary>
     public static string Survey(string path, DesignSurvey s, int passes)
@@ -192,6 +233,11 @@ public static class JsonReport
         public double SpotMicrons { get; init; }
         public required AnalysisResult Before { get; init; }
         public required AnalysisResult After { get; init; }
+
+        /// <summary>Terraces of the input and of the written file, when the blank and the
+        /// target depth are known; otherwise null.</summary>
+        public TerraceReport? TerracesBefore { get; init; }
+        public TerraceReport? TerracesAfter { get; init; }
     }
 
     public static string Tune(TuneOutcome t)
@@ -330,6 +376,17 @@ public static class JsonReport
             else w.WriteNull("target");
 
             w.WriteNumber("passes", t.Passes);
+
+            // Added 1.9.0: where each file terraces at the pass count, against the spot.
+            if (t.TerracesBefore is { } tb && t.TerracesAfter is { } ta)
+            {
+                w.WriteStartObject("terraces");
+                w.WriteStartObject("before"); TerraceBody(w, tb); w.WriteEndObject();
+                w.WriteStartObject("after"); TerraceBody(w, ta); w.WriteEndObject();
+                w.WriteEndObject();
+            }
+            else w.WriteNull("terraces");
+
             w.WritePropertyName("before");
             WriteAnalysis(w, t.Input, t.Before, passCounts, histogram: false);
             w.WritePropertyName("after");
@@ -576,6 +633,9 @@ public static class JsonReport
         w.WriteNumber("greyPixels", r.GreyPixels);
         w.WriteNumber("nonGreyPixels", r.NonGreyPixels);
         w.WriteBoolean("greyStoredAsColor", r.IsGrayscaleStoredAsColor);
+        // Added 1.9.0: how one-sided the shading is; at or above litThreshold it looks lit.
+        Num(w, "litScore", r.LitScore);
+        Num(w, "litThreshold", LitCheck.Threshold);
         w.WriteEndObject();
 
         w.WriteStartObject("levels");

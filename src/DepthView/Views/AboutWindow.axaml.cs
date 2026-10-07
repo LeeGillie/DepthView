@@ -156,6 +156,7 @@ public partial class AboutWindow : Window
         AddDetail("Host", BuildInfo.Host, "The operating system and process architecture reported by the runtime.");
         AddDetail("Interface", BuildInfo.UiToolkit, "The UI toolkit version linked into this build.");
         AddDetail("Imaging", BuildInfo.ImageLibrary, "Used for the convenience formats only. The depth critical decoders are DepthView's own.");
+        AddDetail("Guides", Guides.Status, "Where Help opens the user guide and the tuning guide: on GitHub, as they stood at this version's release, so they describe the program you are running. After an update, Help opens the new version's edition.");
     }
 
     private void AddDetail(string label, string value, string tip)

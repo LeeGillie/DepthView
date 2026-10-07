@@ -48,6 +48,10 @@ internal static partial class Program
     public static double? StartupSpot;
     public static bool StartupCoverRim, StartupOutline, StartupWriteDpi, StartupUniformSurround;
 
+    /// <summary>--show-terraces and --profile-line with --tune-ui, so both can be captured.</summary>
+    public static bool StartupTerraces;
+    public static double[]? StartupProfileLine;
+
     /// <summary>Open the tuning wizard over the Tune window; optionally at a step (1-based) and for a target.</summary>
     public static bool StartupWizard;
     public static int? StartupWizardStep;
@@ -88,7 +92,10 @@ internal static partial class Program
                                           --passes <n> --black <level> --white <level>
                                           --bits <8|16> --spot <um> --fit [mode] --cover-rim
                                           --outline --write-dpi --uniform-surround (tick
-                                          those boxes)
+                                          those boxes); --show-terraces opens the terrace
+                                          view, and --profile-line u0,v0,u1,v1 lays a line
+                                          across the tuned picture (fractions of its width
+                                          and height) and plots it
                                           Either relief view also takes --blank <mm>,
                                           --thick <mm>, --depth-mm <mm> and --exag <stops>,
                                           as in --render
@@ -167,6 +174,19 @@ internal static partial class Program
                               background or floor, placement, the artwork's own rim, the
                               floor and top, pixel noise, and the nearly level areas with how
                               many slice boundaries each crosses at the pass count
+
+        Where a map will terrace, measured on the map as it stands
+          DepthView --terraces <image> [--passes <n>] [--blank <mm>] [--depth-mm <mm>]
+                               [--spot <um>] [--out <overlay.png>] [--json]
+                              every layer edge the job will cut, judged by the flat treads
+                              either side of it: wider than the spot and the step survives
+                              as a step, narrower and the beam smears it into the slope. Says
+                              how many passes would blend nine edges in ten, or that more
+                              passes cannot help because the map's own levels are the steps.
+                              --out draws the edges that will show (amber: treads wider than
+                              the spot, red: wider than three spots). Blank and depth default
+                              to the ones last saved in the window, the spot to 7 um.
+                              --json gives schema depthview.terrace/1
 
         Tune a depth map (writes a new file, never over the original)
           DepthView --tune <image> [options]
@@ -348,6 +368,9 @@ internal static partial class Program
         int svidx = Array.FindIndex(args, a => a is "--survey");
         if (svidx >= 0) return RunSurvey(args.Skip(svidx + 1).ToArray());
 
+        int tridx = Array.FindIndex(args, a => a is "--terraces");
+        if (tridx >= 0) return RunTerraces(args.Skip(tridx + 1).ToArray());
+
         int gidx = Array.FindIndex(args, a => a is "--gcode");
         if (gidx >= 0) return RunGcode(args.Skip(gidx + 1).ToArray());
 
@@ -407,6 +430,19 @@ internal static partial class Program
             StartupOutline = args.Any(a => a is "--outline");
             StartupWriteDpi = args.Any(a => a is "--write-dpi");
             StartupUniformSurround = args.Any(a => a is "--uniform-surround");
+            StartupTerraces = args.Any(a => a is "--show-terraces");
+            int pli = Array.IndexOf(args, "--profile-line");
+            if (pli >= 0 && pli + 1 < args.Length)
+            {
+                var parts = args[pli + 1].Split(',');
+                var vals = new double[parts.Length];
+                bool ok = parts.Length == 4;
+                for (int k = 0; ok && k < 4; k++)
+                    ok = double.TryParse(parts[k], System.Globalization.NumberStyles.Float,
+                                         System.Globalization.CultureInfo.InvariantCulture, out vals[k])
+                         && vals[k] >= 0 && vals[k] <= 1;
+                if (ok) StartupProfileLine = vals;
+            }
 
             int fi = Array.IndexOf(args, "--fit");
             if (fi >= 0)
@@ -1002,6 +1038,105 @@ internal static partial class Program
     }
 
     /// <summary>
+    /// --terraces: where a map will terrace when it is cut at a pass count, measured on the map
+    /// as it stands (tune it first if it needs tuning - the tuned file is the one that gets cut).
+    /// The blank and target depth default to the ones the program remembers, and are printed,
+    /// because every millimetre and micron figure depends on them.
+    /// </summary>
+    private static int RunTerraces(string[] rest)
+    {
+        AttachParentConsole();
+        string? input = null, overlay = null;
+        bool json = false;
+        int passes = 256;
+        double blank = Blank.Current.DiameterMm, depth = Blank.Current.TargetDepthMm;
+        // WeCreat support give 6-8 um for the Lumos Ultra UV spot; the same default as --tune.
+        double spot = 7;
+
+        for (int i = 0; i < rest.Length; i++)
+        {
+            string a = rest[i];
+            string? Next() => i + 1 < rest.Length ? rest[++i] : null;
+            switch (a)
+            {
+                case "--json": json = true; break;
+                case "--out": overlay = Next(); break;
+                case "--passes": if (int.TryParse(Next(), out int p) && p > 1) passes = p; break;
+                case "--blank": if (double.TryParse(Next(), out double b) && b > 0) blank = b; break;
+                case "--depth-mm": if (double.TryParse(Next(), out double d) && d > 0) depth = d; break;
+                case "--spot": if (double.TryParse(Next(), out double s) && s > 0) spot = s; break;
+                default: if (!a.StartsWith('-') && input is null) input = a; break;
+            }
+        }
+
+        if (input is null || !File.Exists(input))
+        {
+            if (json) Console.WriteLine(JsonReport.Error(JsonReport.TerraceSchema, input is null ? "No input file." : $"No such file: {input}"));
+            else Console.Error.WriteLine("Usage: DepthView --terraces <image> [--passes n] [--blank mm] [--depth-mm mm] [--spot um] [--out overlay.png] [--json]");
+            return 2;
+        }
+        if (overlay is not null && SamePath(input, overlay))
+        {
+            const string refuse = "Refusing to write over the input file. Give --out a different path.";
+            if (json) Console.WriteLine(JsonReport.Error(JsonReport.TerraceSchema, refuse));
+            Console.Error.WriteLine(refuse);
+            return 2;
+        }
+
+        var loaded = ImageLoader.Load(File.ReadAllBytes(input), Path.GetFileName(input), input, "terraces");
+        var grey = DepthTuner.ExtractGrey(loaded.Image);
+        int w = loaded.Image.Width, h = loaded.Image.Height, max = loaded.Image.MaxValue;
+
+        // The blank spans the short side of the canvas, as everywhere else.
+        double ppmm = Math.Min(w, h) / blank;
+        var r = TerraceMap.Measure(grey, w, h, max, passes, ppmm, depth, spot, keepClasses: overlay is not null);
+
+        if (overlay is not null && r.Classes is { } cls)
+        {
+            var bgra = TerraceMap.Overlay(grey, w, h, max, cls, w, h, r.BlankRadiusPx);
+            using var img = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Bgra32>(bgra, w, h);
+            img.SaveAsPng(overlay);
+        }
+
+        if (json)
+        {
+            Console.WriteLine(JsonReport.Terraces(Path.GetFullPath(input), r, overlay));
+            return 0;
+        }
+
+        Console.WriteLine($"Terraces in {Path.GetFileName(input)} cut at {passes:N0} passes  ({r.Seconds:F2} s)");
+        foreach (var line in TerraceLines(r)) Console.WriteLine("  " + line);
+        if (overlay is not null)
+            Console.WriteLine($"  overlay         {Path.GetFileName(overlay)} - amber: treads wider than the spot, red: wider than three spots");
+        return 0;
+    }
+
+    /// <summary>The terrace figures in words, shared by --terraces and --tune.</summary>
+    internal static IEnumerable<string> TerraceLines(TerraceReport r)
+    {
+        yield return $"blank           {r.Width:N0} x {r.Height:N0} px at {r.PixelsPerMm:F1} px/mm ({r.MicronsPerPixel:F1} um/pixel),"
+                   + $" {r.TargetDepthMm:F2} mm deep, {r.SpotMicrons:F0} um spot";
+        yield return $"step            {r.StepMicrons:F2} um a pass; the map holds {r.UsedLevels:N0} levels on the blank";
+        if (r.BlankRadiusPx > 0)
+            yield return "measured        inside the blank only (the circle spanning the short side); the corners are not on the coin";
+        if (r.Edges == 0)
+        {
+            yield return "layer edges     none - the map is one level at this pass count";
+            yield break;
+        }
+        yield return $"layer edges     about {r.EdgeLengthMm:N0} mm of them; tread at the edges median {r.MedianTreadMicrons:F0} um,"
+                   + $" 90% under {(r.TreadCapped ? "more than " : "")}{r.P90TreadMicrons:F0} um";
+        yield return $"will show       {r.ShareWider * 100:F0}% of the edge length has treads wider than the spot on both sides,"
+                   + $" {r.ShareWider3 * 100:F0}% wider than three spots";
+        if (r.LimitedByLevels)
+            yield return "more passes     will not help: the map does not hold enough levels, so its own steps are the terraces";
+        else if (r.PassesToBlend90 is int need && need > r.Passes)
+            yield return $"to blend        about {need:N0} passes would bring nine edges in ten under the spot";
+        else
+            yield return "to blend        nine edges in ten already have treads no wider than the spot";
+    }
+
+    /// <summary>
     /// Writes a tuned copy of a depth map without opening a window, so a whole folder can be
     /// put through the same treatment, and so every part of the tuning path is exercisable
     /// from a script and from CI rather than only by hand.
@@ -1336,6 +1471,23 @@ internal static partial class Program
                                 + " this overrides it.");
             Console.WriteLine($"  range use       {before.RangeUtilisation * 100:F1}% -> {after.RangeUtilisation * 100:F1}%");
 
+            // Where each file terraces at this pass count, when the blank and depth are known:
+            // without them there is no millimetre to measure a tread in.
+            TerraceReport? terBefore = null, terAfter = null;
+            if (o.BlankDiameterMm is double tbMm && tbMm > 0 && o.TargetDepthMm is double tdMm && tdMm > 0)
+            {
+                terBefore = TerraceMap.Measure(grey, loaded.Image.Width, loaded.Image.Height, maxValue, passes,
+                                               Math.Min(loaded.Image.Width, loaded.Image.Height) / tbMm, tdMm, spotMicrons);
+                // The file as written, read back - an 8-bit output terraces on its own steps,
+                // which the in-memory map at the source's precision would hide.
+                terAfter = TerraceMap.Measure(DepthTuner.ExtractGrey(reloaded.Image), reloaded.Image.Width,
+                                              reloaded.Image.Height, reloaded.Image.MaxValue, passes,
+                                              Math.Min(reloaded.Image.Width, reloaded.Image.Height) / tbMm, tdMm, spotMicrons);
+                Console.WriteLine($"  terraces        wider than the spot: {terBefore.ShareWider * 100:F0}% -> {terAfter.ShareWider * 100:F0}%"
+                                + $" of the layer edges; median tread {terBefore.MedianTreadMicrons:F0} -> {terAfter.MedianTreadMicrons:F0} um"
+                                + " (--terraces on the output for the whole picture)");
+            }
+
             if (json)
             {
                 realOut.WriteLine(JsonReport.Tune(new JsonReport.TuneOutcome
@@ -1352,6 +1504,8 @@ internal static partial class Program
                     SpotMicrons = spotMicrons,
                     Before = before,
                     After = after,
+                    TerracesBefore = terBefore,
+                    TerracesAfter = terAfter,
                 }));
             }
             return 0;

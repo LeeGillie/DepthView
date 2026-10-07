@@ -56,6 +56,8 @@ public static class DepthAnalyzer
 
         ComputeStatistics(r);
         ComputeLevelStructure(r);
+        if (!r.IsFloat && img.Samples is { } samples)
+            r.LitScore = LitCheck.Score(samples, img.Channels, r.Width, r.Height, r.MaxValue);
         Classify(r);
 
         r.Elapsed = sw.Elapsed;
@@ -460,6 +462,30 @@ public static class DepthAnalyzer
                 "engraved as depth, its shadows are cut deep and its highlights left standing, whichever way the " +
                 "relief really goes. Get the depth map the picture was made from.";
             r.VerdictSeverity = Severity.Alert;
+        }
+
+        // A grey picture of a relief, lit from one side, rather than a depth map of it (1.9.0).
+        // The colour verdict above already covers a coloured picture; this is the one that
+        // passes it - a shaded grey render, which is what sculpting tools and many marketplaces
+        // show. A warning rather than a verdict of its own while the measure is young: it
+        // replaces only a clean verdict, and is listed as a finding either way.
+        bool lit = r.LitScore >= LitCheck.Threshold && r.NonGreyPixels * 2 <= r.PixelCount;
+        if (lit)
+        {
+            string litDetail =
+                "Raised features are bright on one side and dark on the other, the same way across the whole image: " +
+                "this reads as a picture of a relief lit from one side - a shaded render - rather than a depth map of it " +
+                $"(one-sidedness {r.LitScore:F3}; depth maps measured so far stay under {LitCheck.Threshold:F3}). " +
+                "Engraved as depth, the lit side would be left high and the shadowed side cut deep, whichever way the " +
+                "surface really goes. A depth map is the height itself: rendered from a sculpt, it is the Z or mist pass, " +
+                "not the shaded view.";
+            if (r.VerdictSeverity == Severity.Good)
+            {
+                r.Verdict = "LOOKS LIT, NOT DEPTH: a shaded picture?";
+                r.VerdictDetail = litDetail;
+                r.VerdictSeverity = Severity.Warn;
+            }
+            f.Add(new Finding(Severity.Warn, "Looks lit from one side", litDetail));
         }
 
         // ---- supporting findings ----

@@ -723,7 +723,7 @@ public static class JsonReport
         NumOrNull(w, "dpiX", m.DpiX);
         NumOrNull(w, "dpiY", m.DpiY);
         w.WriteNumber("fileBytes", m.FileBytes);
-        // Added after 1.9.0: the display curve the file declares (TODO 9.6), or null.
+        // Added 1.10.0: the display curve the file declares (TODO 9.6), or null.
         var curve = DisplayCurve.Of(m);
         if (curve.Kind == CurveKind.None) w.WriteNull("displayCurve");
         else
@@ -751,7 +751,7 @@ public static class JsonReport
         // Added 1.9.0: how one-sided the shading is; at or above litThreshold it looks lit.
         Num(w, "litScore", r.LitScore);
         Num(w, "litThreshold", LitCheck.Threshold);
-        // Added after 1.9.0: flattened peaks and jagged edges, on the circle the short side spans.
+        // Added 1.10.0: flattened peaks and jagged edges, on the circle the short side spans.
         if (r.FlatPeaks is { } fp) w.WriteNumber("flatPeaks", fp.Count); else w.WriteNull("flatPeaks");
         if (r.Aliasing is { } al)
         {

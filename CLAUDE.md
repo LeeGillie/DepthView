@@ -613,7 +613,7 @@ amplitude over mean |v − mean|³. The mean difference is removed, so **a plain
 
 ---
 
-## Detail, noise, flattened peaks and finishing (built 2026-10-07, unreleased)
+## Detail, noise, flattened peaks and finishing (built 2026-10-07, 1.10.0)
 
 **Mark box.** The Tune window's terrace checkbox became a Mark combo: Nothing, Terraces,
 Detail, Noise, Peaks (`enum Mark`; `--show-overlay terraces|detail|noise|peaks`). One
@@ -649,7 +649,7 @@ and **E values are calibrated there, not in code**. The simulator runs on the re
 - Product names are examples, not endorsements (the footer says so). Keep advice paraphrased
   from the research doc, with sources.
 
-**Round two (2026-10-07, unreleased).**
+**Round two (2026-10-07, 1.10.0).**
 
 - **Jagged edges** (`EdgeAlias.cs`): diagonal/curved step edges only; a step edge has 85% of
   its change in two of four sample steps, a stair 90% in one. The minimum step is 4% of the

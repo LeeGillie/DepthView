@@ -153,7 +153,7 @@ DepthView --terraces <file> --json [--passes <n>] [--blank <mm>] [--depth-mm <mm
 The blank and target depth default to the ones last saved in the window, and the spot to
 7 um; pass all three for a repeatable answer.
 
-**Detail and noise** (added after 1.9.0) - detail finer than the spot, and pixel noise on
+**Detail and noise** (added 1.10.0) - detail finer than the spot, and pixel noise on
 surfaces that should be smooth; same options and defaults as `--terraces`, and changes nothing
 unless `--out` asks for an overlay picture:
 
@@ -162,7 +162,7 @@ DepthView --detail <file> --json [--passes <n>] [--blank <mm>] [--depth-mm <mm>]
 DepthView --noise  <file> --json [--passes <n>] [--blank <mm>] [--depth-mm <mm>] [--out <overlay.png>]
 ```
 
-**Jagged edges** (added after 1.9.0; `--jaggies` is the same) - diagonal and curved step edges
+**Jagged edges** (added 1.10.0; `--jaggies` is the same) - diagonal and curved step edges
 that jump a whole step in one pixel, the mark of a map rendered at its final size:
 
 ```
@@ -207,8 +207,8 @@ entry:
 | `verdict.severity` | `good`, `info`, `warn` or `alert`. `alert` means the file is not what it claims - an imposter, or (added 1.8.0) a picture that is mostly colour, titled `NOT A DEPTH MAP: mostly colour`, with `imposter` `none`. (Added 1.9.0) `warn` titled `LOOKS LIT, NOT DEPTH: a shaded picture?` when a grey image is shaded from one side like a render; see `content.litScore` |
 | `verdict.imposter` | `none`, `replicated257` (8-bit bytes doubled into 16), `highByteOnly` (8-bit shifted into the high byte), `quantisedLadder` (evenly spaced levels, e.g. 10-bit), `sparseLevels` |
 | `verdict.title`, `verdict.detail` | plain-English explanation, ready to show a user |
-| `container.*` | what the file declares: `format`, `colorModel`, `declaredBitDepth`, `declaredChannels`, `hasAlpha`, `isPalette`, `bitExactDecode`, `dpiX`, `dpiY`, `fileBytes`, and (added after 1.9.0) `displayCurve`: `null`, or the display curve the file declares - `kind` (`srgb`, `gamma` or `icc`; an sRGB chunk overrides gAMA, and gAMA 1.0 is linear, so `null`), `fileGamma` (the gAMA value, for `gamma`), `canUndo` (`false` for `icc`), `depthAtStoredHalf` (how far down a level stored halfway down would be if the curve were undone: about 0.79 for sRGB). The tag alone does not prove the curve was applied; DepthView always uses the values as stored |
-| `content.*` | what the pixels contain: `width`, `height`, `channels`, `bitDepth`, `maxValue`, `isFloat`, `uniqueGreyLevels`, `greyPixels`, `nonGreyPixels`, `greyStoredAsColor`, (added after 1.9.0) `flatPeaks` (how many flattened peaks, as in `--survey`, on the circle the short side spans) and `jaggedEdges` (`edgePixels` judged, `share` that jump in one pixel, `jagged`), each `null` for a float map or a mostly-colour picture, and (added 1.9.0) `litScore` - how one-sided the shading is, near 0 for a depth map and a few hundredths for a render lit from one side - and `litThreshold`, the score at which the verdict says it looks lit |
+| `container.*` | what the file declares: `format`, `colorModel`, `declaredBitDepth`, `declaredChannels`, `hasAlpha`, `isPalette`, `bitExactDecode`, `dpiX`, `dpiY`, `fileBytes`, and (added 1.10.0) `displayCurve`: `null`, or the display curve the file declares - `kind` (`srgb`, `gamma` or `icc`; an sRGB chunk overrides gAMA, and gAMA 1.0 is linear, so `null`), `fileGamma` (the gAMA value, for `gamma`), `canUndo` (`false` for `icc`), `depthAtStoredHalf` (how far down a level stored halfway down would be if the curve were undone: about 0.79 for sRGB). The tag alone does not prove the curve was applied; DepthView always uses the values as stored |
+| `content.*` | what the pixels contain: `width`, `height`, `channels`, `bitDepth`, `maxValue`, `isFloat`, `uniqueGreyLevels`, `greyPixels`, `nonGreyPixels`, `greyStoredAsColor`, (added 1.10.0) `flatPeaks` (how many flattened peaks, as in `--survey`, on the circle the short side spans) and `jaggedEdges` (`edgePixels` judged, `share` that jump in one pixel, `jagged`), each `null` for a float map or a mostly-colour picture, and (added 1.9.0) `litScore` - how one-sided the shading is, near 0 for a depth map and a few hundredths for a render lit from one side - and `litThreshold`, the score at which the verdict says it looks lit |
 | `levels.*` | `min`, `max`, `rangeUse` (0-1), `occupancy` (0-1), `effectiveBits`, `step` (1 for genuine data; 257, 256, 64... for imposters), `uniformLadder`, `gaps`, `largestGap`, `mean`, `median`, `stdDev`, `p1`, `p99`, `pureBlackPixels`, `pureWhitePixels`, `headroomTop`, `headroomBottom` |
 | `passCounts[]` | one row per pass count: `passes`; `depths` (distinct engraved depths actually produced); `uniform`, `relief`, `empty` (what the passes do - they always sum to `passes`); `stretched` (depths if the range were filled); `bandSpread` (`min`, `max`, `ratio` of levels per band; `null` when the map has fewer levels than passes) |
 | `findings[]` | `severity`, `title`, `detail` - everything the window's report lists |
@@ -306,7 +306,7 @@ levels, before any level points.
 | `readings[]` | the floor and top under each reading of the design: `backgroundIsDesign`, `drawnRimCovered`, then `floor` and `top`, each `found`, `low`, `high`, `noise` (`high - low`: the roughness a level point removes), `pixels`, `share`, `suggested` (the level point that makes it one exact level), `source` (`background`, `flat area N`, `gap` - a few detached pockets beyond an empty stretch of the range, with `suggested` closing the gap - or `percentile` when nothing was found, when `suggested` is the 0.1st or 99.9th percentile) |
 | `noiseSigma` | Immerkaer's whole-design noise estimate, in levels. Fine detail reads as noise too, so treat it as an upper figure; each flat area's `jitter` is the one that matters |
 | `passes` | the pass count `boundariesCrossed` is quoted at |
-| `flatPeaks[]` | (added after 1.9.0) flattened peaks - small level plateaus on top of a local bump, below pure white, the "flat nose tip" a depth estimator or a clipped export leaves: `rank`, `pixels`, `level`, `centreX`, `centreY`, `bandPixels` (pixels one level below the plateau; a real rounded top has many, a clipped one almost none). Largest first, up to 50, inside the blank. Inspection only: nothing offers to fix them |
+| `flatPeaks[]` | (added 1.10.0) flattened peaks - small level plateaus on top of a local bump, below pure white, the "flat nose tip" a depth estimator or a clipped export leaves: `rank`, `pixels`, `level`, `centreX`, `centreY`, `bandPixels` (pixels one level below the plateau; a real rounded top has many, a clipped one almost none). Largest first, up to 50, inside the blank. Inspection only: nothing offers to fix them |
 | `flatAreas[]` | nearly level areas inside the design (inside any drawn rim), largest first: `rank`, `pixels`, `shareOfDesign`, `median`, `low`, `high`, `jitter` (median pixel-to-pixel deviation), `mostlyJitter` (spread no wider than the jitter explains), `floor`, `top` (at that end of the design), `boundariesCrossed` (slice boundaries the area straddles at `passes`, after the default reading's suggested level points), `centreX`, `centreY` |
 | `seconds` | time taken |
 
@@ -337,7 +337,7 @@ not a promise about what the eye will see, which also depends on step height, fi
 
 ## `depthview.detail/1`
 
-Detail finer than the spot (added after 1.9.0). A grey-scale opening with a flat disc the size
+Detail finer than the spot (added 1.10.0). A grey-scale opening with a flat disc the size
 of the spot removes every ridge and dot narrower than it, and a closing removes every groove;
 what they take away is the detail a spot that size cannot cut as drawn. Counted where it stands
 at least one layer step proud of (or below) its surroundings, inside the blank.
@@ -358,7 +358,7 @@ at least one layer step proud of (or below) its surroundings, inside the blank.
 
 ## `depthview.noise/1`
 
-Pixel noise on surfaces that should be smooth (added after 1.9.0). In tiles about a quarter of
+Pixel noise on surfaces that should be smooth (added 1.10.0). In tiles about a quarter of
 a millimetre across, the median size of the pixel-to-pixel second difference, which a median
 keeps from reading real edges and texture as noise. Compared with one layer step: noise under
 half a step cuts away; above it the surface comes out rough.
@@ -379,7 +379,7 @@ half a step cuts away; above it the surface comes out rough.
 
 ## `depthview.aliasing/1`
 
-Jagged edges (added after 1.9.0). A map built at two or three times its final size and reduced
+Jagged edges (added 1.10.0). A map built at two or three times its final size and reduced
 carries in-between levels along its edges; one rendered at its final size jumps a whole step in
 one pixel, and cuts every diagonal and curve as a staircase. Only diagonal and curved step edges
 are judged (a wall along the pixel grid jumps in one pixel whatever made it), inside 96% of the

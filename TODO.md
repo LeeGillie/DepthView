@@ -3,7 +3,7 @@
 Everything discussed and consciously set aside, with enough context to pick it up cold.
 Ordered by my estimate of value per unit of work, not by size.
 
-### Resume here (updated 2026-10-07, 1.9.0)
+### Resume here (updated 2026-10-07, 1.10.0)
 
 1.4.0 brought true-scale relief, one program-wide blank, zip installers and the in-place
 updater; 1.5.0 added JSON output for host programs and enforces never writing over the input;
@@ -41,8 +41,13 @@ Next up, roughly in order:
   (§9.1: "LOOKS LIT, NOT DEPTH", warn only), and Help buttons that open the guides on GitHub
   at the copy's own release tag (Lee chose links over PDFs in the zip, to keep downloads
   small). Design notes in CLAUDE.md.
-- **Next feature release (designed 2026-10-07, §10):** the .dvp profile, the job report, and
-  the finishing preview. Research in `docs/research/finishing-chemistry.md`. Then TODO low-hanging
+- **1.10.0 (2026-10-07)**: the finishing preview's first cut for brass, copper and bronze
+  (§10.3), the Tune window's Mark box (detail finer than the spot §9.7, pixel noise §9.3,
+  flattened peaks §9.2, jagged edges §9.8), display-curve findings and the "as if undone"
+  preview (§9.6), and the depth line in the main window (§9.5). Announced in LUOM with the
+  promo video (https://youtu.be/bNdW8oT88HU).
+- **Next feature release (designed 2026-10-07, §10):** the .dvp profile and the job report;
+  the finishing preview grows from its first cut. Research in `docs/research/finishing-chemistry.md`. Then TODO low-hanging
   fruit (§9.7, §9.2, §9.3), then the ablation simulation - which needs the bench work (§7.1 spot
   coupon, §7.2 mass loss) done first, so start the coupons alongside.
 - **§9 still open: inspection beyond the depth map** - flattened peaks (§9.2), a noise map
@@ -612,7 +617,7 @@ measurement and the entry path for it.
   the depth beyond which constant `d_pass` is not trusted is stated as a number.
 - Blocked on: brass and stainless coupons cut at the chosen pass count. Nothing else.
 
-### 7.3 ~~Terrace-width prediction~~  **Built 2026-10-06** (unreleased, for 1.9.0)
+### 7.3 ~~Terrace-width prediction~~  **Built 2026-10-06** (1.9.0)
 
 Shipped as `Processing/TerraceMap.cs`: `--terraces [--out overlay.png] [--json]`
 (`depthview.terrace/1`), `terraces.before/after` in `--tune --json`, and the Tune window's
@@ -971,7 +976,7 @@ direction (summed x/y derivatives over the design point one way); on a depth map
 - Verdict wording along the lines of "LOOKS LIT, NOT DEPTH: one side of the rim is N% brighter
   than the other", as a warning rather than an alert until it has been tried on many files.
 
-### 9.2 ~~Flattened peaks - the "flat nose tip"~~  **Built 2026-10-07** (unreleased)
+### 9.2 ~~Flattened peaks - the "flat nose tip"~~  **Built 2026-10-07** (1.10.0)
 
 `Processing/FlatPeaks.cs`: a 4-connected equal-level plateau that is a local maximum, below
 pure white (white is the untouched surface, not a clipped peak), between 16 px and 1% of the
@@ -989,7 +994,7 @@ the picture, the way the wizard shows flat areas, with their size and level. Dis
 `FlatAreas`, which looks for large level regions; this looks for small flat *tops*. Report it
 in `--survey` and the analysis findings; offer nothing to "fix" it.
 
-### 9.3 ~~A noise map~~  **Built 2026-10-07** (unreleased)
+### 9.3 ~~A noise map~~  **Built 2026-10-07** (1.10.0)
 
 `Processing/NoiseMap.cs`, `--noise` (`depthview.noise/1`), and the Mark box ("Pixel noise on
 smooth surfaces"). Per tile (about 0.25 mm, at least 7 px, half-overlapping) the **median**
@@ -1016,7 +1021,7 @@ whether a map will still read once it is antiqued. Label it as a look, not a pre
 
 ### 9.5 ~~A depth-profile line~~  **Built 2026-10-06 in the Tune window** (for 1.9.0); **main window 2026-10-07**
 
-Main window (unreleased): drag across the picture (a plain click still browses) and the plot
+Main window (1.10.0): drag across the picture (a plain click still browses) and the plot
 appears above the details, at the saved blank, depth and pass count against a 7 um spot; the
 3D preview lays the same line on the surface in cyan (`ReliefOptions.Line`).
 `--profile-line` without `--tune-ui` sets it for screenshots.
@@ -1032,7 +1037,7 @@ It shows how depth *progresses* along a surface - the property that decides whet
 area cuts smooth - which no single number does. Reuse `Controls/ProfilePlot`. Optionally
 draw the same line on the relief preview so the two can be compared.
 
-### 9.6 ~~"As stored" vs "as if linear"~~  **Built 2026-10-07** (unreleased)
+### 9.6 ~~"As stored" vs "as if linear"~~  **Built 2026-10-07** (1.10.0)
 
 `Analysis/DisplayCurve.cs`. The PNG decoder now reads the sRGB chunk (it read gAMA and iCCP
 already); sRGB overrides gAMA as the PNG specification says. A declared curve gets a finding
@@ -1048,7 +1053,7 @@ other. When the file declares a curve, say so in the findings in those terms, an
 view of the map as if the curve were undone. A curve the file does not declare cannot be
 detected from the pixels alone; do not pretend otherwise.
 
-### 9.7 ~~Fine detail against the spot~~  **Built 2026-10-07** (unreleased)
+### 9.7 ~~Fine detail against the spot~~  **Built 2026-10-07** (1.10.0)
 
 `Processing/DetailMap.cs` on `Processing/Morphology.cs` (van Herk / Gil-Werman running
 max/min per disc row; `CloseLarge` max-pools for big radii), `--detail` (`depthview.detail/1`)
@@ -1072,7 +1077,7 @@ which is the honest way to compare lenses: same file, two spot sizes.
 - Mind lettering: a stroke narrower than the spot is the commonest casualty and the one users
   notice first. A fixture with text at several stroke widths makes the test.
 
-### 9.8 ~~Jagged edges, and the case for supersampling~~  **Built 2026-10-07** (unreleased)
+### 9.8 ~~Jagged edges, and the case for supersampling~~  **Built 2026-10-07** (1.10.0)
 
 `Processing/EdgeAlias.cs`, `--aliasing` (or `--jaggies`; `depthview.aliasing/1`), the Mark box
 ("Jagged edges"), a finding and row in the analysis, `content.jaggedEdges` in the report.
@@ -1157,7 +1162,7 @@ pictures and charts inline. Contents:
 
 ### 10.3 The finishing preview
 
-**First cut built 2026-10-07 (unreleased), for brass, copper and bronze** - Lee: "run with
+**First cut built 2026-10-07 (1.10.0), for brass, copper and bronze** - Lee: "run with
 what we know" for the target material, with the advice in the UI, non-intrusive but available.
 Built ahead of 10.1/10.2 on purpose; the recipe is plain data ready for the .dvp.
 

@@ -479,6 +479,79 @@ def check_lit(exe, work):
               f"lit check: the render scored {lc.get('litScore')}, verdict {(l.get('verdict') or {}).get('title')!r}")
 
 
+def write_synthetic(path):
+    """A 400 px test map with one of each thing the inspections look for, at known places.
+
+    A smooth dome clipped flat just below its top at (110, 110) - a flattened peak; the same
+    dome left whole at (290, 110), which must not be one; a smooth slope with pixel noise on
+    it at x 40-160, y 240-340; and raised lines 1, 2, 4 and 8 px wide at x 220, 260, 300, 340.
+    """
+    import random
+    rnd = random.Random(3)
+    noise = {}
+
+    def px(x, y):
+        v = 20000.0
+        v = max(v, min(60000 - ((x - 110) ** 2 + (y - 110) ** 2) * 1.4, 59800))
+        v = max(v, 56000 - ((x - 290) ** 2 + (y - 110) ** 2) * 1.4)
+        if 40 <= x < 160 and 240 <= y < 340:
+            v = 35000 + (x - 100) * 20 + noise.setdefault((x, y), rnd.gauss(0, 600))
+        for k, wdt in enumerate((1, 2, 4, 8)):
+            x0 = 220 + k * 40
+            if x0 <= x < x0 + wdt and 220 <= y < 360:
+                v = 45000
+        return int(max(0, min(65535, round(v))))
+
+    write_grey16(path, 400, 400, px)
+
+
+def check_inspect(exe, work):
+    """--detail, --noise and the survey's flattened peaks on the synthetic map, and a
+    finished render. 400 px on a 4 mm blank is 10 um a pixel; the spot is 30 um."""
+    src = os.path.join(work, "synthetic.png")
+    write_synthetic(src)
+    common = ("--json", "--passes", "256", "--blank", "4", "--depth-mm", "0.5")
+
+    code, doc, _, _ = run(exe, "--detail", src, *common, "--spot", "30", cwd=work)
+    doc = doc or {}
+    check(code == 0 and doc.get("schema") == "depthview.detail/1", f"--detail: exit {code}, schema {doc.get('schema')!r}")
+    us, u2 = doc.get("underSpot") or {}, doc.get("underTwoSpots") or {}
+    check(abs(doc.get("micronsPerPixel", 0) - 10) < 0.2, f"detail: {doc.get('micronsPerPixel')} um/pixel, expected 10")
+    check(us.get("raisedPixels", 0) > 0, f"detail: the 1-2 px lines should be under the spot: {us}")
+    # The two bands are separate: finer than one spot, then between one and two spots.
+    check(u2.get("raisedPixels", 0) > 0, f"detail: the 2-4 px lines should be under two spots: {u2}")
+    check(0 < us.get("share", 1) < 0.2, f"detail: share under the spot {us.get('share')}")
+
+    code, doc, _, _ = run(exe, "--noise", src, *common, cwd=work)
+    doc = doc or {}
+    check(code == 0 and doc.get("schema") == "depthview.noise/1", f"--noise: exit {code}, schema {doc.get('schema')!r}")
+    check(doc.get("noisyPixels", 0) > 0 and doc.get("shareNoisy", 1) < 0.3,
+          f"noise: the noisy patch should be found and nothing much else: {doc.get('noisyPixels')}, {doc.get('shareNoisy')}")
+    cone = os.path.join(work, "cone16.png")
+    if os.path.exists(cone):
+        code, cdoc, _, _ = run(exe, "--noise", cone, *common, cwd=work)
+        check((cdoc or {}).get("noisyPixels", -1) == 0, f"noise: a smooth cone is not noisy: {(cdoc or {}).get('noisyPixels')}")
+
+    code, doc, _, _ = run(exe, "--survey", src, "--json", cwd=work)
+    peaks = (doc or {}).get("flatPeaks")
+    check(isinstance(peaks, list) and len(peaks) >= 1, f"survey: flatPeaks missing or empty: {peaks!r}")
+    if peaks:
+        p0 = peaks[0]
+        check(abs(p0.get("centreX", 0) - 110) < 6 and abs(p0.get("centreY", 0) - 110) < 6,
+              f"survey: the clipped dome is at (110, 110), got ({p0.get('centreX')}, {p0.get('centreY')})")
+        check(all(abs(p.get("centreX", 0) - 290) > 20 for p in peaks), f"survey: the whole dome is not a flat peak: {peaks}")
+
+    # The finishing preview, headless: a render, and a typo refused rather than ignored.
+    out = os.path.join(work, "finished.png")
+    code, _, text, err = run_text(exe, "--render", src, "--blank", "4", "--depth-mm", "0.5", "--size", "200",
+                                  "--finish", "darken=jax_black;relieve=hardfelt_rouge;seal=wax", "--out", out, cwd=work)
+    check(code == 0 and os.path.exists(out), f"--render --finish: exit {code}, {err.strip()[:200]}")
+    check("JAX Black" in text and "Hard felt" in text, f"--render --finish should describe the recipe: {text[:300]!r}")
+    code, _, _, err = run_text(exe, "--render", src, "--size", "100", "--finish", "darken=jax_black;relve=propad",
+                               "--out", os.path.join(work, "typo.png"), cwd=work)
+    check(code == 2 and "relve" in err, f"--render --finish with an unknown key: exit {code}, {err.strip()[:200]}")
+
+
 def run_text(exe, *args, cwd=None):
     p = subprocess.run([exe, *args], capture_output=True, text=True, cwd=cwd)
     return p.returncode, None, p.stdout, p.stderr
@@ -586,6 +659,9 @@ def main(exe):
 
         # --- a lit render passed off as a depth map ---------------------------------
         check_lit(exe, work)
+
+        # --- detail under the spot, pixel noise, flattened peaks, a finished render ---
+        check_inspect(exe, work)
 
         # --- the original is never written over -------------------------------------
         size = os.path.getsize(src)

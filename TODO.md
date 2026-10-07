@@ -971,7 +971,14 @@ direction (summed x/y derivatives over the design point one way); on a depth map
 - Verdict wording along the lines of "LOOKS LIT, NOT DEPTH: one side of the rim is N% brighter
   than the other", as a warning rather than an alert until it has been tried on many files.
 
-### 9.2 Flattened peaks - the "flat nose tip"  *(code only)*
+### 9.2 ~~Flattened peaks - the "flat nose tip"~~  **Built 2026-10-07** (unreleased)
+
+`Processing/FlatPeaks.cs`: a 4-connected equal-level plateau that is a local maximum, below
+pure white (white is the untouched surface, not a clipped peak), between 16 px and 1% of the
+design, and at least three times the size of the one-level band below it (a rounded top has a
+wide band; a clipped one almost none). In `--survey` (text, and `flatPeaks` in JSON) and the
+Tune window's Mark box ("Flattened peaks"). Still open: a line in the analysis findings.
+Original plan:
 
 A small area that is perfectly flat at the top of a local bump, below pure white, is usually
 a peak clipped by whatever made the map (an AI depth estimator, an export that ran out of
@@ -980,7 +987,15 @@ the picture, the way the wizard shows flat areas, with their size and level. Dis
 `FlatAreas`, which looks for large level regions; this looks for small flat *tops*. Report it
 in `--survey` and the analysis findings; offer nothing to "fix" it.
 
-### 9.3 A noise map  *(code only; builds on the survey)*
+### 9.3 ~~A noise map~~  **Built 2026-10-07** (unreleased)
+
+`Processing/NoiseMap.cs`, `--noise` (`depthview.noise/1`), and the Mark box ("Pixel noise on
+smooth surfaces"). Per tile (about 0.25 mm, at least 7 px, half-overlapping) the **median**
+|Immerkaer Laplacian|, scaled to a sigma. A windowed *mean* flagged every diagonal and curved
+step edge as noise; the median does not, which is how it separates noise from real edges and
+texture. Thresholds against the layer step: noisy at half a step, very noisy at two. Measured
+survive ratios after a 3x3 average (white noise 0.07, 6 px texture 0.44, 12 px 0.83) are why
+texture is not flagged. Original plan:
 
 The survey already estimates noise for the whole design (Immerkaer) and for each flat area.
 Show it as an overlay: local noise in a sliding window, warm where pixel noise sits on a
@@ -989,7 +1004,7 @@ real. It answers "where should I clean up before cutting" without blurring anyth
 separate noise from fine texture (scales, stitching, engraved lines), which is exactly what
 a blur gets wrong - compare local noise with local gradient strength.
 
-### 9.4 An "antiqued" finish in the relief preview  *(rendering - now part of §10.3)*
+### 9.4 ~~An "antiqued" finish in the relief preview~~  *(built as part of §10.3, 2026-10-07)*
 
 Finished coins read because of the finishing: dark recesses, polished high points, a
 patina. The preview already finishes the untouched field and the engraved floor differently;
@@ -1019,7 +1034,13 @@ other. When the file declares a curve, say so in the findings in those terms, an
 view of the map as if the curve were undone. A curve the file does not declare cannot be
 detected from the pixels alone; do not pretend otherwise.
 
-### 9.7 Fine detail against the spot  *(code only; pairs with the terrace map)*
+### 9.7 ~~Fine detail against the spot~~  **Built 2026-10-07** (unreleased)
+
+`Processing/DetailMap.cs` on `Processing/Morphology.cs` (van Herk / Gil-Werman running
+max/min per disc row; `CloseLarge` max-pools for big radii), `--detail` (`depthview.detail/1`)
+and the Mark box ("Detail finer than the spot"): red under one spot, amber under two, counted
+where a feature stands a layer step proud. Blodgett at 30 um: 0.13% (thin branches), 2 s at
+4096 px. Still open: the lettering fixture at several stroke widths. Original plan:
 
 Cut with a larger spot, a design loses its finest detail first: lettering edges round, thin
 lines are nearly lost, and small dots and stippling blur. Which details survive is a question about feature *width* against
@@ -1060,7 +1081,7 @@ where a one-pixel jump is a stair, not vertical walls along the pixel grid.
 
 ---
 
-## 10. Finishing preview, job report and .dvp profiles  *(design, 2026-10-07 - for Lee's markup before code)*
+## 10. Finishing preview, job report and .dvp profiles  *(design 2026-10-07, agreed by Lee; 10.3 first cut built 2026-10-07)*
 
 Lee's idea: once a coin is tuned and the engraving is settled, a further phase shows only the
 finished piece in 3D through the post-processing a maker actually does - clean, polish, antique,
@@ -1110,6 +1131,43 @@ pictures and charts inline. Contents:
 - **Done when:** one button (and `--report-html`) writes it beside the map from the current .dvp.
 
 ### 10.3 The finishing preview
+
+**First cut built 2026-10-07 (unreleased), for brass, copper and bronze** - Lee: "run with
+what we know" for the target material, with the advice in the UI, non-intrusive but available.
+Built ahead of 10.1/10.2 on purpose; the recipe is plain data ready for the .dvp.
+
+- `Finishing/catalogue.json` (embedded; schema `depthview.finishing-catalogue/1`): 3 metals,
+  6 cleanings, 4 pre-polishes, 9 darkeners (JAX Black / Brown-Black / Brown, Birchwood Casey
+  Brass Black, Birchwood Antique Black M24 and Antique Brown M38, Sculpt Nouveau Traditional
+  Antiquing, liver of sulfur, green patina), 15 relieving tools, 3 pressures, 4 sealers. Every
+  entry: advice, V/C/E basis, sources; darkeners carry a safety badge. **Recalibrate here, not
+  in code.**
+- `Finishing/FinishSimulator.cs`: the research model. Oxide on the engraving; cleaning removes
+  it, burnishes, pickles or blasts; darkening `x = t/tau * (0.3 + 0.7 s)`, faster on rough
+  metal and blocked by leftover oxide; the film covers (1 - e^-3x) before it reaches its colour
+  (1 - e^-x); relieving by the probe model (padded closing, so a tool can overhang the coin;
+  outside the blank is no metal); wax takes the colour back. Checks in plain words: oxide left
+  on, product not for this metal, overdone, too light, tool reaching the deep half, highs not
+  bright, wax lightening.
+- `Rendering/FinishLayer.cs` + `ReliefRenderer.ShadeFinish`: bare metal (F0, roughness,
+  pickle tint) under a dielectric patina blended by coverage, under an optional clear coat.
+- `Views/FinishWindow.cs`, from the Tune window's **Finishing ...** button: stage chips
+  (Raw ... Seal), one box per step, a tooltip on every choice, a safety badge beside the
+  darkener, a guidance panel that follows the step last touched (advice, numbers, basis,
+  source links) and folds away, checks under the picture, Copy recipe, Save picture.
+- `--render <map> --finish "key=value;..."` headless (prints the recipe and checks; an unknown
+  key exits 2), `--finish-ui [recipe]` opens it for screenshots. `check_json.py` covers both.
+- Blodgett, 40 mm, 0.6 mm: Pro Polishing pad keeps 96% of the deep half dark with every high
+  bright; a soft buff strips the deep half (warned); hard felt brightens only the highest
+  tops - the done-when's "soft buff vs flat block visibly different" holds.
+
+Still open, in rough order: silver, nickel silver, steel, stainless, aluminium and titanium
+chemistries and thin-film colour (the research has the tables); anisotropy for brushed and
+wool-rubbed areas; edge rounding with dwell; the coin's own edge in 3D (outside the blank is
+drawn as background); remembering the recipe across sessions and in the .dvp (10.1); the
+report (10.2); and the calibration coins, after which E values become measurements.
+
+Design as agreed:
 
 A stage-by-stage 3D view of the finished piece. The research reduces every stage to one idea:
 **darken everything, then rub back the highs** - so the preview patinates the whole surface and

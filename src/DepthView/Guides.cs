@@ -16,9 +16,14 @@ namespace DepthView;
 /// </summary>
 public static class Guides
 {
-    public enum Kind { User, Tuning }
+    public enum Kind { User, Tuning, Finishing }
 
-    public static string Path(Kind k) => k == Kind.User ? "README.md" : "docs/TUNING-GUIDE.md";
+    public static string Path(Kind k) => k switch
+    {
+        Kind.User => "README.md",
+        Kind.Finishing => "docs/research/finishing-chemistry.md",
+        _ => "docs/TUNING-GUIDE.md",
+    };
 
     /// <summary>The release tag this copy's guides live at, or main for a build from source.</summary>
     public static string Ref => BuildInfo.SingleFile ? "v" + BuildInfo.Version : "main";

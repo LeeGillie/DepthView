@@ -564,8 +564,8 @@ Facts worth not re-deriving:
 
 Three inspection features that need no measured constant, built before the bench work.
 
-**Terrace map** (`Processing/TerraceMap.cs`, `--terraces`, the Tune window's "Show where the
-layers will show as steps"). The question is *where will the layers show as visible steps*.
+**Terrace map** (`Processing/TerraceMap.cs`, `--terraces`, the Tune window's Mark box,
+"Where the layers will show as steps"; a checkbox in 1.9.0). The question is *where will the layers show as visible steps*.
 For every layer-edge pixel it takes the Sobel direction of the **slice indices** (not the raw
 grey), walks down-slope across the pixel's own tread and up-slope across the next one, and
 keeps the narrower. A tread narrower than the spot blends; wider than the spot it shows;
@@ -610,6 +610,44 @@ amplitude over mean |v − mean|³. The mean difference is removed, so **a plain
   fooled both.
 - **Known miss**: a synthetic Lambert render of smooth bumps with no cast shadow is not
   caught. It is documented, not a bug to chase — real renders have the asymmetry.
+
+---
+
+## Detail, noise, flattened peaks and finishing (built 2026-10-07, unreleased)
+
+**Mark box.** The Tune window's terrace checkbox became a Mark combo: Nothing, Terraces,
+Detail, Noise, Peaks (`enum Mark`; `--show-overlay terraces|detail|noise|peaks`). One
+full-resolution pass computes whichever is chosen; `ClassOverlay.Draw` paints the classes.
+
+- **Detail** (`DetailMap.cs`, `Morphology.cs`): opening and closing with a flat disc of the
+  spot; classes are **disjoint bands** - under one spot (2), else under two (1). Threshold one
+  layer step. Do not test "under two includes under one"; it does not.
+- **Noise** (`NoiseMap.cs`): tile **medians** of |Laplacian|. Windowed means flagged every
+  curved step edge; do not go back.
+- **Flattened peaks** (`FlatPeaks.cs`): excludes only pure white. Excluding "the map's top
+  level" hid the very clipped dome it exists to find.
+
+**Finishing** (`Finishing/`, `Rendering/FinishLayer.cs`, `Views/FinishWindow.cs`). Data in
+`Finishing/catalogue.json`, embedded as `DepthView.Finishing.catalogue.json`; numbers are V/C/E
+and **E values are calibrated there, not in code**. The simulator runs on the relief field
+(≤ 900 px from the tuned map), mm per sample = blank / short side.
+
+- **Outside the blank is no metal**: heights there drop to the deepest level inside (else a
+  white corner stands over the rim like a wall and no tool reaches the edge), the layer's `Void`
+  marks it, and `ShadeFinish` draws background. The canvas border is void too, or the 3D
+  view's slab edge is shaded as coin where the blank touches it.
+- **Closings are padded** with the lowest level (`PaddedClose`) so a tool can overhang the coin.
+- The darkener's film covers fast (1 - e^-3x) and colours slowly (1 - e^-x). Using one curve
+  for both left half-darkened coins looking like grey metal.
+- Rough-floor hold is 1/(1 + 0.6(r - 0.3)); at 1.2 nothing on a fully lasered coin (Blodgett
+  is lasered everywhere) ever came back bright.
+- Stats are against the relief's own range (top tenth = highs, deeper half = floors), inside
+  the blank: many maps never reach pure white.
+- `--render ... --finish` and `--finish-ui` exist for tests and screenshots. **In PowerShell
+  never pipe a GUI-subsystem DepthView into `Select-Object -First`**: it kills the process
+  before it writes its PNG.
+- Product names are examples, not endorsements (the footer says so). Keep advice paraphrased
+  from the research doc, with sources.
 
 ---
 

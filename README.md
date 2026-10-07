@@ -601,7 +601,7 @@ the file has.** A genuine 16-bit map cut at a thousand layers can still terrace 
 neck, and an 8-bit map at a thousand layers terraces on its own 256 steps whatever the
 layer count.
 
-**Show where the layers will show as steps** marks it on both pictures, measured at full
+**Mark: Where the layers will show as steps** marks it on both pictures, measured at full
 resolution against the spot size, and only inside the blank - the cyan circle. The corners
 of a square map are not on the coin, so a shaded background there is dimmed and not counted.
 Amber: the treads either side of an edge are wider than the spot. Red: more than three spots
@@ -621,6 +621,54 @@ arrives as a slope or as a flight of steps.
 It is geometry. Whether a step of a given width is visible to the eye also depends on its
 height, the finish and the light; the spot is the honest dividing line the geometry supports.
 `DepthView --terraces <map>` does the same headlessly, with an overlay image and JSON.
+
+#### Detail, noise and flattened peaks
+
+The **Mark** box above the pictures has three more inspections, each measured at full
+resolution inside the blank and each changing nothing in the file:
+
+- **Detail finer than the spot.** Lettering edges, thin lines and fine stippling are the first
+  things a larger spot loses. Red marks raised or recessed detail narrower than one spot, amber
+  narrower than two, where it stands at least a layer step proud. Try the same map at two spot
+  sizes to compare lenses. `DepthView --detail <map>`.
+- **Pixel noise on smooth surfaces.** Where pixel-to-pixel noise on a surface that should be
+  smooth is at least half a layer step (amber) or two steps (red) - it cuts as a rough surface.
+  Real edges and texture are not counted as noise. `DepthView --noise <map>`.
+- **Flattened peaks.** Small flat tops on raised features, below pure white - the "flat nose
+  tip" a depth estimator or a clipped export leaves. Fixing one is a job for a sculpting
+  program; DepthView only shows where they are. `--survey` lists them too.
+
+#### Finishing
+
+**Finishing ...** in the Tune window shows the tuned relief as it would look after the work a
+maker does once the laser stops: clean, pre-polish, darken, relieve the highs, seal. Choose
+the metal (brass, copper or bronze for now), how you clean it, the darkener - JAX, Birchwood
+Casey, Birchwood Technologies, Sculpt Nouveau, liver of sulfur - its strength and time, the
+tool you rub back with and how hard, and the sealer. The chips above the picture show the coin
+after any step.
+
+Everything you can choose carries its advice: hover for a tooltip, or read the **Guidance**
+panel, which follows the step you last touched with what is known about it, the numbers, how
+sure they are (from a source, or an estimate) and links to the sources and safety data sheets.
+Darkeners show a safety badge beside them - the selenium blacks are corrosive and hazardous
+waste, liver of sulfur gives off hydrogen sulfide, and the two must never be mixed. Under the
+picture, plain-word checks say when a recipe has a problem: oxide left on, a product that
+barely reacts with the metal, a black left long enough to go powdery, a tool that reaches the
+deep recesses and strips them.
+
+<p align="center">
+  <img src="docs/images/finishing.png" alt="The finishing window: the Blodgett Arch coin in 3D darkened with JAX Brown-Black and rubbed back with a flat polishing pad, bright highs over dark recesses, with the recipe on the right and the guidance panel describing the pad" width="820">
+</p>
+
+The model follows practice: darken everything, then rub it back - and the tool's stiffness,
+not its grit, decides how deep it reaches. A flat pad or hard felt keeps the recesses dark; a
+soft buff follows the surface down and takes them back to metal. **It is a look, not a
+prediction**: patina colours, roughness and tool reach are estimates from published practice,
+because nobody publishes measurements of them. Calibrate on a test coin before a client piece.
+Products are named so you can find them; no maker has endorsed DepthView.
+`DepthView --render <map> --finish "darken=jax_black;relieve=propad;seal=wax"` renders one
+headlessly. The research behind every number is in
+[docs/research/finishing-chemistry.md](docs/research/finishing-chemistry.md).
 
 #### Fitting artwork inside the rim
 

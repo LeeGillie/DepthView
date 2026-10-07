@@ -153,6 +153,15 @@ DepthView --terraces <file> --json [--passes <n>] [--blank <mm>] [--depth-mm <mm
 The blank and target depth default to the ones last saved in the window, and the spot to
 7 um; pass all three for a repeatable answer.
 
+**Detail and noise** (added after 1.9.0) - detail finer than the spot, and pixel noise on
+surfaces that should be smooth; same options and defaults as `--terraces`, and changes nothing
+unless `--out` asks for an overlay picture:
+
+```
+DepthView --detail <file> --json [--passes <n>] [--blank <mm>] [--depth-mm <mm>] [--spot <um>] [--out <overlay.png>]
+DepthView --noise  <file> --json [--passes <n>] [--blank <mm>] [--depth-mm <mm>] [--out <overlay.png>]
+```
+
 `--help` lists everything. **`--out` may not name the input file**: DepthView refuses, exits 2,
 and leaves the input untouched. It never writes over an original.
 
@@ -290,6 +299,7 @@ levels, before any level points.
 | `readings[]` | the floor and top under each reading of the design: `backgroundIsDesign`, `drawnRimCovered`, then `floor` and `top`, each `found`, `low`, `high`, `noise` (`high - low`: the roughness a level point removes), `pixels`, `share`, `suggested` (the level point that makes it one exact level), `source` (`background`, `flat area N`, `gap` - a few detached pockets beyond an empty stretch of the range, with `suggested` closing the gap - or `percentile` when nothing was found, when `suggested` is the 0.1st or 99.9th percentile) |
 | `noiseSigma` | Immerkaer's whole-design noise estimate, in levels. Fine detail reads as noise too, so treat it as an upper figure; each flat area's `jitter` is the one that matters |
 | `passes` | the pass count `boundariesCrossed` is quoted at |
+| `flatPeaks[]` | (added after 1.9.0) flattened peaks - small level plateaus on top of a local bump, below pure white, the "flat nose tip" a depth estimator or a clipped export leaves: `rank`, `pixels`, `level`, `centreX`, `centreY`, `bandPixels` (pixels one level below the plateau; a real rounded top has many, a clipped one almost none). Largest first, up to 50, inside the blank. Inspection only: nothing offers to fix them |
 | `flatAreas[]` | nearly level areas inside the design (inside any drawn rim), largest first: `rank`, `pixels`, `shareOfDesign`, `median`, `low`, `high`, `jitter` (median pixel-to-pixel deviation), `mostlyJitter` (spread no wider than the jitter explains), `floor`, `top` (at that end of the design), `boundariesCrossed` (slice boundaries the area straddles at `passes`, after the default reading's suggested level points), `centreX`, `centreY` |
 | `seconds` | time taken |
 
@@ -314,6 +324,48 @@ not a promise about what the eye will see, which also depends on step height, fi
 | `edges` | `pixels` (layer-edge pixels), `lengthMm` (about), `shareWiderThanSpot`, `shareWiderThan3Spots` (0-1), `medianTreadMicrons`, `p90TreadMicrons` (the narrower tread at each edge), `treadCapped` (the 90th percentile hit the four-spot measuring limit, so the true figure is larger) |
 | `passesToBlend90` | passes at which nine edges in ten would have treads no wider than the spot; equal to `passes` when they already do; `null` when the map cannot supply that many depths |
 | `limitedByLevels` | `true` when more passes cannot help: the map's own levels are the steps |
+| `seconds` | time taken |
+
+---
+
+## `depthview.detail/1`
+
+Detail finer than the spot (added after 1.9.0). A grey-scale opening with a flat disc the size
+of the spot removes every ridge and dot narrower than it, and a closing removes every groove;
+what they take away is the detail a spot that size cannot cut as drawn. Counted where it stands
+at least one layer step proud of (or below) its surroundings, inside the blank.
+
+| Field | Meaning |
+|---|---|
+| `ok`, `path`, `overlay` | the file; `overlay` is the picture written by `--out`, else `null` |
+| `width`, `height`, `passes` | the map and the pass count (which sets the layer step) |
+| `pixelsPerMm`, `micronsPerPixel`, `spotMicrons`, `targetDepthMm` | the scale and the job |
+| `blankRadiusPx` | the circle measured, as for `depthview.terrace/1` |
+| `finerThanPixels` | `true` when even two spots are under a pixel: nothing in the file is narrower than the spot, and every count is 0 |
+| `blankPixels` | pixels inside the blank |
+| `underSpot` | features narrower than one spot: `raisedPixels`, `recessedPixels`, `share` of the blank, `areaMm2`, `tallestMicrons` (the tallest such feature, in depth) |
+| `underTwoSpots` | features between one and two spots wide - a separate band, not including the above: `raisedPixels`, `recessedPixels`, `share` |
+| `seconds` | time taken |
+
+---
+
+## `depthview.noise/1`
+
+Pixel noise on surfaces that should be smooth (added after 1.9.0). In tiles about a quarter of
+a millimetre across, the median size of the pixel-to-pixel second difference, which a median
+keeps from reading real edges and texture as noise. Compared with one layer step: noise under
+half a step cuts away; above it the surface comes out rough.
+
+| Field | Meaning |
+|---|---|
+| `ok`, `path`, `overlay` | as above |
+| `width`, `height`, `passes`, `pixelsPerMm`, `targetDepthMm`, `blankRadiusPx` | as above |
+| `stepLevels` | one layer step, in levels: the full range over `passes - 1` |
+| `windowPx` | the tile size used |
+| `blankPixels` | pixels inside the blank |
+| `noisyPixels`, `veryNoisyPixels` | pixels whose tile has noise of at least half a step, and of at least two steps |
+| `shareNoisy`, `shareVeryNoisy` | the same as shares of the blank |
+| `medianNoiseLevels`, `medianNoiseMicrons` | median noise where it was found, in levels and in microns of depth |
 | `seconds` | time taken |
 
 ---

@@ -124,6 +124,11 @@ if ($useCoin) {
     Capture (@($c, '--tune-ui') + $tuneCommon + $makeit + @('--show-terraces',
               '--profile-line', '0.30,0.60,0.62,0.60', '--delay', '9000',
               '--screenshot', "$img\terraces.png")) 30
+    # The finishing preview on the same tuning: JAX Brown-Black rubbed back with a flat pad,
+    # the guidance panel on the pad. The full-resolution map and the simulation take a moment.
+    Capture (@($c, '--tune-ui') + $tuneCommon + $makeit + @('--finish-ui',
+              '"darken=jax_brownblack;relieve=propad;seal=wax;stage=relieve"', '--delay', '9000',
+              '--screenshot', "$img\finishing.png")) 30
 } else {
     Capture @("$fix\imposter_x257.png", '--screenshot', "$img\analysis-imposter.png") 10
     Capture @("$fix\true16.png",        '--screenshot', "$img\analysis-genuine.png")  10

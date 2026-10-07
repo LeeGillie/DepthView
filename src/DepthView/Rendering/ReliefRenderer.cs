@@ -53,6 +53,12 @@ public sealed class ReliefOptions
 
     /// <summary>Supersampling factor for the orbit path, to keep silhouettes from stair-stepping.</summary>
     public int Supersample = 1;
+
+    /// <summary>
+    /// What finishing did to the surface (Finishing/FinishSimulator). When set, and the same
+    /// size as the scene, it replaces the material's own field/engraved split.
+    /// </summary>
+    public FinishLayer? Finish;
 }
 
 /// <summary>
@@ -537,6 +543,7 @@ public static class ReliefRenderer
         private readonly double _zk;
         private readonly float[]? _ao;
         private readonly MaterialPreset _m;
+        private readonly FinishLayer? _fin;
 
         private readonly TextureMap? _alb, _mic;
         private readonly bool _wantAlb, _wantMic;
@@ -551,6 +558,7 @@ public static class ReliefRenderer
             _f = scene.Field; _fw = scene.W; _fh = scene.H;
             _invert = o.InvertHeight; _slices = o.SliceCount;
             _zk = zk; _ao = ao; _m = o.Material;
+            _fin = o.Finish is { } fl && fl.W == scene.W && fl.H == scene.H ? fl : null;
 
             double el = o.LightElevationDeg * Math.PI / 180.0;
             double az = o.LightAzimuthDeg * Math.PI / 180.0;
@@ -747,6 +755,16 @@ public static class ReliefRenderer
             double envG = FloorG + (SkyG - FloorG) * t;
             double envB = FloorB + (SkyB - FloorB) * t;
 
+            if (_fin is not null)
+            {
+                // Off the blank there is no coin: background, without the underside darkening.
+                if (ShadeFinish(fx, fy, ndl, ndh, ndv, ao, envR, envG, envB, out cr, out cg, out cb))
+                {
+                    cr *= under; cg *= under; cb *= under;
+                }
+                return;
+            }
+
             if (_m.Metallic)
             {
                 // Metals have almost no diffuse, so the engraved-floor tone has to act on the
@@ -777,6 +795,85 @@ public static class ReliefRenderer
             }
 
             cr *= under; cg *= under; cb *= under;
+        }
+
+        /// <summary>
+        /// Shading for a finished surface: bare metal of a per-sample roughness, under a patina
+        /// that covers a fraction of the sample, under an optional clear coat. Blending the two
+        /// layers by coverage here, rather than averaging their colours beforehand, keeps the
+        /// metallic glints in a half-relieved recess. Roughness widens the highlight and blurs
+        /// the environment toward its average; numbers are fitted so a polished field and a
+        /// laser floor look as they do with the built-in brass preset.
+        /// </summary>
+        private bool ShadeFinish(double fx, double fy, double ndl, double ndh, double ndv, double ao,
+                                 double envR, double envG, double envB,
+                                 out double cr, out double cg, out double cb)
+        {
+            var L = _fin!;
+            int xi = (int)Math.Clamp(Math.Round(fx), 0, L.W - 1);
+            int yi = (int)Math.Clamp(Math.Round(fy), 0, L.H - 1);
+            long i = (long)yi * L.W + xi;
+
+            if (L.Void[i] != 0)
+            {
+                // Outside the blank: no coin there.
+                cr = BackR; cg = BackG; cb = BackB;
+                return false;
+            }
+
+            const double AvgR = (SkyR + FloorR) * 0.5, AvgG = (SkyG + FloorG) * 0.5, AvgB = (SkyB + FloorB) * 0.5;
+            double f5 = Math.Pow(1.0 - Math.Clamp(ndv, 0, 1), 5);
+
+            // Bare metal.
+            double mr = L.MetalRough[i];
+            double pk = L.Pickle[i];
+            double fr = L.MetalR + (L.PickleR - L.MetalR) * pk;
+            double fg = L.MetalG + (L.PickleG - L.MetalG) * pk;
+            double fb = L.MetalB + (L.PickleB - L.MetalB) * pk;
+
+            double mSpec = Math.Pow(ndh, FinishLayer.Exponent(mr)) * FinishLayer.SpecStrength(mr);
+            double blur = Math.Clamp(Math.Pow(mr, 0.7) * 0.85, 0, 0.9);
+            double eR = envR + (AvgR - envR) * blur, eG = envG + (AvgG - envG) * blur, eB = envB + (AvgB - envB) * blur;
+            double envStr = 0.60 * (1 - 0.35 * mr);
+            double t = Math.Clamp((mr - 0.5) / 0.4, 0, 1);
+            double refl = 1 - 0.4 * t * t * (3 - 2 * t);
+            double diff = ndl * (0.08 + 0.22 * mr);
+
+            cr = fr * ((mSpec + eR * envStr * ao) * refl + diff);
+            cg = fg * ((mSpec + eG * envStr * ao) * refl + diff);
+            cb = fb * ((mSpec + eB * envStr * ao) * refl + diff);
+
+            // Patina or oxide: a dielectric with its own colour and roughness.
+            double cov = L.Cover[i];
+            if (cov > 0.001)
+            {
+                double pr = L.PatRough[i], pf0 = L.PatF0[i];
+                double pSpec = Math.Pow(ndh, FinishLayer.Exponent(pr)) * FinishLayer.SpecStrength(pr) * pf0 * 2.5;
+                double fres = pf0 + (1 - pf0) * f5;
+                double pb = Math.Clamp(Math.Pow(pr, 0.7) * 0.9, 0, 0.95);
+                double qR = envR + (AvgR - envR) * pb, qG = envG + (AvgG - envG) * pb, qB = envB + (AvgB - envB) * pb;
+                double lit = 0.12 * ao + ndl * 0.92 * (0.40 + 0.60 * ao);
+                double sR = L.PatR[i] * lit + pSpec + qR * fres * 0.35 * ao;
+                double sG = L.PatG[i] * lit + pSpec + qG * fres * 0.35 * ao;
+                double sB = L.PatB[i] * lit + pSpec + qB * fres * 0.35 * ao;
+                cr += (sR - cr) * cov;
+                cg += (sG - cg) * cov;
+                cb += (sB - cb) * cov;
+            }
+
+            // Clear coat over everything.
+            if (L.Clear > 0)
+            {
+                double k = L.Clear;
+                double cf = 0.04 + 0.96 * f5;
+                double cs = Math.Pow(ndh, FinishLayer.Exponent(L.ClearRough)) * FinishLayer.SpecStrength(L.ClearRough) * 0.45;
+                double cb2 = Math.Clamp(Math.Pow(L.ClearRough, 0.7) * 0.85, 0, 0.9);
+                double cR = envR + (AvgR - envR) * cb2, cG = envG + (AvgG - envG) * cb2, cB = envB + (AvgB - envB) * cb2;
+                cr = cr * (1 - cf * k) + k * (cs + cR * cf * 0.9 * ao);
+                cg = cg * (1 - cf * k) + k * (cs + cG * cf * 0.9 * ao);
+                cb = cb * (1 - cf * k) + k * (cs + cB * cf * 0.9 * ao);
+            }
+            return true;
         }
     }
 

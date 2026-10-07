@@ -55,6 +55,15 @@
   </ItemGroup>
 
   <!--
+    What the finishing preview knows: products, tools, sealers and the numbers behind them,
+    each with its basis and sources. Data rather than code so estimates can be recalibrated
+    against test coins without touching the simulation. Read by Finishing/FinishCatalogue.cs.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Finishing\catalogue.json" LogicalName="DepthView.Finishing.catalogue.json" />
+  </ItemGroup>
+
+  <!--
     Stamp the build date into assembly metadata so the About box can show it without a
     generated source file. Read back by BuildInfo.BuildDate. Evaluated at build time,
     so an incremental build that recompiles nothing keeps the previous date - which is

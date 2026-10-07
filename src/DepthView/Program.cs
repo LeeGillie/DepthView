@@ -45,6 +45,11 @@ internal static partial class Program
 
     /// <summary>More of the tuning dialog's settings from the command line, as --tune takes them.</summary>
     public static int? StartupBlack, StartupWhite, StartupBits;
+    /// <summary>--show-overlay detail|noise|peaks|terraces: open the Tune window marking that.</summary>
+    public static int? StartupMark;
+
+    /// <summary>--finish-ui [recipe]: open the finishing preview over the Tune window. "" for the default recipe.</summary>
+    public static string? StartupFinish;
     public static double? StartupSpot;
     public static bool StartupCoverRim, StartupOutline, StartupWriteDpi, StartupUniformSurround;
 
@@ -168,6 +173,11 @@ internal static partial class Program
             --slices <n>        quantise to n depth steps to preview terracing
             --size <px>         output width (default 900)
             --out <file>        output PNG (default <image>-relief.png)
+            --finish <recipe>   render the coin finished: key=value pairs separated by ';'
+                                material clean prepolish darken strength minutes relieve
+                                pressure relieveMinutes seal stage, by catalogue id, e.g.
+                                "darken=jax_black;strength=0.5;minutes=1;relieve=propad;seal=wax"
+                                (stage raw|clean|polish|darken|relieve|seal shows it part way)
 
         What the tuning wizard measures, without changing anything
           DepthView --survey <image> [--passes <n>] [--json]
@@ -187,6 +197,18 @@ internal static partial class Program
                               the spot, red: wider than three spots). Blank and depth default
                               to the ones last saved in the window, the spot to 7 um.
                               --json gives schema depthview.terrace/1
+
+        Detail finer than the spot, and pixel noise, measured the same way
+          DepthView --detail <image> [--passes <n>] [--blank <mm>] [--depth-mm <mm>]
+                             [--spot <um>] [--out <overlay.png>] [--json]
+                              raised and recessed features narrower than the beam (red) and
+                              than two beams (amber): strokes, dots, stippling, lettering
+                              edges that will round or vanish. --json: depthview.detail/1
+          DepthView --noise <image> [--passes <n>] [--blank <mm>] [--depth-mm <mm>]
+                             [--out <overlay.png>] [--json]
+                              pixel noise on surfaces that should be smooth, told apart from
+                              fine texture, in layers at the pass count (amber: half a layer
+                              or more, red: two or more). --json: depthview.noise/1
 
         Tune a depth map (writes a new file, never over the original)
           DepthView --tune <image> [options]
@@ -371,6 +393,9 @@ internal static partial class Program
         int tridx = Array.FindIndex(args, a => a is "--terraces");
         if (tridx >= 0) return RunTerraces(args.Skip(tridx + 1).ToArray());
 
+        int dtidx = Array.FindIndex(args, a => a is "--detail" or "--noise");
+        if (dtidx >= 0) return RunInspect(args.Skip(dtidx + 1).ToArray(), detail: args[dtidx] == "--detail");
+
         int gidx = Array.FindIndex(args, a => a is "--gcode");
         if (gidx >= 0) return RunGcode(args.Skip(gidx + 1).ToArray());
 
@@ -392,6 +417,12 @@ internal static partial class Program
         // asked - so every step's layout can be captured from a script, not just the first.
         StartupWizard = args.Any(a => a is "--wizard");
         if (StartupWizard) StartupTune = true;
+        int fui = Array.IndexOf(args, "--finish-ui");
+        if (fui >= 0)
+        {
+            StartupTune = true;
+            StartupFinish = fui + 1 < args.Length && args[fui + 1].Contains('=') ? args[fui + 1] : "";
+        }
         StartupWizardStep = Flag(args, "--wizard-step") is double wsStep ? (int)wsStep : null;
         int wti = Array.IndexOf(args, "--wizard-target");
         if (wti >= 0 && wti + 1 < args.Length)
@@ -431,6 +462,12 @@ internal static partial class Program
             StartupWriteDpi = args.Any(a => a is "--write-dpi");
             StartupUniformSurround = args.Any(a => a is "--uniform-surround");
             StartupTerraces = args.Any(a => a is "--show-terraces");
+            int soi = Array.FindIndex(args, a => a is "--show-overlay");
+            if (soi >= 0 && soi + 1 < args.Length)
+                StartupMark = args[soi + 1].ToLowerInvariant() switch
+                {
+                    "terraces" or "steps" => 1, "detail" => 2, "noise" => 3, "peaks" => 4, _ => 0,
+                };
             int pli = Array.IndexOf(args, "--profile-line");
             if (pli >= 0 && pli + 1 < args.Length)
             {
@@ -1034,6 +1071,10 @@ internal static partial class Program
                             + $"  jitter {a.Jitter,5:F0}  {(a.MostlyJitter ? "jitter" : "slope/dish")}"
                             + $"  crosses {a.BoundariesCrossed(passes, floor.Suggested, top.Suggested, max)} boundaries at {passes} passes"
                             + (a.TouchesFloor ? "  (floor)" : "") + (a.TouchesTop ? "  (top)" : ""));
+        Console.WriteLine($"  flattened peaks {s.FlatPeaks.Count} found (a flat top at least {FlatPeaks.RatioLimit:F0}x the band one level below it - a clipped peak, not a smooth summit)");
+        foreach (var pk in s.FlatPeaks.Take(10))
+            Console.WriteLine($"    #{pk.Rank}  {pk.Pixels,8:N0} px at level {pk.Level,6:N0}  near {pk.CentreX:F0}, {pk.CentreY:F0}"
+                            + $"  ({(double.IsInfinity(pk.Ratio) ? "no band" : pk.Ratio.ToString("F1") + "x")} the band below)");
         return 0;
     }
 
@@ -1109,6 +1150,125 @@ internal static partial class Program
         if (overlay is not null)
             Console.WriteLine($"  overlay         {Path.GetFileName(overlay)} - amber: treads wider than the spot, red: wider than three spots");
         return 0;
+    }
+
+    /// <summary>
+    /// --detail and --noise: two per-pixel checks of the map as it stands, inside the blank,
+    /// with the same blank, depth and spot defaults as --terraces.
+    /// </summary>
+    private static int RunInspect(string[] rest, bool detail)
+    {
+        AttachParentConsole();
+        string schema = detail ? JsonReport.DetailSchema : JsonReport.NoiseSchema;
+        string? input = null, overlay = null;
+        bool json = false;
+        int passes = 256;
+        double blank = Blank.Current.DiameterMm, depth = Blank.Current.TargetDepthMm, spot = 7;
+        for (int i = 0; i < rest.Length; i++)
+        {
+            string a = rest[i];
+            string? Next() => i + 1 < rest.Length ? rest[++i] : null;
+            switch (a)
+            {
+                case "--json": json = true; break;
+                case "--out": overlay = Next(); break;
+                case "--passes": if (int.TryParse(Next(), out int p) && p > 1) passes = p; break;
+                case "--blank": if (double.TryParse(Next(), out double b) && b > 0) blank = b; break;
+                case "--depth-mm": if (double.TryParse(Next(), out double d) && d > 0) depth = d; break;
+                case "--spot": if (double.TryParse(Next(), out double s) && s > 0) spot = s; break;
+                default: if (!a.StartsWith('-') && input is null) input = a; break;
+            }
+        }
+
+        string usage = detail
+            ? "Usage: DepthView --detail <image> [--passes n] [--blank mm] [--depth-mm mm] [--spot um] [--out overlay.png] [--json]"
+            : "Usage: DepthView --noise <image> [--passes n] [--blank mm] [--depth-mm mm] [--out overlay.png] [--json]";
+        if (input is null || !File.Exists(input))
+        {
+            if (json) Console.WriteLine(JsonReport.Error(schema, input is null ? "No input file." : $"No such file: {input}"));
+            else Console.Error.WriteLine(usage);
+            return 2;
+        }
+        if (overlay is not null && SamePath(input, overlay))
+        {
+            const string refuse = "Refusing to write over the input file. Give --out a different path.";
+            if (json) Console.WriteLine(JsonReport.Error(schema, refuse));
+            Console.Error.WriteLine(refuse);
+            return 2;
+        }
+
+        var loaded = ImageLoader.Load(File.ReadAllBytes(input), Path.GetFileName(input), input, detail ? "detail" : "noise");
+        var grey = DepthTuner.ExtractGrey(loaded.Image);
+        int w = loaded.Image.Width, h = loaded.Image.Height, max = loaded.Image.MaxValue;
+        double ppmm = Math.Min(w, h) / blank;
+
+        byte[]? classes;
+        string body;
+        IEnumerable<string> lines;
+        string legend;
+        if (detail)
+        {
+            var r = DetailMap.Measure(grey, w, h, max, passes, ppmm, depth, spot, keepClasses: overlay is not null);
+            classes = r.Classes;
+            body = JsonReport.Detail(Path.GetFullPath(input), r, overlay);
+            lines = DetailLines(r);
+            legend = "red: narrower than the spot, amber: narrower than two spots";
+        }
+        else
+        {
+            var r = NoiseMap.Measure(grey, w, h, max, passes, ppmm, depth, keepClasses: overlay is not null);
+            classes = r.Classes;
+            body = JsonReport.Noise(Path.GetFullPath(input), r, overlay);
+            lines = NoiseLines(r);
+            legend = "amber: noise of half a layer or more, red: two layers or more";
+        }
+
+        if (overlay is not null && classes is not null)
+        {
+            var bgra = ClassOverlay.Draw(grey, w, h, max, classes, w, h, Math.Min(w, h) / 2.0);
+            using var img = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Bgra32>(bgra, w, h);
+            img.SaveAsPng(overlay);
+        }
+
+        if (json)
+        {
+            Console.WriteLine(body);
+            return 0;
+        }
+        Console.WriteLine($"{(detail ? "Detail finer than the spot" : "Pixel noise")} in {Path.GetFileName(input)} at {passes:N0} passes");
+        foreach (var line in lines) Console.WriteLine("  " + line);
+        if (overlay is not null) Console.WriteLine($"  overlay         {Path.GetFileName(overlay)} - {legend}");
+        return 0;
+    }
+
+    /// <summary>The detail figures in words.</summary>
+    internal static IEnumerable<string> DetailLines(DetailReport r)
+    {
+        yield return $"blank           {r.Width:N0} x {r.Height:N0} px at {r.PixelsPerMm:F1} px/mm ({r.MicronsPerPixel:F1} um/pixel), {r.SpotMicrons:F0} um spot";
+        if (r.FinerThanPixels)
+        {
+            yield return "detail          none narrower than the spot can exist here: the spot is narrower than a pixel,"
+                       + " so the map's own resolution is the limit, not the beam";
+            yield break;
+        }
+        yield return $"under the spot  {r.ShareUnderSpot * 100:F2}% of the blank ({r.AreaUnderSpotMm2:F1} mm2):"
+                   + $" {r.RaisedUnderSpot:N0} px raised, {r.RecessedUnderSpot:N0} px recessed;"
+                   + $" tallest {r.TallestUnderSpotMicrons:F0} um";
+        yield return $"under 2 spots   {r.ShareUnder2Spots * 100:F2}% more: {r.RaisedUnder2Spots:N0} px raised, {r.RecessedUnder2Spots:N0} px recessed";
+        yield return "meaning         narrower than the spot rounds over or fills in whatever the job; under two spots softens."
+                   + " A smaller spot (another lens, better focus) is the only cure.";
+    }
+
+    /// <summary>The noise figures in words.</summary>
+    internal static IEnumerable<string> NoiseLines(NoiseReport r)
+    {
+        yield return $"blank           {r.Width:N0} x {r.Height:N0} px; one layer is {r.StepLevels:F0} levels; window {r.WindowPx} px";
+        yield return r.Noisy == 0
+            ? "noise           none of half a layer or more on any smooth surface"
+            : $"noise           {r.ShareNoisy * 100:F1}% of the blank carries noise of half a layer or more"
+              + $" ({r.ShareVeryNoisy * 100:F1}% two layers or more); median {r.MedianNoiseMicrons:F1} um";
+        yield return "meaning         speckle on a surface meant to be smooth cuts as speckle. Clean it in the sculpt,"
+                   + " locally - a blur takes the real texture with it. A heuristic: fine texture two or three pixels across reads as noise too.";
     }
 
     /// <summary>The terrace figures in words, shared by --terraces and --tune.</summary>
@@ -1551,6 +1711,7 @@ internal static partial class Program
         double? blankArg = null, thickArg = null, depthArg = null;
         double texScale = double.NaN, texRot = double.NaN, albStr = double.NaN, micStr = double.NaN;
         int slices = 0, size = 900;
+        string? finishSpec = null;
 
         double D(string[] a, ref int i, double fallback)
             => i + 1 < a.Length && double.TryParse(a[i + 1],
@@ -1581,6 +1742,7 @@ internal static partial class Program
                 case "--light": az = D(rest, ref i, 315); el = D(rest, ref i, 42); break;
                 case "--orbit": orbit = true; yaw = D(rest, ref i, 0); pitch = D(rest, ref i, 62); break;
                 case "--zoom": zoomMul = D(rest, ref i, 1); break;
+                case "--finish": if (i + 1 < rest.Length) finishSpec = rest[++i]; break;
                 default:
                     if (!rest[i].StartsWith('-') && input is null) input = rest[i];
                     break;
@@ -1644,6 +1806,23 @@ internal static partial class Program
                 Supersample = 2
             };
 
+            // --finish: the coin after cleaning, darkening, relieving and sealing.
+            if (finishSpec is not null)
+            {
+                var cat = Finishing.FinishCatalogue.Builtin;
+                var recipe = Finishing.FinishRecipe.Parse(finishSpec, out var problems);
+                foreach (var p in problems) Console.Error.WriteLine("--finish: " + p);
+                if (problems.Count > 0) return 2;
+                var fin = Finishing.FinishSimulator.Run(cat, recipe, field, fw, fh,
+                                                        blankMm / Math.Min(fw, fh), depthMm);
+                o.Finish = fin.Layer;
+                o.Material = new Rendering.MaterialPreset { Name = "Finishing", Metallic = true };
+                Console.WriteLine(recipe.Describe(cat));
+                Console.WriteLine($"Engraving dark {fin.DarkShareEngraved * 100:0}%   deep half dark {fin.DarkShareFloors * 100:0}%   " +
+                                  $"highs bright {fin.BrightShareTop * 100:0}%   ({fin.Seconds:0.00} s)");
+                foreach (var wn in fin.Warnings) Console.WriteLine("! " + wn);
+            }
+
             var buf = new byte[(long)w * h * 4];
             var sw = Stopwatch.StartNew();
             Rendering.ReliefRenderer.Render(buf, w, h, scene, o);
@@ -1659,7 +1838,7 @@ internal static partial class Program
 
             if (m.TextureError is { } te) Console.Error.WriteLine(te);
 
-            Console.WriteLine($"{m.Name}: {w}x{h} in {sw.ElapsedMilliseconds} ms -> {outPath}");
+            Console.WriteLine($"{o.Material.Name}: {w}x{h} in {sw.ElapsedMilliseconds} ms -> {outPath}");
 
             // A PNG carries no badge, so the console says what scale it was drawn at.
             double drawn = Rendering.ZScale.DrawnDepthMm(depthMm, exagStops);

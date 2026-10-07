@@ -74,6 +74,12 @@ public sealed class DesignSurvey
     /// <summary>Nearly level areas inside the design (inside any drawn rim), largest first.</summary>
     public List<FlatArea> FlatAreas = new();
 
+    /// <summary>
+    /// Small flat tops below pure white that the slope under them does not explain -
+    /// peaks clipped by whatever made the map (<see cref="Processing.FlatPeaks"/>). Largest first.
+    /// </summary>
+    public List<FlatPeak> FlatPeaks = new();
+
     public double Seconds;
 
     /// <summary>
@@ -370,6 +376,8 @@ public sealed class DesignSurvey
             s.BackgroundInsideShare = inside > 0 ? insideBg / (double)inside : 0;
 
             s.FlatAreas = Processing.FlatAreas.Find(grey, w, h, maxValue, (x, y) =>
+                Sq(x - cx) + Sq(y - cy) < in2 && !bg[(long)y * w + x]);
+            s.FlatPeaks = Processing.FlatPeaks.Find(grey, w, h, maxValue, (x, y) =>
                 Sq(x - cx) + Sq(y - cy) < in2 && !bg[(long)y * w + x]);
         }
 

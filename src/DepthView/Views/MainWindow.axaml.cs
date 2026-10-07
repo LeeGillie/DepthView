@@ -168,6 +168,7 @@ public partial class MainWindow : Window
                 Window target =
                     Program.StartupAbout && _about is not null ? _about :
                     Program.StartupWhatsNew && _notes is not null ? _notes :
+                    Program.StartupFinish is not null && _tune?.Finishing is { } finishing ? finishing :
                     Program.StartupWizard && _tune?.Wizard is { } wizard ? wizard :
                     Program.StartupTune && _tune is not null ? _tune :
                     Program.StartupRelief && _relief is not null ? _relief : this;

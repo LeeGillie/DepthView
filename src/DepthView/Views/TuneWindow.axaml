@@ -85,6 +85,8 @@
                      FontSize="11" Foreground="#5E6773" />
           <Button x:Name="TuningGuideButton" Content="Tuning guide" Click="OnTuningGuide"
                   ToolTip.Tip="The tuning guide, at the edition written for this version: every control in this window worked through real coins, step by step. Opens in your browser." />
+          <Button x:Name="FinishingButton" Content="Finishing ..." Click="OnFinishing"
+                  ToolTip.Tip="See the tuned relief cleaned, darkened, rubbed back and sealed, with what is known about each product and tool along the way. A look, not a prediction; nothing is written." />
           <Button x:Name="WizardButton" Classes="primary" Content="Tuning wizard ..."
                   ToolTip.Tip="A few questions about what you want the coin to be - machine, background, rim, floor, flat areas, layers - each shown on the picture as you answer. It sets this window's controls; nothing is written until you save." />
         </StackPanel>
@@ -162,9 +164,21 @@
 
               <TextBlock Classes="section" Text="PREVIEW" />
 
-              <CheckBox x:Name="TerraceCheck"
-                        Content="Show where the layers will show as steps"
-                        ToolTip.Tip="Draws the layer edges the job will cut at the pass count below, on both pictures. Amber: the flat treads either side of the edge are wider than the spot, so the step survives as a step. Red: wider than three spots - a plain contour line. Edges with narrower treads are left unmarked: the beam smears them into the slope.&#x0a;&#x0a;Measured on the whole map at full resolution, against the spot size set under Rim. It is geometry: whether a step is visible also depends on its height, the finish and the light." />
+              <Grid ColumnDefinitions="86,*" Margin="0,2,0,0">
+                <TextBlock Grid.Column="0" Classes="label" Text="Mark" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1" x:Name="OverlayBox" SelectedIndex="0" HorizontalAlignment="Stretch"
+                          ToolTip.Tip="Marks something on both pictures, measured on the whole map at full resolution, inside the blank. Nothing here changes the file - these are checks, to read before cutting.">
+                  <ComboBoxItem Content="Nothing - the maps as they are" />
+                  <ComboBoxItem Content="Where the layers will show as steps"
+                                ToolTip.Tip="Draws the layer edges the job will cut at the pass count below, on both pictures. Amber: the flat treads either side of the edge are wider than the spot, so the step survives as a step. Red: wider than three spots - a plain contour line. Edges with narrower treads are left unmarked: the beam smears them into the slope.&#x0a;&#x0a;Measured on the whole map at full resolution, against the spot size set under Rim. It is geometry: whether a step is visible also depends on its height, the finish and the light." />
+                  <ComboBoxItem Content="Detail finer than the spot"
+                                ToolTip.Tip="Raised and recessed features narrower than the beam - thin strokes, small dots, stippling, the edges of lettering. Red: narrower than the spot, so it rounds over or fills in whatever the job. Amber: narrower than two spots, so it softens.&#x0a;&#x0a;The spot is set under Rim. Try the same map at two spot sizes to compare lenses: a smaller spot is the only cure." />
+                  <ComboBoxItem Content="Pixel noise on smooth surfaces"
+                                ToolTip.Tip="Speckle on a surface meant to be smooth - skin, sky, a polished field - which cuts as speckle. Amber: half a layer or more at the pass count; red: two layers or more. Fine texture that is real detail is left alone where it can be told apart (texture only two or three pixels across cannot).&#x0a;&#x0a;Clean it in the sculpt, locally: a blur takes the real texture with it." />
+                  <ComboBoxItem Content="Flattened peaks"
+                                ToolTip.Tip="Small flat tops on raised features that the slope below them does not explain - a peak clipped by whatever made the map (a depth estimator, an export that ran out of range). A natural summit is about as large as the band one level below it; a clipped one is several times larger.&#x0a;&#x0a;Rebuild them in the sculpt. DepthView only finds them." />
+                </ComboBox>
+              </Grid>
               <TextBlock Classes="note" Margin="24,2,0,0" TextWrapping="Wrap"
                          Text="Drag across either picture to plot the depth along a line - the file's surface and the staircase it will be cut as." />
 

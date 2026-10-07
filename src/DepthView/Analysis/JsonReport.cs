@@ -35,6 +35,71 @@ public static class JsonReport
     public const string TuneSchema = "depthview.tune/1";
     public const string SurveySchema = "depthview.survey/1";
     public const string TerraceSchema = "depthview.terrace/1";
+    public const string DetailSchema = "depthview.detail/1";
+    public const string NoiseSchema = "depthview.noise/1";
+
+    /// <summary>--detail: features narrower than the spot, measured on the map as it is.</summary>
+    public static string Detail(string path, DetailReport r, string? overlay) => Write(w =>
+    {
+        w.WriteStartObject();
+        w.WriteString("schema", DetailSchema);
+        w.WriteString("depthview", BuildInfo.Version);
+        w.WriteBoolean("ok", true);
+        w.WriteString("path", path);
+        StringOrNull(w, "overlay", overlay is null ? null : FullPath(overlay));
+        w.WriteNumber("width", r.Width);
+        w.WriteNumber("height", r.Height);
+        w.WriteNumber("passes", r.Passes);
+        Num(w, "pixelsPerMm", r.PixelsPerMm);
+        Num(w, "micronsPerPixel", r.MicronsPerPixel);
+        Num(w, "spotMicrons", r.SpotMicrons);
+        Num(w, "targetDepthMm", r.TargetDepthMm);
+        Num(w, "blankRadiusPx", r.BlankRadiusPx);
+        w.WriteBoolean("finerThanPixels", r.FinerThanPixels);
+        w.WriteNumber("blankPixels", r.BlankPixels);
+        w.WriteStartObject("underSpot");
+        w.WriteNumber("raisedPixels", r.RaisedUnderSpot);
+        w.WriteNumber("recessedPixels", r.RecessedUnderSpot);
+        Num(w, "share", r.ShareUnderSpot);
+        Num(w, "areaMm2", r.AreaUnderSpotMm2);
+        Num(w, "tallestMicrons", r.TallestUnderSpotMicrons);
+        w.WriteEndObject();
+        w.WriteStartObject("underTwoSpots");
+        w.WriteNumber("raisedPixels", r.RaisedUnder2Spots);
+        w.WriteNumber("recessedPixels", r.RecessedUnder2Spots);
+        Num(w, "share", r.ShareUnder2Spots);
+        w.WriteEndObject();
+        Num(w, "seconds", r.Seconds);
+        w.WriteEndObject();
+    });
+
+    /// <summary>--noise: pixel noise on surfaces that should be smooth.</summary>
+    public static string Noise(string path, NoiseReport r, string? overlay) => Write(w =>
+    {
+        w.WriteStartObject();
+        w.WriteString("schema", NoiseSchema);
+        w.WriteString("depthview", BuildInfo.Version);
+        w.WriteBoolean("ok", true);
+        w.WriteString("path", path);
+        StringOrNull(w, "overlay", overlay is null ? null : FullPath(overlay));
+        w.WriteNumber("width", r.Width);
+        w.WriteNumber("height", r.Height);
+        w.WriteNumber("passes", r.Passes);
+        Num(w, "pixelsPerMm", r.PixelsPerMm);
+        Num(w, "targetDepthMm", r.TargetDepthMm);
+        Num(w, "blankRadiusPx", r.BlankRadiusPx);
+        Num(w, "stepLevels", r.StepLevels);
+        w.WriteNumber("windowPx", r.WindowPx);
+        w.WriteNumber("blankPixels", r.BlankPixels);
+        w.WriteNumber("noisyPixels", r.Noisy);
+        w.WriteNumber("veryNoisyPixels", r.VeryNoisy);
+        Num(w, "shareNoisy", r.ShareNoisy);
+        Num(w, "shareVeryNoisy", r.ShareVeryNoisy);
+        Num(w, "medianNoiseLevels", r.MedianNoiseLevels);
+        Num(w, "medianNoiseMicrons", r.MedianNoiseMicrons);
+        Num(w, "seconds", r.Seconds);
+        w.WriteEndObject();
+    });
 
     /// <summary>--terraces: where a job will terrace, measured on the map as it is.</summary>
     public static string Terraces(string path, TerraceReport r, string? overlay) => Write(w =>
@@ -168,6 +233,19 @@ public static class JsonReport
                 w.WriteNumber("boundariesCrossed", a.BoundariesCrossed(passes, floor.Suggested, top.Suggested, s.MaxValue));
                 Num(w, "centreX", a.CentreX);
                 Num(w, "centreY", a.CentreY);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+            w.WriteStartArray("flatPeaks");
+            foreach (var pk in s.FlatPeaks)
+            {
+                w.WriteStartObject();
+                w.WriteNumber("rank", pk.Rank);
+                w.WriteNumber("pixels", pk.Pixels);
+                w.WriteNumber("level", pk.Level);
+                Num(w, "centreX", pk.CentreX);
+                Num(w, "centreY", pk.CentreY);
+                w.WriteNumber("bandPixels", pk.BandPixels);
                 w.WriteEndObject();
             }
             w.WriteEndArray();

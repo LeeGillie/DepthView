@@ -1,0 +1,379 @@
+{
+  "schema": "depthview.finishing-catalogue/1",
+  "about": "What the finishing window knows about cleaning, darkening, relieving and sealing copper alloys. Every number carries a basis: V = taken from the cited source, C = calculated from sourced inputs, E = an estimate no source gives, to be calibrated against photographed test coins. Colours are sRGB hex; roughness is perceptual 0 (mirror) to 1 (chalk). Research notes: docs/research/finishing-chemistry.md.",
+
+  "materials": [
+    {
+      "id": "brass", "name": "Brass (C260 cartridge brass)",
+      "f0": "#F5E4AE", "f0Basis": "V",
+      "stockRoughness": 0.10, "laserFloorRoughness": 0.80, "roughnessBasis": "E",
+      "oxide": "#2B241E", "pickleTint": "#E8A07E", "colourBasis": "E",
+      "advice": "Selenium 'cold blacks' are the dependable route on brass: they give blacks and, diluted, browns. Liver of sulfur is unreliable on brass. Off the laser the engraved floor is rough (about 14-17 um Sa measured on ablated stainless) and carries a dark oxide; the roughness holds patina and helps contrast once the highs are relieved.",
+      "sources": [
+        { "title": "Physically Based: metal reflectance", "url": "https://physicallybased.info/" },
+        { "title": "MDPI Metals 2025: laser-ablated floor roughness", "url": "https://www.mdpi.com/2075-4701/15/5/519" },
+        { "title": "Wikipedia: Liver of sulfur", "url": "https://en.wikipedia.org/wiki/Liver_of_sulfur" }
+      ]
+    },
+    {
+      "id": "copper", "name": "Copper",
+      "f0": "#F7CFBF", "f0Basis": "V",
+      "stockRoughness": 0.10, "laserFloorRoughness": 0.80, "roughnessBasis": "E",
+      "oxide": "#2A1E1A", "pickleTint": null, "colourBasis": "E",
+      "advice": "Takes the selenium blacks and liver of sulfur equally well. Liver of sulfur runs through interference colours (gold, pink, blue, purple, bronze, grey) before it reaches black, so it can be stopped early for colour.",
+      "sources": [
+        { "title": "Physically Based: metal reflectance", "url": "https://physicallybased.info/" },
+        { "title": "Lagarde: feeding a physically based lighting model", "url": "https://seblagarde.wordpress.com/2011/08/17/feeding-a-physical-based-lighting-mode/" },
+        { "title": "Ganoksin: Liver of sulfur 101", "url": "https://www.ganoksin.com/article/liver-of-sulfur-101/" }
+      ]
+    },
+    {
+      "id": "bronze", "name": "Bronze (tin bronze)",
+      "f0": "#E7C4A0", "f0Basis": "E",
+      "stockRoughness": 0.12, "laserFloorRoughness": 0.80, "roughnessBasis": "E",
+      "oxide": "#2A221C", "pickleTint": "#E0A080", "colourBasis": "E",
+      "advice": "Same chemistry as brass and copper. No measured reflectance was found for bronze, so its colour here is an estimate between copper and brass.",
+      "sources": [
+        { "title": "Birchwood Technologies: traditional patinas", "url": "https://www.birchwoodtechnologies.com/traditional-patinas/" }
+      ]
+    }
+  ],
+
+  "cleaning": [
+    {
+      "id": "raw", "name": "Nothing - straight off the laser",
+      "oxideLeft": 1.0, "basis": "V (oxide, powder); E (how much)",
+      "advice": "Engraved areas carry powder and a tightly bonded dark oxide (CuO on brass, from 500-800 C at the spot). A darkener will not take evenly over it: patchy results are almost always surface preparation, not the product.",
+      "sources": [
+        { "title": "NGL: oxide after laser engraving", "url": "https://www.ngl-group.com/en/eliminate-oxide-layer-on-stainless-steel-and-brass-after-laser-engraving/" },
+        { "title": "Thunder Laser: marking a brass coin", "url": "https://www.thunderlaser.com/inspiration-library/laser-marking-brass-coin.html" }
+      ]
+    },
+    {
+      "id": "brush", "name": "Soft brush under running water",
+      "oxideLeft": 0.8, "basis": "V (process); E (oxide left)",
+      "advice": "Takes the powder off. The dark oxide underneath stays, so the floor still reads dark-brown before any darkener.",
+      "sources": [
+        { "title": "Thunder Laser: marking a brass coin", "url": "https://www.thunderlaser.com/inspiration-library/laser-marking-brass-coin.html" }
+      ]
+    },
+    {
+      "id": "ultrasonic", "name": "Ultrasonic cleaner",
+      "oxideLeft": 0.1, "basis": "V (process); E (oxide left)",
+      "advice": "40 kHz ultrasound lifts most of the oxide and powder from the recesses. Bare metal shows everywhere; the floor stays matte because cleaning removes oxide, not texture.",
+      "sources": [
+        { "title": "NGL: ultrasonic oxide removal", "url": "https://www.ngl-group.com/en/eliminate-oxide-layer-on-stainless-steel-and-brass-after-laser-engraving/" },
+        { "title": "LightBurn forum: sandpaper-like brass after cleanup", "url": "https://forum.lightburnsoftware.com/t/rough-sandpaper-like-finish-on-3d-carved-brass-coin-after-cleanup/142604" }
+      ]
+    },
+    {
+      "id": "tumbler", "name": "Magnetic pin tumbler, then ultrasonic",
+      "oxideLeft": 0.0, "burnishTool": "pins", "burnishMinutes": 30, "basis": "V (process); E (burnish)",
+      "advice": "Strips the oxide and powder everywhere the pins can reach, and burnishes tops and walls toward a satin-bright finish. Narrow recesses narrower than a pin stay matte. Rinse in tap water after.",
+      "sources": [
+        { "title": "xTool: cleaning embossed brass", "url": "https://support.xtool.com/article/2505" }
+      ]
+    },
+    {
+      "id": "pickle", "name": "Sparex (sodium bisulfate) pickle",
+      "oxideLeft": 0.0, "pickle": 0.6, "basis": "V (mechanism, torch fire-stain); E (that laser oxide does the same)",
+      "advice": "Dissolves the zinc oxide, but on brass the copper oxide reduces to a pink-orange copper film on the formerly oxidised areas. Expect the engraving to look pinker than the field until it is darkened.",
+      "sources": [
+        { "title": "Ganoksin: fire stain on brass", "url": "https://www.ganoksin.com/article/technical-briefs-fire-stain-on-brass/" }
+      ]
+    },
+    {
+      "id": "blast", "name": "Glass-bead blast",
+      "oxideLeft": 0.0, "allRoughness": 0.55, "basis": "V (medallic practice); E (roughness)",
+      "advice": "Medal makers blast before darkening on purpose: the fine pits hold the solution and give the best patina adhesion. Everything goes uniformly matte, the field included, so the bright highs after relieving come from the relieving tool alone.",
+      "sources": [
+        { "title": "Numismatic dictionary (Johnson): Highlighting", "url": "https://nnp.library.wustl.edu/concern/dictionaries/dict516049?locale=en" }
+      ]
+    }
+  ],
+
+  "prepolish": [
+    {
+      "id": "none", "name": "No pre-polish", "tool": null, "minutes": 0,
+      "advice": "The surface goes into the darkener as cleaning left it.", "basis": "-", "sources": []
+    },
+    {
+      "id": "softbuff", "name": "Soft buff with tripoli", "tool": "softbuff_tripoli", "minutes": 2,
+      "basis": "V (qualitative); E (magnitudes)",
+      "advice": "Gloss rises on convex highs and the outer edge; edges round over with dwell. A loose buff follows the surface down, so shallow fields polish too.",
+      "sources": [
+        { "title": "Skyjems: buffing wheel encyclopedia", "url": "https://skyjems.ca/pages/encyclopedia-buffing-wheel" }
+      ]
+    },
+    {
+      "id": "hardfelt", "name": "Hard felt with rouge", "tool": "hardfelt_rouge", "minutes": 2,
+      "basis": "V (qualitative); E (magnitudes)",
+      "advice": "Gloss on the top flats only, with crisp edges. A stiff wheel stays on the tops.",
+      "sources": [
+        { "title": "Skyjems: buffing wheel encyclopedia", "url": "https://skyjems.ca/pages/encyclopedia-buffing-wheel" }
+      ]
+    },
+    {
+      "id": "block", "name": "Block-sand the field (600 grit)", "tool": "flatblock", "minutes": 1,
+      "basis": "V (qualitative); E (magnitudes)",
+      "advice": "Abrasive paper on a flat block keeps flats flat and leaves a satin field in the stroke direction. Only the untouched surface and top-level flats are touched.",
+      "sources": [
+        { "title": "Engraver's Cafe: flat lapping", "url": "https://engravingcafe.com/showthread.php?p=48194" }
+      ]
+    }
+  ],
+
+  "darkeners": [
+    {
+      "id": "none", "name": "No darkener", "maker": "", "materials": ["brass", "copper", "bronze"],
+      "stops": [], "diluteStops": [], "tauMinutes": 1, "defaultStrength": 1, "defaultMinutes": 0, "maxMinutes": 0,
+      "roughness": 0.5, "f0": 0.04, "holdOnBrass": 1, "durability": 1, "overdo": 99,
+      "hazard": null, "basis": "-",
+      "advice": "Bare metal, with whatever oxide cleaning left.", "sources": []
+    },
+    {
+      "id": "jax_black", "name": "JAX Black", "maker": "JAX Chemical", "materials": ["brass", "copper", "bronze"],
+      "stops": ["#8A7448", "#5E4C32", "#3A3026", "#26221F", "#1C1C1E"],
+      "diluteStops": ["#94784A", "#73583A", "#55402C", "#433426", "#3A2E24"],
+      "tauMinutes": 0.4, "defaultStrength": 0.5, "defaultMinutes": 1, "maxMinutes": 10,
+      "roughness": 0.45, "f0": 0.15, "holdOnBrass": 1, "durability": 1, "overdo": 4,
+      "hazard": { "badge": "Se · corrosive", "level": "danger",
+        "text": "Selenious acid and copper sulfate in nitric acid, pH below 2. Nitrile gloves, eye protection, ventilation. Hazardous waste (EPA D002 corrosive, D010 selenium): never down the drain. Never let it meet liver of sulfur - acid plus sulfide gives off hydrogen sulfide." },
+      "basis": "V (chemistry, practice); E (colours, rate)",
+      "advice": "Works quickly. Dilute to 35-50% for an even black; wash off when it is slightly darker than you want, because relieving takes some back. Full strength left too long goes crusty and powdery and rubs off easily. Degrease first (a dish-soap wash), handle with gloves, and darken straight after cleaning.",
+      "sources": [
+        { "title": "JAX Black SDS", "url": "https://jaxchemical.com/wp-content/uploads/2019/06/JAX-Black-SDS.pdf" },
+        { "title": "Otto Frei: JAX darkeners", "url": "https://www.ottofrei.com/products/jax-darkeners-2oz-brass-bronze-copper-patina" },
+        { "title": "Kibler's Longrifles: JAX Black on brass", "url": "https://kiblerslongrifles.com/products/jax-black-darkener-recommended-for-brass-parts" },
+        { "title": "Blackening metal (modelshipbuilder.com)", "url": "https://modelshipbuilder.com/how-to/blackening-metal.pdf" }
+      ]
+    },
+    {
+      "id": "jax_brownblack", "name": "JAX Brown-Black", "maker": "JAX Chemical", "materials": ["brass", "copper", "bronze"],
+      "stops": ["#8C7448", "#624C33", "#433428", "#322A23", "#2A2420"],
+      "diluteStops": ["#967A4C", "#7A5C3C", "#5E4430", "#4E3A2A", "#4A3426"],
+      "tauMinutes": 0.4, "defaultStrength": 0.5, "defaultMinutes": 1, "maxMinutes": 10,
+      "roughness": 0.5, "f0": 0.1, "holdOnBrass": 1, "durability": 1, "overdo": 4,
+      "hazard": { "badge": "Se · corrosive", "level": "danger",
+        "text": "Same selenium family as JAX Black: corrosive, toxic if swallowed, hazardous waste (D002/D010). Gloves, eye protection, ventilation. Keep away from sulfide patinas." },
+      "basis": "V (chemistry); E (colours, rate)",
+      "advice": "A warmer, browner black than JAX Black - the usual 'antique' look on brass. Same handling: dilute, wash off just past the depth you want, then relieve.",
+      "sources": [
+        { "title": "JAX Brown-Black SDS", "url": "https://jaxchemical.com/wp-content/uploads/2024/10/JAX-Brown-Black-Darkener-SDS.pdf" },
+        { "title": "Otto Frei: JAX darkeners", "url": "https://www.ottofrei.com/products/jax-darkeners-2oz-brass-bronze-copper-patina" }
+      ]
+    },
+    {
+      "id": "jax_brown", "name": "JAX Brown", "maker": "JAX Chemical", "materials": ["brass", "copper", "bronze"],
+      "stops": ["#927A4C", "#76583A", "#5E432E", "#523A28", "#4A3022"],
+      "diluteStops": ["#987E50", "#866640", "#765434", "#6E4C30", "#6B4A2E"],
+      "tauMinutes": 0.5, "defaultStrength": 0.5, "defaultMinutes": 1.5, "maxMinutes": 10,
+      "roughness": 0.55, "f0": 0.06, "holdOnBrass": 1, "durability": 1, "overdo": 4,
+      "hazard": { "badge": "Se · corrosive", "level": "danger",
+        "text": "Selenium family: corrosive, toxic if swallowed, hazardous waste (D002/D010). Gloves, eye protection, ventilation. Keep away from sulfide patinas." },
+      "basis": "V (product); E (colours, rate)",
+      "advice": "Brown rather than black: lower contrast, an older-bronze look. Relieved highs read softer against brown recesses than against black.",
+      "sources": [
+        { "title": "Otto Frei: JAX darkeners", "url": "https://www.ottofrei.com/products/jax-darkeners-2oz-brass-bronze-copper-patina" }
+      ]
+    },
+    {
+      "id": "bc_brassblack", "name": "Brass Black", "maker": "Birchwood Casey", "materials": ["brass", "copper"],
+      "stops": ["#867046", "#584830", "#352C24", "#24211F", "#1C1C1E"],
+      "diluteStops": ["#907648", "#6C5236", "#4E3C2A", "#403226", "#3A2E24"],
+      "tauMinutes": 0.25, "defaultStrength": 0.4, "defaultMinutes": 1, "maxMinutes": 8,
+      "roughness": 0.45, "f0": 0.15, "holdOnBrass": 1, "durability": 1, "overdo": 3,
+      "hazard": { "badge": "Se · corrosive", "level": "danger",
+        "text": "Phosphoric acid 7-13% and selenious acid 1-5%, pH 0.99. Toxic if swallowed, causes severe burns (H314), organ damage with repeated exposure (H373). Gloves, face shield or side-shield glasses, apron, exhaust ventilation. Hazardous waste (D002/D010)." },
+      "basis": "V (chemistry); E (colours, rate)",
+      "advice": "Stronger than JAX, so faster and easier to overdo. Dilute it and watch it: depth varies with the alloy and the time.",
+      "sources": [
+        { "title": "Birchwood Casey Brass Black SDS", "url": "https://www.birchwoodcasey.com/content/datasheets/Brass%20Black%20Touch-Up.pdf" }
+      ]
+    },
+    {
+      "id": "bt_m24", "name": "Antique Black M24", "maker": "Birchwood Technologies", "materials": ["brass", "copper", "bronze"],
+      "stops": ["#86724A", "#5A4E34", "#3A3428", "#262520", "#1E1F1C"],
+      "diluteStops": ["#8E7A4C", "#6E623E", "#545032", "#44402C", "#3B3626"],
+      "tauMinutes": 0.3, "defaultStrength": 0.3, "defaultMinutes": 1.5, "maxMinutes": 10,
+      "roughness": 0.45, "f0": 0.12, "holdOnBrass": 1, "durability": 1, "overdo": 4,
+      "hazard": { "badge": "Se · corrosive", "level": "danger",
+        "text": "Selenium/copper family, pH below 1. Corrosive; very toxic to aquatic life. Gloves, eye protection, ventilation; hazardous waste. (The related M20 is rated 'may be fatal if swallowed'.)" },
+      "basis": "V (dilution and colour range); E (colours, rate)",
+      "advice": "Industrial version of the same chemistry. Neat gives black; diluted 10-50% gives browns, which jewellers describe as deep greenish browns on brass - slightly cooler than liver of sulfur.",
+      "sources": [
+        { "title": "Birchwood Technologies: traditional patinas", "url": "https://www.birchwoodtechnologies.com/traditional-patinas/" },
+        { "title": "Antique Black M24 SDS", "url": "https://www.birchwoodtechnologies.com/wp-content/uploads/2023/10/7400_Antique-Black-M24_SDS.pdf" },
+        { "title": "Ganoksin Orchid: antiquing brass", "url": "https://orchid.ganoksin.com/t/antiquing-brass/9759" }
+      ]
+    },
+    {
+      "id": "bt_m38", "name": "Antique Brown M38", "maker": "Birchwood Technologies", "materials": ["brass", "copper", "bronze"],
+      "stops": ["#8E7448", "#76563A", "#5A3E2A", "#46301F", "#3B2618"],
+      "diluteStops": ["#987C4E", "#8A6A44", "#7E5C3A", "#7A5536", "#7A5233"],
+      "tauMinutes": 0.25, "defaultStrength": 0.15, "defaultMinutes": 2.5, "maxMinutes": 8,
+      "roughness": 0.55, "f0": 0.06, "holdOnBrass": 1, "durability": 1, "overdo": 6,
+      "hazard": { "badge": "Corrosive", "level": "warning",
+        "text": "Same family as M24 (inferred): treat as corrosive, gloves and eye protection, ventilation, hazardous waste." },
+      "basis": "V (dilution, colour, 1-4 min); E (colours, rate)",
+      "advice": "Made for browns. At 10-15% it gives light to medium brown, at 20% chocolate, in 1-4 minutes by immersion or brush.",
+      "sources": [
+        { "title": "Birchwood Technologies: traditional patinas", "url": "https://www.birchwoodtechnologies.com/traditional-patinas/" }
+      ]
+    },
+    {
+      "id": "sn_antiquing", "name": "Traditional Antiquing Patina", "maker": "Sculpt Nouveau", "materials": ["brass", "copper", "bronze"],
+      "stops": ["#8C7448", "#68513A", "#4A3A2C", "#2E2620", "#221C18"],
+      "diluteStops": ["#947A4C", "#7A603E", "#625034", "#52442E", "#4A3A2C"],
+      "tauMinutes": 1.3, "defaultStrength": 1, "defaultMinutes": 4, "maxMinutes": 15,
+      "roughness": 0.5, "f0": 0.08, "holdOnBrass": 1, "durability": 1, "overdo": 99,
+      "hazard": { "badge": "Ventilate", "level": "warning",
+        "text": "The maker asks for a vapour respirator, gloves and eye protection." },
+      "basis": "V (3-5 min, colour); E (colours, rate)",
+      "advice": "Slower and more forgiving: dark brown to black on copper alloys in 3-5 minutes at 50-80 F, lighter when diluted. Rinse to stop, and heat-dry before a clear coat.",
+      "sources": [
+        { "title": "Sculpt Nouveau Traditional Antiquing TDS", "url": "https://potterycrafts.co.uk/cdn/shop/files/tds-traditional-antiquing-web-202603.pdf" }
+      ]
+    },
+    {
+      "id": "los", "name": "Liver of sulfur", "maker": "various (lump, XL Gel)", "materials": ["copper", "bronze", "brass"],
+      "stops": ["#C9A050", "#C07A70", "#9A5A8A", "#4A5A9A", "#5A4070", "#6A4A30", "#4A4644", "#1E1B1A"],
+      "diluteStops": ["#C9A050", "#C07A70", "#9A5A8A", "#4A5A9A", "#5A4070", "#6A4A30", "#4A4644", "#1E1B1A"],
+      "tauMinutes": 2, "defaultStrength": 0.5, "defaultMinutes": 3, "maxMinutes": 20,
+      "roughness": 0.55, "f0": 0.15, "holdOnBrass": 0.25, "durability": 1.4, "overdo": 99,
+      "hazard": { "badge": "H₂S · ventilate", "level": "danger",
+        "text": "Gives off hydrogen sulfide. Fume hood or outdoors; keep it out of drains. Never mix with acid blackeners or their waste - acid plus sulfide releases H2S." },
+      "basis": "V (colour order, warm speeds / cold stops); E (timings - no source gives seconds per colour)",
+      "advice": "Runs through gold, pink, magenta, blue, purple, bronze and grey to black. Warm (not hot) solution is faster, cold water stops it. Reliable on copper; on brass it barely reacts. Softer than the selenium blacks: steel wool takes it off easily, so relieve gently.",
+      "sources": [
+        { "title": "Ganoksin: Liver of sulfur 101", "url": "https://www.ganoksin.com/article/liver-of-sulfur-101/" },
+        { "title": "XL Gel SDS", "url": "https://halsteadbead.com/downloads/EH610%20Liver_of_Sulphur_XL_Gel.pdf" },
+        { "title": "LabAlley liver of sulfur SDS", "url": "https://media.laballey.com/docbuilder/potash-sulfurated-liver-of-sulfur-safety-data-sheet-671bfad2cc776.pdf" },
+        { "title": "Ganoksin Orchid: blackener durability", "url": "https://orchid.ganoksin.com/t/jax-blackeners/69420" }
+      ]
+    },
+    {
+      "id": "green", "name": "Green patina (verdigris)", "maker": "JAX Green Patina, Sculpt Nouveau Tiffany Green", "materials": ["copper", "bronze", "brass"],
+      "stops": ["#A08A58", "#8A9466", "#6FA080", "#5A9C80", "#4E9A7E"],
+      "diluteStops": ["#A49060", "#909C70", "#80A888", "#74AC8A", "#6FAF8C"],
+      "tauMinutes": 240, "defaultStrength": 1, "defaultMinutes": 720, "maxMinutes": 2880,
+      "roughness": 0.92, "f0": 0.04, "holdOnBrass": 1, "durability": 1.2, "overdo": 99,
+      "hazard": { "badge": "Corrosive salts", "level": "caution",
+        "text": "Cupric salts. Gloves and eye protection; keep off skin." },
+      "basis": "V (products, overnight cold recipe); E (colours, rate)",
+      "advice": "A dry, chalky green that builds over hours (the cold cupric chloride recipe is overnight, repeated). It sits in the recesses as a matte crust; relieve the highs gently and seal, or it rubs off.",
+      "sources": [
+        { "title": "Otto Frei: JAX Green Patina", "url": "https://www.ottofrei.com/products/jax-green-patina-copper-brass-bronze" },
+        { "title": "Potterycrafts: Sculpt Nouveau Tiffany Green", "url": "https://potterycrafts.co.uk/products/sculpt-nouveau-traditional-tiffany-green-patina" },
+        { "title": "David M Bowman Studio: patina formulas", "url": "https://davidmbowman.com/patinas/formulas.htm" }
+      ]
+    }
+  ],
+
+  "tools": [
+    { "id": "none", "name": "Leave it dark (no relieving)", "radiusMm": 1, "reachMm": 0, "cut": 0, "bareRoughness": 0.3, "brushed": false,
+      "basis": "-", "advice": "The whole coin stays the darkener's colour. Relief then reads only by shading.", "sources": [] },
+    { "id": "flatblock", "name": "Abrasive paper on a flat block (400-600)", "radiusMm": null, "reachMm": 0, "cut": 0.6, "bareRoughness": 0.35, "brushed": true,
+      "basis": "V (keeps flats flat); E (numbers)",
+      "advice": "A plane: only the untouched surface and the very top flats come back bright. Every recess keeps its patina, however shallow. Satin finish in the stroke direction.",
+      "sources": [ { "title": "Engraver's Cafe: flat lapping", "url": "https://engravingcafe.com/showthread.php?p=48194" } ] },
+    { "id": "hardfelt_rouge", "name": "Hard felt or leather strop with rouge", "radiusMm": 15, "reachMm": 0.02, "cut": 0.3, "bareRoughness": 0.10, "brushed": false,
+      "basis": "V (highs only, crisp edges); E (numbers)",
+      "advice": "Stiff and napless, so it stays on the highs and leaves patina even in shallow lows. Bright highs with crisp edges. A hard veg-tanned leather strop is the practitioners' pick for highs only.",
+      "sources": [ { "title": "Ganoksin Orchid: removing patina from the highs", "url": "https://orchid.ganoksin.com/t/removing-patina-from-a-finished-piece/58781" },
+                   { "title": "Skyjems: buffing wheel encyclopedia", "url": "https://skyjems.ca/pages/encyclopedia-buffing-wheel" } ] },
+    { "id": "eraser", "name": "Pink or two-colour eraser", "radiusMm": 2, "reachMm": 0.04, "cut": 0.15, "bareRoughness": 0.30, "brushed": false,
+      "basis": "V (spot control); E (numbers)",
+      "advice": "Slow and controllable: the hobo-nickel carvers' tool for picking out highlights zone by zone without over-polishing. Soft satin result.",
+      "sources": [ { "title": "Engraver's Cafe: finishing carved coins", "url": "https://engraverscafe.com/goto/post?id=154883" } ] },
+    { "id": "propad", "name": "Pro Polishing pad, used flat", "radiusMm": 7, "reachMm": 0.08, "cut": 0.5, "bareRoughness": 0.09, "brushed": false,
+      "basis": "V (strips oxidation, high shine); E (numbers)",
+      "advice": "Firm pressure on a flat pad: fast, and leaves a high shine on the highs. Reaches a little into wide shallow areas.",
+      "sources": [ { "title": "Metal Clay UK: Pro Polishing pads", "url": "https://www.metalclay.co.uk/pro-polishing-pads-a-must-have-for-jewellery-makers/" } ] },
+    { "id": "cloth", "name": "Cloth over a fingertip with polish", "radiusMm": 6, "reachMm": 0.15, "cut": 0.25, "bareRoughness": 0.16, "brushed": false,
+      "basis": "V (selective, gentle); E (numbers)",
+      "advice": "Gentle and selective; the finger lets you steer it. Follows the surface a little, so gentle slopes lighten as well as the tops.",
+      "sources": [ { "title": "Ganoksin Orchid: removing patina from the highs", "url": "https://orchid.ganoksin.com/t/removing-patina-from-a-finished-piece/58781" } ] },
+    { "id": "steelwool", "name": "0000 or 00 steel wool, one direction", "radiusMm": 0.75, "reachMm": 0.3, "cut": 0.6, "bareRoughness": 0.38, "brushed": true,
+      "basis": "V (satin, one direction); E (numbers)",
+      "advice": "Used in one direction only, it gives a matte satin on everything it touches. The fibres reach into shallow areas; deep narrow recesses keep their patina.",
+      "sources": [ { "title": "Ganoksin Orchid: antique satin", "url": "https://orchid.ganoksin.com/t/antique-satin/7284" } ] },
+    { "id": "scotchbrite", "name": "Scotch-Brite pad", "radiusMm": 0.75, "reachMm": 0.3, "cut": 0.6, "bareRoughness": 0.42, "brushed": true,
+      "basis": "V (satin); E (numbers)",
+      "advice": "Like steel wool, slightly coarser satin. Colour codes differ between 3M lines, so grade by the label, not the colour.",
+      "sources": [ { "title": "3M Scotch-Brite radial bristle flyer", "url": "https://multimedia.3m.com/mws/media/2560038O/scotch-brite-precision-radial-bristle-brush-flyer.pdf" } ] },
+    { "id": "brassbrush", "name": "Brass wire brush", "radiusMm": 0.2, "reachMm": 0.45, "cut": 0.15, "bareRoughness": 0.25, "brushed": false,
+      "basis": "V (burnishes, soft sheen); E (numbers)",
+      "advice": "Burnishes more than it cuts: a soft sheen that reaches well into the relief. Removes little patina, so recesses stay dark while the surface gains a glow.",
+      "sources": [ { "title": "Engraver's Cafe: finishing carved coins", "url": "https://engraverscafe.com/goto/post?id=154883" } ] },
+    { "id": "softbuff_tripoli", "name": "Soft flannel buff with tripoli", "radiusMm": 2, "reachMm": 0.45, "cut": 0.5, "bareRoughness": 0.12, "brushed": false,
+      "basis": "V (reaches shallow crevices, rounds edges); E (numbers)",
+      "advice": "Soft and fluffy, so the nap reaches down into shallow crevices and strips them: wide shallow fields lose their patina. Rounds edges with dwell. Bright.",
+      "sources": [ { "title": "Ganoksin Orchid: removing patina from the highs", "url": "https://orchid.ganoksin.com/t/removing-patina-from-a-finished-piece/58781" },
+                   { "title": "Skyjems: buffing wheel encyclopedia", "url": "https://skyjems.ca/pages/encyclopedia-buffing-wheel" } ] },
+    { "id": "softbuff_rouge", "name": "Soft flannel buff with rouge", "radiusMm": 2, "reachMm": 0.45, "cut": 0.3, "bareRoughness": 0.07, "brushed": false,
+      "basis": "V (qualitative); E (numbers)",
+      "advice": "The same reach as tripoli but a finer cut and a brighter, near-mirror finish.",
+      "sources": [ { "title": "Skyjems: buffing wheel encyclopedia", "url": "https://skyjems.ca/pages/encyclopedia-buffing-wheel" } ] },
+    { "id": "bristle80", "name": "3M radial bristle disc, yellow (80)", "radiusMm": 0.35, "reachMm": 1.0, "cut": 0.8, "bareRoughness": 0.45, "brushed": false,
+      "basis": "V (reaches detail grooves, grades); E (numbers)",
+      "advice": "Bristles reach around protrusions and into detail grooves: high reach, fast cut, coarse satin. Easy to strip patina you meant to keep.",
+      "sources": [ { "title": "Otto Frei: 3M radial bristle discs", "url": "https://ottofrei.com/products/3m-2-radial-bristle-discs" },
+                   { "title": "3M Scotch-Brite radial bristle flyer", "url": "https://multimedia.3m.com/mws/media/2560038O/scotch-brite-precision-radial-bristle-brush-flyer.pdf" } ] },
+    { "id": "bristle220", "name": "3M radial bristle disc, red (220)", "radiusMm": 0.35, "reachMm": 1.0, "cut": 0.55, "bareRoughness": 0.30, "brushed": false,
+      "basis": "V (grades); E (numbers)",
+      "advice": "Same reach as the coarser discs, finer satin.",
+      "sources": [ { "title": "Otto Frei: 3M radial bristle discs", "url": "https://ottofrei.com/products/3m-2-radial-bristle-discs" } ] },
+    { "id": "bristle400", "name": "3M radial bristle disc, blue (400)", "radiusMm": 0.35, "reachMm": 1.0, "cut": 0.4, "bareRoughness": 0.20, "brushed": false,
+      "basis": "V (grades); E (numbers)",
+      "advice": "Fine satin that reaches deep into the relief.",
+      "sources": [ { "title": "Otto Frei: 3M radial bristle discs", "url": "https://ottofrei.com/products/3m-2-radial-bristle-discs" } ] },
+    { "id": "bristle1um", "name": "3M radial bristle disc, light green (1 um)", "radiusMm": 0.35, "reachMm": 1.0, "cut": 0.2, "bareRoughness": 0.08, "brushed": false,
+      "basis": "V (grades); E (numbers)",
+      "advice": "Polishing grade: bright, slow, and still reaches the detail.",
+      "sources": [ { "title": "Otto Frei: 3M radial bristle discs", "url": "https://ottofrei.com/products/3m-2-radial-bristle-discs" } ] },
+    { "id": "pins", "name": "Magnetic pins (tumbler)", "radiusMm": 0.25, "reachMm": 3.0, "cut": 0.03, "bareRoughness": 0.22, "brushed": false,
+      "basis": "V (reaches whole relief); E (numbers)",
+      "advice": "Reaches the whole relief wherever a gap is wider than a pin. Slow on patina; mostly a burnisher.",
+      "sources": [ { "title": "xTool: cleaning embossed brass", "url": "https://support.xtool.com/article/2505" } ] }
+  ],
+
+  "pressures": [
+    { "id": "light", "name": "Light", "factor": 0.6 },
+    { "id": "medium", "name": "Medium", "factor": 1.0 },
+    { "id": "firm", "name": "Firm", "factor": 1.6 }
+  ],
+
+  "sealers": [
+    { "id": "none", "name": "Unsealed", "lighten": 0, "roughDelta": 0, "clear": 0, "clearRoughness": 0,
+      "basis": "-", "advice": "An unrinsed or unsealed piece keeps oxidising; rinse well and dry.",
+      "sources": [ { "title": "Blackening metal (modelshipbuilder.com)", "url": "https://modelshipbuilder.com/how-to/blackening-metal.pdf" } ] },
+    { "id": "wax", "name": "Renaissance Wax", "lighten": 0.2, "roughDelta": -0.1, "clear": 0, "clearRoughness": 0,
+      "basis": "V (single practitioner: 'back at least one colour'); E (amounts)",
+      "advice": "Microcrystalline wax developed at the British Museum. A subtle sheen, but it takes the patina back about one colour and softens its intensity - some makers over-darken to allow for it.",
+      "sources": [ { "title": "Wikipedia: Renaissance Wax", "url": "https://en.wikipedia.org/wiki/Renaissance_Wax" },
+                   { "title": "Ganoksin Orchid: Renaissance wax", "url": "https://orchid.ganoksin.com/t/renaissance-wax/7507" } ] },
+    { "id": "satin", "name": "Satin clear coat (e.g. Sculpt Nouveau Clear Guard satin)", "lighten": 0, "roughDelta": 0, "clear": 1, "clearRoughness": 0.38,
+      "basis": "V (practitioner: 'identical' to unsealed satin); E (numbers)",
+      "advice": "Protects without changing the look much: practitioners found it near-identical to an uncoated hand-rubbed satin.",
+      "sources": [ { "title": "Ganoksin Orchid: preserving copper and bronze", "url": "https://orchid.ganoksin.com/t/preserving-copper-and-bronze/60901" } ] },
+    { "id": "gloss", "name": "Gloss lacquer (e.g. Incralac)", "lighten": 0, "roughDelta": 0, "clear": 1, "clearRoughness": 0.08,
+      "basis": "V (qualitative); E (clear-coat numbers)",
+      "advice": "Incralac is an acrylic with a benzotriazole corrosion inhibitor, developed for copper and bronze. Glossier than wax and holds the patina colour better; puts a clear shine over everything, recesses included.",
+      "sources": [ { "title": "Rupert Harris: Incralac", "url": "https://rupertharris.com/products/incralac" },
+                   { "title": "Ganoksin Orchid: Renaissance wax vs lacquer", "url": "https://orchid.ganoksin.com/t/renaissance-wax/7507" } ] }
+  ],
+
+  "general": [
+    { "id": "order", "title": "The order that works",
+      "text": "Clean the laser oxide and powder off, set the surface texture, darken the whole piece, rub the patina back off the highs with a tool whose stiffness decides how deep it reaches, then seal. Patinate everything and take it back from the highs - do not paint patina into the recesses." },
+    { "id": "stiffness", "title": "Stiffness, not grit, decides the reach",
+      "text": "Stiff, napless backings (hard felt, leather, a block) stay on the tops and leave patina even in shallow lows. Soft, conformable tools (flannel buffs, bristle discs, steel wool) follow the surface down and strip it. Grit only sets how fast and how bright." },
+    { "id": "prep", "title": "Preparation decides evenness",
+      "text": "Darkening only works on degreased, oxide-free metal handled with gloves and darkened straight after cleaning. Patchy results are almost always contamination or leftover laser oxide, not the product." },
+    { "id": "mixing", "title": "Never mix the families",
+      "text": "Acid blackeners (selenium, tellurium) and sulfide solutions (liver of sulfur) must never share a container or a waste stream: acid plus sulfide releases hydrogen sulfide." },
+    { "id": "estimate", "title": "A look, not a prediction",
+      "text": "Colours, roughness and tool reach in this preview are estimates from published practice, not measurements. Real results depend on the alloy, temperature, dilution and your hand. Calibrate with a test coin before a client piece." }
+  ]
+}

@@ -119,6 +119,12 @@ public class ReliefPreview : UserControl
     /// designer and any stray early render cannot fault.</summary>
     public ReliefViewSettings Settings { get; set; } = new();
 
+    /// <summary>A material for this pane only, in place of the shared library pick.</summary>
+    public MaterialPreset? MaterialOverride { get; set; }
+
+    /// <summary>A finished surface to draw (the finishing window). Must match the field's size.</summary>
+    public FinishLayer? Finish { get; set; }
+
     /// <summary>Raised when a drag or wheel changed the shared settings, so the window can
     /// re-render the other pane too.</summary>
     public event EventHandler? ViewChanged;
@@ -237,7 +243,7 @@ public class ReliefPreview : UserControl
 
         var o = new ReliefOptions
         {
-            Material = s.Material,
+            Material = MaterialOverride ?? s.Material,
             LightAzimuthDeg = s.LightAzimuthDeg,
             LightElevationDeg = s.LightElevationDeg,
             AoStrength = s.AoStrength,
@@ -252,7 +258,8 @@ public class ReliefPreview : UserControl
             YawDeg = s.YawDeg,
             PitchDeg = s.PitchDeg,
             MeshResolution = fast ? 192 : 720,
-            Supersample = fast ? 1 : 2
+            Supersample = fast ? 1 : 2,
+            Finish = Finish
         };
 
         var buf = new byte[(long)bw * bh * 4];
@@ -271,6 +278,48 @@ public class ReliefPreview : UserControl
         _image.Height = bh * q;
         _image.Source = bmp;
         _badge.IsVisible = true;
+    }
+
+    /// <summary>
+    /// A full-quality frame of exactly what the pane shows, at a chosen width, for saving.
+    /// Options are read here on the UI thread; only the render runs in the background.
+    /// </summary>
+    public async Task<(byte[] Pixels, int W, int H)?> RenderStillAsync(int width)
+    {
+        var scene = _scene;
+        double hostW = Bounds.Width, hostH = Bounds.Height;
+        if (scene is null || hostW < 8 || hostH < 8) return null;
+
+        var s = Settings;
+        double k = width / hostW;
+        int w = Math.Max(32, width), h = Math.Max(32, (int)Math.Round(hostH * k));
+        double slack = s.Orbit ? 0.82 : 0.94;
+        double fit = Math.Min(hostW / Math.Max(1, _fw), hostH / Math.Max(1, _fh)) * slack;
+
+        var o = new ReliefOptions
+        {
+            Material = MaterialOverride ?? s.Material,
+            LightAzimuthDeg = s.LightAzimuthDeg,
+            LightElevationDeg = s.LightElevationDeg,
+            AoStrength = s.AoStrength,
+            Exaggeration = ExaggerationForDepth(s),
+            SlabRatio = s.SlabRatio,
+            SliceCount = s.SliceCount,
+            Zoom = fit * s.ZoomMul * k,
+            PanX = s.PanX,
+            PanY = s.PanY,
+            Quality = 1,
+            Orbit = s.Orbit,
+            YawDeg = s.YawDeg,
+            PitchDeg = s.PitchDeg,
+            MeshResolution = 900,
+            Supersample = 2,
+            Finish = Finish
+        };
+
+        var buf = new byte[(long)w * h * 4];
+        await Task.Run(() => ReliefRenderer.Render(buf, w, h, scene, o));
+        return (buf, w, h);
     }
 
     /// <summary>

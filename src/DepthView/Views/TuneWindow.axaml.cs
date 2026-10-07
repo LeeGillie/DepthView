@@ -17,6 +17,7 @@ using DepthView.Controls;
 using DepthView.Imaging;
 using DepthView.Processing;
 using DepthView.Rendering;
+using DepthView.Finishing;
 
 namespace DepthView.Views;
 
@@ -74,7 +75,8 @@ public partial class TuneWindow : Window
     private int _fullGen;
     private ushort[]? _fullTuned;
     private int _fullTW, _fullTH, _fullMax = 65535;
-    private TerraceReport? _terOrig, _terTuned;
+    /// <summary>The last full-resolution check, original and tuned: a TerraceReport, DetailReport, NoiseReport or peak list.</summary>
+    private object? _ovOrig, _ovTuned;
     private string _resultBase = "", _origCaptionBase = "", _tunedCaptionBase = "";
     private int _tunedPreviewW, _tunedPreviewH;
     private double _ringBlank, _ringRim;
@@ -84,7 +86,12 @@ public partial class TuneWindow : Window
     private bool _dragging, _dragTuned;
     private double _dragU0, _dragV0;
 
-    private bool TerraceOn => TerraceCheck.IsChecked == true;
+    /// <summary>What the pictures are marked with (the Mark box).</summary>
+    private enum Mark { None, Terraces, Detail, Noise, Peaks }
+
+    private Mark MarkMode => (Mark)Math.Clamp(OverlayBox.SelectedIndex, 0, 4);
+
+    private bool MarkOn => OverlayBox.SelectedIndex > 0;
 
     private const int PreviewEdge = 560;
 
@@ -273,7 +280,10 @@ public partial class TuneWindow : Window
 
         // --show-terraces and --profile-line, for the same reason: so the terrace view and a
         // profile can be captured by a script.
-        if (Program.StartupTerraces) TerraceCheck.IsChecked = true;
+        if (Program.StartupTerraces) OverlayBox.SelectedIndex = 1;
+        if (Program.StartupMark is int mk) OverlayBox.SelectedIndex = Math.Clamp(mk, 0, 4);
+        if (Program.StartupFinish is { } fin)
+            Dispatcher.UIThread.Post(() => OpenFinishing(fin), DispatcherPriority.Background);
         if (Program.StartupProfileLine is { Length: 4 } pl)
         {
             _line = (true, pl[0], pl[1], pl[2], pl[3]);
@@ -285,15 +295,12 @@ public partial class TuneWindow : Window
 
     private void WireTerraces()
     {
-        TerraceCheck.IsCheckedChanged += (_, _) =>
+        OverlayBox.SelectionChanged += (_, _) =>
         {
-            // The lit panes and the terrace view both take over the pictures; one at a time.
-            if (TerraceOn && ReliefOn) ReliefCheck.IsChecked = false;
-            if (!TerraceOn)
-            {
-                _terOrig = _terTuned = null;
-                RenderOriginal();
-            }
+            // The lit panes and the marked view both take over the pictures; one at a time.
+            if (MarkOn && ReliefOn) ReliefCheck.IsChecked = false;
+            _ovOrig = _ovTuned = null;
+            if (!MarkOn) RenderOriginal();
             Recompute();
         };
 
@@ -397,8 +404,8 @@ public partial class TuneWindow : Window
     /// </summary>
     private void StartFullPass(TuningOptions full)
     {
-        bool terraces = TerraceOn;
-        bool needTuned = terraces || _line is { Tuned: true };
+        var mark = ReliefOn ? Mark.None : MarkMode;
+        bool needTuned = mark != Mark.None || _line is { Tuned: true };
         _fullCts?.Cancel();
         if (!needTuned) return;
 
@@ -418,7 +425,7 @@ public partial class TuneWindow : Window
             // box. That is routine, not an error, so it ends here with a null result rather
             // than as an exception: a throw escaping the lambda stops the debugger as
             // "user-unhandled" on every edit even though nothing is wrong.
-            try { return FullPass(full, terraces, passes, spot, blank, depth, pw, ph, token); }
+            try { return FullPass(full, mark, passes, spot, blank, depth, pw, ph, token); }
             catch (OperationCanceledException) { return null; }
         }, token).ContinueWith(t =>
         {
@@ -431,17 +438,17 @@ public partial class TuneWindow : Window
                 _fullTH = r.th;
                 _fullMax = r.tmax;
 
-                if (r.to is not null && r.tt is not null && TerraceOn && !ReliefOn)
+                if (r.ro is not null && r.rt is not null && !ReliefOn && MarkMode == r.mark)
                 {
-                    _terOrig = r.to;
-                    _terTuned = r.tt;
+                    _ovOrig = r.ro;
+                    _ovTuned = r.rt;
                     // The original as it would be cut as it stands: the blank spans its short
                     // side. Only that circle is measured, so it is drawn.
                     OriginalImage.Source = FinishBitmap(r.oo!, _pw, _ph, Math.Min(_pw, _ph) / 2.0, 0);
                     TunedImage.Source = FinishBitmap(r.ot!, pw, ph, _ringBlank, _ringRim);
-                    OriginalCaption.Text = _origCaptionBase + TerraceCaption(r.to);
-                    TunedCaption.Text = _tunedCaptionBase + TerraceCaption(r.tt);
-                    ResultText.Text = _resultBase + Environment.NewLine + string.Join(Environment.NewLine, TerraceRows());
+                    OriginalCaption.Text = _origCaptionBase + MarkCaption(r.ro);
+                    TunedCaption.Text = _tunedCaptionBase + MarkCaption(r.rt);
+                    ResultText.Text = _resultBase + Environment.NewLine + string.Join(Environment.NewLine, MarkRows());
                 }
                 UpdateProfile();
             });
@@ -453,8 +460,8 @@ public partial class TuneWindow : Window
     /// cancelled between stages; a cancel inside a measurement surfaces as
     /// OperationCanceledException, which the caller catches.
     /// </summary>
-    private (ushort[] tuned, int tw, int th, int tmax, TerraceReport? to, TerraceReport? tt, byte[]? oo, byte[]? ot)?
-        FullPass(TuningOptions full, bool terraces, int passes, double spot, double blank, double depth,
+    private (ushort[] tuned, int tw, int th, int tmax, Mark mark, object? ro, object? rt, byte[]? oo, byte[]? ot)?
+        FullPass(TuningOptions full, Mark mark, int passes, double spot, double blank, double depth,
                  int pw, int ph, CancellationToken token)
     {
         {
@@ -471,18 +478,55 @@ public partial class TuneWindow : Window
                 tmax = 255;
             }
 
-            TerraceReport? to = null, tt = null;
+            object? ro = null, rt = null;
             byte[]? oo = null, ot = null;
-            if (terraces)
+            double ppO = Math.Min(_w, _h) / blank, ppT = Math.Min(tw, th) / blank;
+            double bO = Math.Min(_w, _h) / 2.0, bT = Math.Min(tw, th) / 2.0;
+            switch (mark)
             {
-                to = TerraceMap.Measure(_grey, _w, _h, _maxValue, passes, Math.Min(_w, _h) / blank, depth, spot, true, token);
-                tt = TerraceMap.Measure(tuned, tw, th, tmax, passes, Math.Min(tw, th) / blank, depth, spot, true, token);
-                oo = TerraceMap.Overlay(_grey, _w, _h, _maxValue, to.Classes!, _pw, _ph, to.BlankRadiusPx);
-                ot = TerraceMap.Overlay(tuned, tw, th, tmax, tt.Classes!, pw, ph, tt.BlankRadiusPx);
-                to.Classes = null;
-                tt.Classes = null;
+                case Mark.Terraces:
+                {
+                    var to = TerraceMap.Measure(_grey, _w, _h, _maxValue, passes, ppO, depth, spot, true, token);
+                    var tt = TerraceMap.Measure(tuned, tw, th, tmax, passes, ppT, depth, spot, true, token);
+                    oo = TerraceMap.Overlay(_grey, _w, _h, _maxValue, to.Classes!, _pw, _ph, to.BlankRadiusPx);
+                    ot = TerraceMap.Overlay(tuned, tw, th, tmax, tt.Classes!, pw, ph, tt.BlankRadiusPx);
+                    to.Classes = null; tt.Classes = null;
+                    ro = to; rt = tt;
+                    break;
+                }
+                case Mark.Detail:
+                {
+                    var dO = DetailMap.Measure(_grey, _w, _h, _maxValue, passes, ppO, depth, spot, true, token);
+                    var dT = DetailMap.Measure(tuned, tw, th, tmax, passes, ppT, depth, spot, true, token);
+                    oo = ClassOverlay.Draw(_grey, _w, _h, _maxValue, dO.Classes!, _pw, _ph, bO);
+                    ot = ClassOverlay.Draw(tuned, tw, th, tmax, dT.Classes!, pw, ph, bT);
+                    dO.Classes = null; dT.Classes = null;
+                    ro = dO; rt = dT;
+                    break;
+                }
+                case Mark.Noise:
+                {
+                    var nO = NoiseMap.Measure(_grey, _w, _h, _maxValue, passes, ppO, depth, true, token);
+                    var nT = NoiseMap.Measure(tuned, tw, th, tmax, passes, ppT, depth, true, token);
+                    oo = ClassOverlay.Draw(_grey, _w, _h, _maxValue, nO.Classes!, _pw, _ph, bO);
+                    ot = ClassOverlay.Draw(tuned, tw, th, tmax, nT.Classes!, pw, ph, bT);
+                    nO.Classes = null; nT.Classes = null;
+                    ro = nO; rt = nT;
+                    break;
+                }
+                case Mark.Peaks:
+                {
+                    Func<int, int, bool> Inside(int w, int h) { double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, r2 = Math.Min(w, h) * Math.Min(w, h) / 4.0; return (x, y) => (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r2; }
+                    var pO = FlatPeaks.Find(_grey, _w, _h, _maxValue, Inside(_w, _h));
+                    token.ThrowIfCancellationRequested();
+                    var pT = FlatPeaks.Find(tuned, tw, th, tmax, Inside(tw, th));
+                    oo = ClassOverlay.Draw(_grey, _w, _h, _maxValue, FlatPeaks.Classes(_grey, _w, _h, pO), _pw, _ph, bO, gain: 40);
+                    ot = ClassOverlay.Draw(tuned, tw, th, tmax, FlatPeaks.Classes(tuned, tw, th, pT), pw, ph, bT, gain: 40);
+                    ro = pO; rt = pT;
+                    break;
+                }
             }
-            return (tuned, tw, th, tmax, to, tt, oo, ot);
+            return (tuned, tw, th, tmax, mark, ro, rt, oo, ot);
         }
     }
 
@@ -493,6 +537,71 @@ public partial class TuneWindow : Window
             SubtitleText.Text = problem;
     }
 
+    /// <summary>
+    /// The finishing preview, on the map these controls would write, at full resolution.
+    /// It builds its own copy from the settings as they stand, so later changes here do not
+    /// reach into it.
+    /// </summary>
+    private void OnFinishing(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => OpenFinishing(null);
+
+    private void OpenFinishing(string? spec)
+    {
+        FinishRecipe? recipe = null;
+        if (!string.IsNullOrWhiteSpace(spec)) recipe = FinishRecipe.Parse(spec, out _);
+        Finishing = new FinishWindow(_grey, _w, _h, _maxValue, Build(), _fileName, recipe);
+        Finishing.Show(this);
+    }
+
+    /// <summary>The finishing window last opened from here, for --finish-ui screenshots.</summary>
+    public FinishWindow? Finishing { get; private set; }
+
+    /// <summary>The caption line for whatever the pictures are marked with.</summary>
+    private static string MarkCaption(object? report) => report switch
+    {
+        TerraceReport t => TerraceCaption(t),
+        DetailReport d => d.FinerThanPixels
+            ? "\nThe spot is narrower than a pixel: nothing in this file is finer than the beam."
+            : $"\nDetail finer than the spot: {d.ShareUnderSpot * 100:F2}% of the blank (red), {d.ShareUnder2Spots * 100:F2}% more under two spots (amber).",
+        NoiseReport n => n.Noisy == 0
+            ? "\nNo noise of half a layer or more on any smooth surface."
+            : $"\nNoise on smooth surfaces: {n.ShareNoisy * 100:F1}% of the blank, median {n.MedianNoiseMicrons:F1} um (amber: half a layer, red: two).",
+        List<FlatPeak> p => p.Count == 0
+            ? "\nNo flattened peaks: every summit is explained by the slope below it."
+            : $"\nFlattened peaks: {p.Count} (red), the largest {p[0].Pixels:N0} px - flat tops the slope below does not explain.",
+        _ => "",
+    };
+
+    /// <summary>The rows of the results card for the current mark, original to tuned.</summary>
+    private IEnumerable<string> MarkRows()
+    {
+        switch (_ovOrig, _ovTuned)
+        {
+            case (TerraceReport, TerraceReport):
+                foreach (var row in TerraceRows()) yield return row;
+                break;
+            case (DetailReport a, DetailReport b):
+                yield return $"Detail under the spot  {a.ShareUnderSpot * 100:F2}%  to  {b.ShareUnderSpot * 100:F2}% of the blank";
+                yield return $"Under two spots        {a.ShareUnder2Spots * 100:F2}%  to  {b.ShareUnder2Spots * 100:F2}%";
+                break;
+            case (NoiseReport a, NoiseReport b):
+                yield return $"Noisy smooth surface   {a.ShareNoisy * 100:F1}%  to  {b.ShareNoisy * 100:F1}% of the blank";
+                yield return $"Median noise           {a.MedianNoiseMicrons:F1} um  to  {b.MedianNoiseMicrons:F1} um";
+                break;
+            case (List<FlatPeak> a, List<FlatPeak> b):
+                yield return $"Flattened peaks        {a.Count}  to  {b.Count}";
+                break;
+        }
+    }
+
+    private static string MarkTitle(Mark m) => m switch
+    {
+        Mark.Terraces => "Steps that will show",
+        Mark.Detail => "Detail under the spot",
+        Mark.Noise => "Noisy smooth surface",
+        Mark.Peaks => "Flattened peaks",
+        _ => "",
+    };
+
     private static string TerraceCaption(TerraceReport r)
         => r.Edges == 0
             ? "\nNo layer edges at this pass count."
@@ -502,7 +611,7 @@ public partial class TuneWindow : Window
     /// <summary>The terrace rows of the results card, original to tuned.</summary>
     private IEnumerable<string> TerraceRows()
     {
-        if (_terOrig is not { } a || _terTuned is not { } b) yield break;
+        if (_ovOrig is not TerraceReport a || _ovTuned is not TerraceReport b) yield break;
         yield return $"Steps that will show   {a.ShareWider * 100:F0}%  to  {b.ShareWider * 100:F0}% of the layer edges";
         yield return $"Length of those steps  {a.EdgeLengthMm * a.ShareWider:N0} mm  to  {b.EdgeLengthMm * b.ShareWider:N0} mm";
         yield return b.LimitedByLevels
@@ -630,7 +739,7 @@ public partial class TuneWindow : Window
     private void ReliefModeChanged()
     {
         bool on = ReliefOn;
-        if (on && TerraceOn) TerraceCheck.IsChecked = false;
+        if (on && MarkOn) OverlayBox.SelectedIndex = 0;
         if (on) { OriginalLine.IsVisible = false; TunedLine.IsVisible = false; }
         else { OriginalLine.IsVisible = true; TunedLine.IsVisible = true; }
         ReliefPanel.IsVisible = on;
@@ -1133,10 +1242,10 @@ public partial class TuneWindow : Window
         _resultBase = ResultText.Text ?? "";
         _origCaptionBase = OriginalCaption.Text ?? "";
         _tunedCaptionBase = TunedCaption.Text ?? "";
-        if (TerraceOn && !ReliefOn)
+        if (MarkOn && !ReliefOn)
         {
-            ResultText.Text = _resultBase + Environment.NewLine + "Steps that will show   measuring at full resolution ...";
-            if (_terOrig is { } to) OriginalCaption.Text = _origCaptionBase + TerraceCaption(to);
+            ResultText.Text = _resultBase + Environment.NewLine + $"{MarkTitle(MarkMode),-22} measuring at full resolution ...";
+            if (_ovOrig is { } ro) OriginalCaption.Text = _origCaptionBase + MarkCaption(ro);
         }
 
         UpdateStatus(full);

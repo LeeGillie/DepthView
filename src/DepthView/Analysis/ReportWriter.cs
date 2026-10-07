@@ -78,6 +78,10 @@ public static class ReportWriter
         sb.AppendLine($"  Compression       {m.CompressionMethod}");
         sb.AppendLine($"  Interlacing       {m.InterlaceMethod}");
         if (m.Gamma is { } g) sb.AppendLine($"  Gamma             {g:F5}");
+        var curve = DisplayCurve.Of(m);
+        if (curve.Kind != CurveKind.None)
+            sb.AppendLine($"  Display curve     {curve.Name}"
+                + (curve.CanUndo ? $" - undone, a level stored halfway down is {curve.DepthAtStoredHalf * 100:F0}% deep" : ""));
         if (m.SignificantBits is { Length: > 0 }) sb.AppendLine($"  sBIT              {string.Join(", ", m.SignificantBits)}");
         sb.AppendLine($"  ICC profile       {(m.HasIccProfile ? m.IccProfileName ?? "embedded" : "none")}");
         sb.AppendLine();
@@ -85,6 +89,13 @@ public static class ReportWriter
         sb.AppendLine("CONTENT (what the pixels contain)");
         sb.AppendLine($"  Dimensions        {r.DimensionText}");
         sb.AppendLine($"  Channels          {r.Channels}");
+        if (r.FlatPeaks is { } fp)
+            sb.AppendLine($"  Flattened peaks   {fp.Count:N0}"
+                + (fp.Count > 0 ? $" (largest {fp[0].Pixels:N0} px at level {fp[0].Level:N0})" : ""));
+        if (r.Aliasing is { } al)
+            sb.AppendLine("  Jagged edges      " + (al.EdgePixels < Processing.EdgeAlias.MinEdges
+                ? "too few diagonal step edges to judge"
+                : $"{al.Share * 100:F0}% of {al.EdgePixels:N0} diagonal step-edge px jump in one pixel"));
         sb.AppendLine(r.IsFloat
             ? $"  Sample range      {r.FloatMin:G6} .. {r.FloatMax:G6} (float32)"
             : $"  Sample range      0 .. {r.MaxValue:N0}");

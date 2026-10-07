@@ -36,6 +36,9 @@ public partial class ReliefWindow : Window
 
     private readonly ZScaleHint _zHint;
 
+    /// <summary>The depth line from the main window's picture, or null.</summary>
+    private (double U0, double V0, double U1, double V1)? _line;
+
     public ReliefWindow(ImageData image, string caption)
     {
         InitializeComponent();
@@ -375,6 +378,13 @@ public partial class ReliefWindow : Window
         _syncing = false;
     }
 
+    /// <summary>Lay the main window's depth line on the surface; null takes it off.</summary>
+    public void SetLine((double U0, double V0, double U1, double V1)? line)
+    {
+        _line = line;
+        Request(false);
+    }
+
     private async void Request(bool fast)
     {
         _wantFast = _wantFast || fast;
@@ -439,7 +449,8 @@ public partial class ReliefWindow : Window
             // Mesh density only costs silhouette accuracy - shading is sampled per pixel from
             // the height field - so it can drop a long way while dragging without looking soft.
             MeshResolution = fast ? 192 : 720,
-            Supersample = fast ? 1 : 2
+            Supersample = fast ? 1 : 2,
+            Line = _line
         };
 
         var buf = new byte[(long)bw * bh * 4];

@@ -76,6 +76,10 @@ public static class PngDecoder
                     if (len >= 4) meta.Gamma = BinaryPrimitives.ReadUInt32BigEndian(span) / 100000.0;
                     break;
 
+                case "sRGB":
+                    if (len >= 1) meta.SrgbIntent = span[0];
+                    break;
+
                 case "sBIT":
                 {
                     var sig = new int[len];

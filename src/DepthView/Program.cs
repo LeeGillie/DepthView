@@ -48,6 +48,12 @@ internal static partial class Program
     /// <summary>--show-overlay detail|noise|peaks|terraces: open the Tune window marking that.</summary>
     public static int? StartupMark;
 
+    /// <summary>--profile-line without --tune-ui: a depth line on the main window's picture.</summary>
+    public static double[]? StartupMainLine;
+
+    /// <summary>--preview raw|stretch|lowbyte|colour|linear: the main window's preview mode, for screenshots.</summary>
+    public static int? StartupPreview;
+
     /// <summary>--finish-ui [recipe]: open the finishing preview over the Tune window. "" for the default recipe.</summary>
     public static string? StartupFinish;
     public static double? StartupSpot;
@@ -100,10 +106,18 @@ internal static partial class Program
                                           those boxes); --show-terraces opens the terrace
                                           view, and --profile-line u0,v0,u1,v1 lays a line
                                           across the tuned picture (fractions of its width
-                                          and height) and plots it
+                                          and height) and plots it; without --tune-ui
+                                          it goes on the main window's picture.
+                                          --show-overlay <terraces|detail|noise|peaks|
+                                          jagged> picks what Mark shows, and
+                                          --finish-ui ["recipe"] opens the finishing
+                                          preview (recipe as for --render --finish)
                                           Either relief view also takes --blank <mm>,
                                           --thick <mm>, --depth-mm <mm> and --exag <stops>,
                                           as in --render
+          DepthView <image> --preview <mode>  open with that preview: raw, stretch,
+                                          lowbyte, colour, or linear (as if a declared
+                                          display curve were undone)
           DepthView <image> --wizard      open the tuning wizard over the Tune window;
                                           --wizard-step <n> opens it at step n, and
                                           --wizard-target <makeit|lightburn|slicer> picks
@@ -209,6 +223,11 @@ internal static partial class Program
                               pixel noise on surfaces that should be smooth, told apart from
                               fine texture, in layers at the pass count (amber: half a layer
                               or more, red: two or more). --json: depthview.noise/1
+          DepthView --aliasing <image> [--blank <mm>] [--out <overlay.png>] [--json]
+                              diagonal and curved step edges that jump a whole step in one
+                              pixel - a map rendered at its final size, which cuts curves as
+                              stairs (red). The rim and walls along the pixel grid are not
+                              judged. --jaggies is the same. --json: depthview.aliasing/1
 
         Tune a depth map (writes a new file, never over the original)
           DepthView --tune <image> [options]
@@ -393,8 +412,14 @@ internal static partial class Program
         int tridx = Array.FindIndex(args, a => a is "--terraces");
         if (tridx >= 0) return RunTerraces(args.Skip(tridx + 1).ToArray());
 
-        int dtidx = Array.FindIndex(args, a => a is "--detail" or "--noise");
-        if (dtidx >= 0) return RunInspect(args.Skip(dtidx + 1).ToArray(), detail: args[dtidx] == "--detail");
+        int dtidx = Array.FindIndex(args, a => a is "--detail" or "--noise" or "--aliasing" or "--jaggies");
+        if (dtidx >= 0)
+            return RunInspect(args.Skip(dtidx + 1).ToArray(), args[dtidx] switch
+            {
+                "--detail" => "detail",
+                "--noise" => "noise",
+                _ => "aliasing",
+            });
 
         int gidx = Array.FindIndex(args, a => a is "--gcode");
         if (gidx >= 0) return RunGcode(args.Skip(gidx + 1).ToArray());
@@ -466,7 +491,7 @@ internal static partial class Program
             if (soi >= 0 && soi + 1 < args.Length)
                 StartupMark = args[soi + 1].ToLowerInvariant() switch
                 {
-                    "terraces" or "steps" => 1, "detail" => 2, "noise" => 3, "peaks" => 4, _ => 0,
+                    "terraces" or "steps" => 1, "detail" => 2, "noise" => 3, "peaks" => 4, "jagged" or "aliasing" => 5, _ => 0,
                 };
             int pli = Array.IndexOf(args, "--profile-line");
             if (pli >= 0 && pli + 1 < args.Length)
@@ -497,6 +522,27 @@ internal static partial class Program
         StartupWhatsNew = args.Any(a => a is "--whats-new-ui");
         StartupLicence = args.Any(a => a is "--licence" or "--license");
         if (StartupLicence) StartupAbout = true;
+
+        int pvi = Array.IndexOf(args, "--preview");
+        if (pvi >= 0 && pvi + 1 < args.Length)
+            StartupPreview = args[pvi + 1].ToLowerInvariant() switch
+            {
+                "stretch" => 1, "lowbyte" or "low" => 2, "colour" or "color" => 3, "linear" => 4, _ => 0,
+            };
+
+        // --profile-line also works without --tune-ui: on the main window's picture.
+        if (!StartupTune)
+        {
+            int mli = Array.IndexOf(args, "--profile-line");
+            if (mli >= 0 && mli + 1 < args.Length)
+            {
+                var ends = args[mli + 1].Split(',')
+                    .Select(s => double.TryParse(s, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : double.NaN)
+                    .ToArray();
+                if (ends.Length == 4 && ends.All(v => v >= 0 && v <= 1)) StartupMainLine = ends;
+            }
+        }
 
         int sh = Array.FindIndex(args, a => a == "--screenshot");
         if (sh >= 0 && sh + 1 < args.Length) ScreenshotPath = args[sh + 1];
@@ -1153,13 +1199,19 @@ internal static partial class Program
     }
 
     /// <summary>
-    /// --detail and --noise: two per-pixel checks of the map as it stands, inside the blank,
-    /// with the same blank, depth and spot defaults as --terraces.
+    /// --detail, --noise and --aliasing: per-pixel checks of the map as it stands, inside the
+    /// blank, with the same blank, depth and spot defaults as --terraces.
     /// </summary>
-    private static int RunInspect(string[] rest, bool detail)
+    private static int RunInspect(string[] rest, string mode)
     {
         AttachParentConsole();
-        string schema = detail ? JsonReport.DetailSchema : JsonReport.NoiseSchema;
+        bool detail = mode == "detail";
+        string schema = mode switch
+        {
+            "detail" => JsonReport.DetailSchema,
+            "noise" => JsonReport.NoiseSchema,
+            _ => JsonReport.AliasSchema,
+        };
         string? input = null, overlay = null;
         bool json = false;
         int passes = 256;
@@ -1180,9 +1232,12 @@ internal static partial class Program
             }
         }
 
-        string usage = detail
-            ? "Usage: DepthView --detail <image> [--passes n] [--blank mm] [--depth-mm mm] [--spot um] [--out overlay.png] [--json]"
-            : "Usage: DepthView --noise <image> [--passes n] [--blank mm] [--depth-mm mm] [--out overlay.png] [--json]";
+        string usage = mode switch
+        {
+            "detail" => "Usage: DepthView --detail <image> [--passes n] [--blank mm] [--depth-mm mm] [--spot um] [--out overlay.png] [--json]",
+            "noise" => "Usage: DepthView --noise <image> [--passes n] [--blank mm] [--depth-mm mm] [--out overlay.png] [--json]",
+            _ => "Usage: DepthView --aliasing <image> [--blank mm] [--out overlay.png] [--json]",
+        };
         if (input is null || !File.Exists(input))
         {
             if (json) Console.WriteLine(JsonReport.Error(schema, input is null ? "No input file." : $"No such file: {input}"));
@@ -1197,7 +1252,7 @@ internal static partial class Program
             return 2;
         }
 
-        var loaded = ImageLoader.Load(File.ReadAllBytes(input), Path.GetFileName(input), input, detail ? "detail" : "noise");
+        var loaded = ImageLoader.Load(File.ReadAllBytes(input), Path.GetFileName(input), input, mode);
         var grey = DepthTuner.ExtractGrey(loaded.Image);
         int w = loaded.Image.Width, h = loaded.Image.Height, max = loaded.Image.MaxValue;
         double ppmm = Math.Min(w, h) / blank;
@@ -1214,13 +1269,21 @@ internal static partial class Program
             lines = DetailLines(r);
             legend = "red: narrower than the spot, amber: narrower than two spots";
         }
-        else
+        else if (mode == "noise")
         {
             var r = NoiseMap.Measure(grey, w, h, max, passes, ppmm, depth, keepClasses: overlay is not null);
             classes = r.Classes;
             body = JsonReport.Noise(Path.GetFullPath(input), r, overlay);
             lines = NoiseLines(r);
             legend = "amber: noise of half a layer or more, red: two layers or more";
+        }
+        else
+        {
+            var r = EdgeAlias.Measure(grey, w, h, max, ppmm, keepClasses: overlay is not null);
+            classes = r.Classes;
+            body = JsonReport.Aliasing(Path.GetFullPath(input), r, overlay);
+            lines = AliasLines(r);
+            legend = "red: an edge that jumps a whole step in one pixel";
         }
 
         if (overlay is not null && classes is not null)
@@ -1235,10 +1298,31 @@ internal static partial class Program
             Console.WriteLine(body);
             return 0;
         }
-        Console.WriteLine($"{(detail ? "Detail finer than the spot" : "Pixel noise")} in {Path.GetFileName(input)} at {passes:N0} passes");
+        Console.WriteLine(mode switch
+        {
+            "detail" => $"Detail finer than the spot in {Path.GetFileName(input)} at {passes:N0} passes",
+            "noise" => $"Pixel noise in {Path.GetFileName(input)} at {passes:N0} passes",
+            _ => $"Jagged edges in {Path.GetFileName(input)}",
+        });
         foreach (var line in lines) Console.WriteLine("  " + line);
         if (overlay is not null) Console.WriteLine($"  overlay         {Path.GetFileName(overlay)} - {legend}");
         return 0;
+    }
+
+    /// <summary>The jagged-edge figures in words.</summary>
+    internal static IEnumerable<string> AliasLines(AliasReport r)
+    {
+        if (r.EdgePixels < EdgeAlias.MinEdges)
+        {
+            yield return $"step edges      only {r.EdgePixels:N0} px of diagonal or curved step edge inside the blank - too few to judge";
+            yield break;
+        }
+        yield return $"step edges      {r.EdgePixels:N0} px judged: diagonal and curved, steps of {r.MinStepLevels:N0} levels or more";
+        yield return $"one-pixel jumps {r.Share * 100:F0}% - " + (r.Jagged
+            ? "rendered at its final size: diagonals and curves will cut as stairs. Export at 2-3x and reduce in the image editor"
+            : r.Share <= 0.4
+                ? "the edges carry in-between levels, as a map built larger and reduced does"
+                : "mixed: some edges carry in-between levels and many do not");
     }
 
     /// <summary>The detail figures in words.</summary>

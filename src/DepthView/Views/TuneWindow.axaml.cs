@@ -87,9 +87,9 @@ public partial class TuneWindow : Window
     private double _dragU0, _dragV0;
 
     /// <summary>What the pictures are marked with (the Mark box).</summary>
-    private enum Mark { None, Terraces, Detail, Noise, Peaks }
+    private enum Mark { None, Terraces, Detail, Noise, Peaks, Aliasing }
 
-    private Mark MarkMode => (Mark)Math.Clamp(OverlayBox.SelectedIndex, 0, 4);
+    private Mark MarkMode => (Mark)Math.Clamp(OverlayBox.SelectedIndex, 0, 5);
 
     private bool MarkOn => OverlayBox.SelectedIndex > 0;
 
@@ -281,7 +281,7 @@ public partial class TuneWindow : Window
         // --show-terraces and --profile-line, for the same reason: so the terrace view and a
         // profile can be captured by a script.
         if (Program.StartupTerraces) OverlayBox.SelectedIndex = 1;
-        if (Program.StartupMark is int mk) OverlayBox.SelectedIndex = Math.Clamp(mk, 0, 4);
+        if (Program.StartupMark is int mk) OverlayBox.SelectedIndex = Math.Clamp(mk, 0, 5);
         if (Program.StartupFinish is { } fin)
             Dispatcher.UIThread.Post(() => OpenFinishing(fin), DispatcherPriority.Background);
         if (Program.StartupProfileLine is { Length: 4 } pl)
@@ -525,6 +525,16 @@ public partial class TuneWindow : Window
                     ro = pO; rt = pT;
                     break;
                 }
+                case Mark.Aliasing:
+                {
+                    var aO = EdgeAlias.Measure(_grey, _w, _h, _maxValue, ppO, true, token);
+                    var aT = EdgeAlias.Measure(tuned, tw, th, tmax, ppT, true, token);
+                    oo = ClassOverlay.Draw(_grey, _w, _h, _maxValue, aO.Classes!, _pw, _ph, bO, gain: 40);
+                    ot = ClassOverlay.Draw(tuned, tw, th, tmax, aT.Classes!, pw, ph, bT, gain: 40);
+                    aO.Classes = null; aT.Classes = null;
+                    ro = aO; rt = aT;
+                    break;
+                }
             }
             return (tuned, tw, th, tmax, mark, ro, rt, oo, ot);
         }
@@ -568,6 +578,10 @@ public partial class TuneWindow : Window
         List<FlatPeak> p => p.Count == 0
             ? "\nNo flattened peaks: every summit is explained by the slope below it."
             : $"\nFlattened peaks: {p.Count} (red), the largest {p[0].Pixels:N0} px - flat tops the slope below does not explain.",
+        AliasReport a => a.EdgePixels < EdgeAlias.MinEdges
+            ? "\nToo few diagonal or curved step edges to judge."
+            : $"\nJagged edges: {a.Share * 100:F0}% of the diagonal and curved step edges jump a whole step in one pixel (red)"
+              + (a.Jagged ? " - rendered at its final size; export larger and reduce." : "."),
         _ => "",
     };
 
@@ -590,6 +604,9 @@ public partial class TuneWindow : Window
             case (List<FlatPeak> a, List<FlatPeak> b):
                 yield return $"Flattened peaks        {a.Count}  to  {b.Count}";
                 break;
+            case (AliasReport a, AliasReport b):
+                yield return $"Jagged edges           {a.Share * 100:F0}%  to  {b.Share * 100:F0}% of the step edges";
+                break;
         }
     }
 
@@ -599,6 +616,7 @@ public partial class TuneWindow : Window
         Mark.Detail => "Detail under the spot",
         Mark.Noise => "Noisy smooth surface",
         Mark.Peaks => "Flattened peaks",
+        Mark.Aliasing => "Jagged edges",
         _ => "",
     };
 

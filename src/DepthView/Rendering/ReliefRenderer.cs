@@ -59,6 +59,12 @@ public sealed class ReliefOptions
     /// size as the scene, it replaces the material's own field/engraved split.
     /// </summary>
     public FinishLayer? Finish;
+
+    /// <summary>
+    /// The depth line drawn on the main window's picture, ends as fractions of the field, laid
+    /// on the surface in cyan so the plot and the relief can be compared. Null draws nothing.
+    /// </summary>
+    public (double U0, double V0, double U1, double V1)? Line;
 }
 
 /// <summary>
@@ -544,6 +550,8 @@ public static class ReliefRenderer
         private readonly float[]? _ao;
         private readonly MaterialPreset _m;
         private readonly FinishLayer? _fin;
+        private readonly bool _hasLine;
+        private readonly double _lnX0, _lnY0, _lnDx, _lnDy, _lnLen2, _lnHalf;
 
         private readonly TextureMap? _alb, _mic;
         private readonly bool _wantAlb, _wantMic;
@@ -559,6 +567,16 @@ public static class ReliefRenderer
             _invert = o.InvertHeight; _slices = o.SliceCount;
             _zk = zk; _ao = ao; _m = o.Material;
             _fin = o.Finish is { } fl && fl.W == scene.W && fl.H == scene.H ? fl : null;
+            if (o.Line is { } ln)
+            {
+                _hasLine = true;
+                _lnX0 = ln.U0 * (_fw - 1);
+                _lnY0 = ln.V0 * (_fh - 1);
+                _lnDx = ln.U1 * (_fw - 1) - _lnX0;
+                _lnDy = ln.V1 * (_fh - 1) - _lnY0;
+                _lnLen2 = Math.Max(1e-9, _lnDx * _lnDx + _lnDy * _lnDy);
+                _lnHalf = Math.Max(0.8, _fw / 450.0);
+            }
 
             double el = o.LightElevationDeg * Math.PI / 180.0;
             double az = o.LightAzimuthDeg * Math.PI / 180.0;
@@ -761,6 +779,7 @@ public static class ReliefRenderer
                 if (ShadeFinish(fx, fy, ndl, ndh, ndv, ao, envR, envG, envB, out cr, out cg, out cb))
                 {
                     cr *= under; cg *= under; cb *= under;
+                    MarkLine(fx, fy, ref cr, ref cg, ref cb);
                 }
                 return;
             }
@@ -795,6 +814,21 @@ public static class ReliefRenderer
             }
 
             cr *= under; cg *= under; cb *= under;
+            MarkLine(fx, fy, ref cr, ref cg, ref cb);
+        }
+
+        /// <summary>The depth line, as a cyan band a pixel or two wide on the surface.</summary>
+        private void MarkLine(double fx, double fy, ref double cr, ref double cg, ref double cb)
+        {
+            if (!_hasLine) return;
+            double t = Math.Clamp(((fx - _lnX0) * _lnDx + (fy - _lnY0) * _lnDy) / _lnLen2, 0, 1);
+            double ex = _lnX0 + t * _lnDx - fx, ey = _lnY0 + t * _lnDy - fy;
+            double d = Math.Sqrt(ex * ex + ey * ey);
+            if (d >= _lnHalf * 1.6) return;
+            double a = d <= _lnHalf ? 0.85 : 0.85 * (1 - (d - _lnHalf) / (_lnHalf * 0.6));
+            cr += (0.21 - cr) * a;
+            cg += (0.75 - cg) * a;
+            cb += (1.00 - cb) * a;
         }
 
         /// <summary>

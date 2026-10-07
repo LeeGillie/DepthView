@@ -145,10 +145,11 @@
                   MinHeight="120" CornerRadius="8"
                   Background="#0C0E11" BorderBrush="#3A424E" BorderThickness="2"
                   Cursor="Hand"
-                  ToolTip.Tip="Drop an image file here, click to browse, or press Ctrl+V to paste. Dropping or browsing reads the original file bytes, which is the only way to measure true bit depth.">
+                  ToolTip.Tip="Drop an image file here, click to browse, or press Ctrl+V to paste. Dropping or browsing reads the original file bytes, which is the only way to measure true bit depth.&#x0a;&#x0a;With a map loaded, drag across the picture to plot the depth along a line; a plain click still browses.">
             <Grid>
               <Image x:Name="Thumb" Stretch="Uniform" Margin="6"
                      RenderOptions.BitmapInterpolationMode="HighQuality" />
+              <ctl:PaneLine x:Name="ThumbLine" Margin="6" />
               <StackPanel x:Name="DropHint" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
                 <TextBlock Text="Drop an image here" FontSize="15" Foreground="#98A2AF" HorizontalAlignment="Center" />
                 <TextBlock Text="click to browse  -  Ctrl+V to paste" FontSize="11" Foreground="#5E6773" HorizontalAlignment="Center" />
@@ -162,11 +163,12 @@
             <TextBlock Grid.Column="0" Classes="label" Text="Preview" VerticalAlignment="Center" Margin="0,0,8,0"
                        ToolTip.Tip="Changes how the thumbnail above is rendered. The analysis never changes - only the picture does." />
             <ComboBox Grid.Column="1" x:Name="PreviewMode" HorizontalAlignment="Stretch" SelectedIndex="0"
-                      ToolTip.Tip="Raw: samples scaled straight to screen.&#x0a;Auto-stretch: min..max mapped to full black..white, so shallow depth ranges become visible.&#x0a;Low byte: shows only the bottom 8 bits of each 16-bit sample - a genuine 16-bit map shows detail here, an imposter shows flat black.&#x0a;Colour mask: greyscale pixels dimmed, non-grey pixels flagged red.">
+                      ToolTip.Tip="Raw: samples scaled straight to screen.&#x0a;Auto-stretch: min..max mapped to full black..white, so shallow depth ranges become visible.&#x0a;Low byte: shows only the bottom 8 bits of each 16-bit sample - a genuine 16-bit map shows detail here, an imposter shows flat black.&#x0a;Colour mask: greyscale pixels dimmed, non-grey pixels flagged red.&#x0a;As if the declared curve were undone: only when the file declares a display curve (sRGB or a gamma) - the map as its depth would be if that curve was really applied. The analysis and the depth used stay as stored.">
               <ComboBoxItem Content="Raw values" />
               <ComboBoxItem Content="Auto-stretch (min..max)" />
               <ComboBoxItem Content="Low byte only (16-bit test)" />
               <ComboBoxItem Content="Colour mask (non-grey in red)" />
+              <ComboBoxItem x:Name="AsLinearItem" Content="As if the declared curve were undone" IsEnabled="False" />
             </ComboBox>
           </Grid>
 
@@ -208,10 +210,26 @@
       <!-- right: analysis -->
       <!-- Margin lives on the StackPanel, not as ScrollViewer Padding: padding is not
            included in the scroll extent, which clips the last rows off the bottom. -->
-      <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
+      <DockPanel Grid.Column="1">
+        <Border x:Name="LinePanel" DockPanel.Dock="Top" IsVisible="False" Margin="18,10,14,2" Padding="10,8"
+                CornerRadius="6" Background="#14171B" BorderBrush="#262B33" BorderThickness="1">
+          <Grid RowDefinitions="Auto,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Depth along the line" FontSize="12" FontWeight="SemiBold" Foreground="#7FA6D8"
+                         VerticalAlignment="Center"
+                         ToolTip.Tip="The depth along the line drawn on the picture: the file's own surface, and the staircase it will be cut as at the pass count last used, on the blank last saved. The 3D preview shows the same line in cyan." />
+              <Button Grid.Column="1" x:Name="LineClearButton" Content="Clear line" Padding="8,3" FontSize="11"
+                      ToolTip.Tip="Take the line off the picture and the 3D preview." />
+            </Grid>
+            <ctl:LineProfilePlot Grid.Row="1" x:Name="LinePlot" Height="150" Margin="0,6,0,4" />
+            <TextBlock Grid.Row="2" x:Name="LineCaption" FontSize="11" Foreground="#8A929E" TextWrapping="Wrap" />
+          </Grid>
+        </Border>
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
                     ToolTip.Tip="Everything DepthView measured about this file. Hover any row for an explanation of what it means.">
         <StackPanel x:Name="DetailsPanel" Spacing="0" Margin="18,6,14,28" />
       </ScrollViewer>
+      </DockPanel>
     </Grid>
 
     <!-- histogram -->

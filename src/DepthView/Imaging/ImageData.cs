@@ -30,6 +30,7 @@ public sealed class ImageMetadata
     public string? FilterMethod;
     public int[]? SignificantBits;        // PNG sBIT chunk
     public double? Gamma;
+    public int? SrgbIntent;               // PNG sRGB chunk: rendering intent, when present
     public bool HasIccProfile;
     public string? IccProfileName;
     public double? DpiX;

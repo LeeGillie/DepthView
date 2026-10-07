@@ -162,6 +162,13 @@ DepthView --detail <file> --json [--passes <n>] [--blank <mm>] [--depth-mm <mm>]
 DepthView --noise  <file> --json [--passes <n>] [--blank <mm>] [--depth-mm <mm>] [--out <overlay.png>]
 ```
 
+**Jagged edges** (added after 1.9.0; `--jaggies` is the same) - diagonal and curved step edges
+that jump a whole step in one pixel, the mark of a map rendered at its final size:
+
+```
+DepthView --aliasing <file> --json [--blank <mm>] [--out <overlay.png>]
+```
+
 `--help` lists everything. **`--out` may not name the input file**: DepthView refuses, exits 2,
 and leaves the input untouched. It never writes over an original.
 
@@ -200,8 +207,8 @@ entry:
 | `verdict.severity` | `good`, `info`, `warn` or `alert`. `alert` means the file is not what it claims - an imposter, or (added 1.8.0) a picture that is mostly colour, titled `NOT A DEPTH MAP: mostly colour`, with `imposter` `none`. (Added 1.9.0) `warn` titled `LOOKS LIT, NOT DEPTH: a shaded picture?` when a grey image is shaded from one side like a render; see `content.litScore` |
 | `verdict.imposter` | `none`, `replicated257` (8-bit bytes doubled into 16), `highByteOnly` (8-bit shifted into the high byte), `quantisedLadder` (evenly spaced levels, e.g. 10-bit), `sparseLevels` |
 | `verdict.title`, `verdict.detail` | plain-English explanation, ready to show a user |
-| `container.*` | what the file declares: `format`, `colorModel`, `declaredBitDepth`, `declaredChannels`, `hasAlpha`, `isPalette`, `bitExactDecode`, `dpiX`, `dpiY`, `fileBytes` |
-| `content.*` | what the pixels contain: `width`, `height`, `channels`, `bitDepth`, `maxValue`, `isFloat`, `uniqueGreyLevels`, `greyPixels`, `nonGreyPixels`, `greyStoredAsColor`, and (added 1.9.0) `litScore` - how one-sided the shading is, near 0 for a depth map and a few hundredths for a render lit from one side - and `litThreshold`, the score at which the verdict says it looks lit |
+| `container.*` | what the file declares: `format`, `colorModel`, `declaredBitDepth`, `declaredChannels`, `hasAlpha`, `isPalette`, `bitExactDecode`, `dpiX`, `dpiY`, `fileBytes`, and (added after 1.9.0) `displayCurve`: `null`, or the display curve the file declares - `kind` (`srgb`, `gamma` or `icc`; an sRGB chunk overrides gAMA, and gAMA 1.0 is linear, so `null`), `fileGamma` (the gAMA value, for `gamma`), `canUndo` (`false` for `icc`), `depthAtStoredHalf` (how far down a level stored halfway down would be if the curve were undone: about 0.79 for sRGB). The tag alone does not prove the curve was applied; DepthView always uses the values as stored |
+| `content.*` | what the pixels contain: `width`, `height`, `channels`, `bitDepth`, `maxValue`, `isFloat`, `uniqueGreyLevels`, `greyPixels`, `nonGreyPixels`, `greyStoredAsColor`, (added after 1.9.0) `flatPeaks` (how many flattened peaks, as in `--survey`, on the circle the short side spans) and `jaggedEdges` (`edgePixels` judged, `share` that jump in one pixel, `jagged`), each `null` for a float map or a mostly-colour picture, and (added 1.9.0) `litScore` - how one-sided the shading is, near 0 for a depth map and a few hundredths for a render lit from one side - and `litThreshold`, the score at which the verdict says it looks lit |
 | `levels.*` | `min`, `max`, `rangeUse` (0-1), `occupancy` (0-1), `effectiveBits`, `step` (1 for genuine data; 257, 256, 64... for imposters), `uniformLadder`, `gaps`, `largestGap`, `mean`, `median`, `stdDev`, `p1`, `p99`, `pureBlackPixels`, `pureWhitePixels`, `headroomTop`, `headroomBottom` |
 | `passCounts[]` | one row per pass count: `passes`; `depths` (distinct engraved depths actually produced); `uniform`, `relief`, `empty` (what the passes do - they always sum to `passes`); `stretched` (depths if the range were filled); `bandSpread` (`min`, `max`, `ratio` of levels per band; `null` when the map has fewer levels than passes) |
 | `findings[]` | `severity`, `title`, `detail` - everything the window's report lists |
@@ -366,6 +373,26 @@ half a step cuts away; above it the surface comes out rough.
 | `noisyPixels`, `veryNoisyPixels` | pixels whose tile has noise of at least half a step, and of at least two steps |
 | `shareNoisy`, `shareVeryNoisy` | the same as shares of the blank |
 | `medianNoiseLevels`, `medianNoiseMicrons` | median noise where it was found, in levels and in microns of depth |
+| `seconds` | time taken |
+
+---
+
+## `depthview.aliasing/1`
+
+Jagged edges (added after 1.9.0). A map built at two or three times its final size and reduced
+carries in-between levels along its edges; one rendered at its final size jumps a whole step in
+one pixel, and cuts every diagonal and curve as a staircase. Only diagonal and curved step edges
+are judged (a wall along the pixel grid jumps in one pixel whatever made it), inside 96% of the
+blank radius so a rim never decides the answer.
+
+| Field | Meaning |
+|---|---|
+| `ok`, `path`, `overlay` | as above; the overlay marks the stairs red |
+| `width`, `height`, `blankRadiusPx`, `blankPixels` | as above |
+| `minStepLevels` | a change at least this many levels across four pixels counts as an edge |
+| `edgePixels`, `aliasedPixels`, `share` | step-edge pixels judged, those that jump in one pixel, and the share |
+| `judged` | `true` when there were enough edges (200 px) to say anything |
+| `jagged` | `true` when judged and `share` is at least `jaggedShare` (0.6; art reduced from 2-4x measures 0.14-0.35) |
 | `seconds` | time taken |
 
 ---

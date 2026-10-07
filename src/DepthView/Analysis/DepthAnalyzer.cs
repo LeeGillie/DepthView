@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using DepthView.Imaging;
+using DepthView.Processing;
 
 namespace DepthView.Analysis;
 
@@ -58,10 +59,33 @@ public static class DepthAnalyzer
         ComputeLevelStructure(r);
         if (!r.IsFloat && img.Samples is { } samples)
             r.LitScore = LitCheck.Score(samples, img.Channels, r.Width, r.Height, r.MaxValue);
+        if (!r.IsFloat && img.Samples is not null && r.NonGreyPixels * 2 <= r.PixelCount)
+            InspectShape(img, r);
         Classify(r);
 
         r.Elapsed = sw.Elapsed;
         return r;
+    }
+
+    /// <summary>
+    /// Flattened peaks and jagged edges (TODO 9.2, 9.8), measured on the circle the short side
+    /// spans - where a blank would sit - so a shaded corner is never counted.
+    /// </summary>
+    private static void InspectShape(ImageData img, AnalysisResult r)
+    {
+        try
+        {
+            var grey = DepthTuner.ExtractGrey(img);
+            int w = r.Width, h = r.Height;
+            double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0, rr = Math.Min(w, h) * (double)Math.Min(w, h) / 4.0;
+            r.FlatPeaks = Processing.FlatPeaks.Find(grey, w, h, r.MaxValue,
+                (x, y) => (x - cx) * (x - cx) + (y - cy) * (y - cy) <= rr);
+            r.Aliasing = EdgeAlias.Measure(grey, w, h, r.MaxValue, 0, keepClasses: false);
+        }
+        catch (Exception)
+        {
+            // A check that cannot run says nothing; the rest of the analysis stands.
+        }
     }
 
     // ------------------------------------------------------------------ integer
@@ -586,7 +610,42 @@ public static class DepthAnalyzer
                 $"The PNG declares {string.Join(", ", r.Meta.SignificantBits)} significant bits per channel. " +
                 "Compare that with the measured effective bits above."));
 
+        AddShapeFindings(r);
         AddCommonFindings(r);
+    }
+
+    /// <summary>Flattened peaks and jagged edges, when the shape checks ran.</summary>
+    private static void AddShapeFindings(AnalysisResult r)
+    {
+        var f = r.Findings;
+
+        if (r.FlatPeaks is { Count: > 0 } peaks)
+        {
+            var p = peaks[0];
+            f.Add(new Finding(Severity.Warn, "Flattened peaks",
+                $"{peaks.Count:N0} small flat top{(peaks.Count == 1 ? "" : "s")} on raised features, below pure white, that the slope " +
+                "below does not explain - peaks clipped by whatever made the map (a depth estimator, an export that ran out " +
+                $"of range). The largest is {p.Pixels:N0} pixels at level {p.Level:N0}, near ({p.CentreX:F0}, {p.CentreY:F0}). " +
+                "They cut as flat spots: the tip of a nose, a knuckle, the crown of a head. Rebuild them in the sculpt; " +
+                "DepthView only finds them. Tune, Mark: Flattened peaks shows where."));
+        }
+
+        if (r.Aliasing is { } a && a.EdgePixels >= EdgeAlias.MinEdges)
+        {
+            if (a.Jagged)
+                f.Add(new Finding(Severity.Warn, "Jagged edges",
+                    $"{a.Share * 100:F0}% of the diagonal and curved step edges ({a.EdgePixels:N0} pixels judged) jump from " +
+                    "one level to the next in a single pixel, with no in-between value. That is a map rendered at its final " +
+                    "size, and every diagonal and curve will cut as a staircase. Export it at two to three times the size and " +
+                    "reduce it in the image editor: the reduction leaves in-between levels along the edges. DepthView never " +
+                    "resamples the map itself. Tune, Mark: Jagged edges shows where."));
+            else
+                f.Add(new Finding(Severity.Info, a.Share <= 0.4 ? "Smooth edges" : "Some jagged edges",
+                    $"{a.Share * 100:F0}% of the diagonal and curved step edges ({a.EdgePixels:N0} pixels judged) jump a whole " +
+                    "step in one pixel. " + (a.Share <= 0.4
+                        ? "The rest carry in-between levels, as a map built larger and reduced does, so curves cut smooth."
+                        : "Many carry in-between levels and many do not: part of the map may have been pasted in at final size.")));
+        }
     }
 
     private static void AddCommonFindings(AnalysisResult r)
@@ -607,15 +666,36 @@ public static class DepthAnalyzer
                     : $"Alpha varies from {r.AlphaMin:N0} to {r.AlphaMax:N0}. Some depth pipelines hide a " +
                       "confidence or validity mask here."));
 
-        if (r.Meta.Gamma is { } g)
-            f.Add(new Finding(Math.Abs(g - 1.0) < 0.001 ? Severity.Info : Severity.Warn, "Gamma declared",
-                $"The file declares gamma {g:F5}. Depth maps should normally be linear (gamma 1.0); " +
-                "a display gamma here means a viewer will distort the depth ramp."));
+        // "As stored" against "as if linear" (TODO 9.6): what a declared display curve would mean.
+        var curve = DisplayCurve.Of(r.Meta);
+        if (curve.CanUndo)
+        {
+            double d = curve.DepthAtStoredHalf;
+            f.Add(new Finding(Severity.Warn, $"Display curve declared: {curve.Name}",
+                $"The file says its values went through {curve.Name}, a display curve. Depth is meant to be linear - equal " +
+                "steps in value, equal steps in depth - and many exporters stamp this tag on every PNG whether or not they " +
+                "applied the curve, so the tag alone does not prove anything is wrong. But if this map came out of a display " +
+                "transform (a renderer's default sRGB view rather than Raw or linear), its depth is bent: undone, a level " +
+                $"stored halfway down sits {d * 100:F0}% of the way down. Cut as stored, the deepest {(1 - d) * 100:F0}% of " +
+                $"the real relief takes up the deep half of the cut, and the other {d * 100:F0}% is pressed into the shallow " +
+                "half. DepthView, like a laser program, uses the values as stored; Preview: As if the declared curve were " +
+                "undone shows the difference. A curve the file does not declare cannot be detected from the pixels."));
+        }
+        else if (r.Meta.Gamma is { } g && Math.Abs(g - 1.0) < 0.001)
+        {
+            f.Add(new Finding(Severity.Info, "Linear gamma declared",
+                $"The file declares gamma {g:F5}: linear, which is right for a depth map - equal steps in value are " +
+                "equal steps in depth."));
+        }
 
         if (r.Meta.HasIccProfile)
             f.Add(new Finding(Severity.Warn, "ICC colour profile embedded",
                 "Colour management applied to a depth map will alter its values on the way to a viewer. " +
-                "Depth maps are usually best stored with no profile."));
+                "Depth maps are usually best stored with no profile." +
+                (curve.Kind == CurveKind.IccOnly
+                    ? " DepthView cannot tell what curve a profile applies, so it cannot show the map without it; the " +
+                      "values are used as stored."
+                    : "")));
 
         if (r.Meta.Interlaced)
             f.Add(new Finding(Severity.Info, "Interlaced",

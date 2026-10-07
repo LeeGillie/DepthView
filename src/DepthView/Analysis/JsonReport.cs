@@ -37,6 +37,7 @@ public static class JsonReport
     public const string TerraceSchema = "depthview.terrace/1";
     public const string DetailSchema = "depthview.detail/1";
     public const string NoiseSchema = "depthview.noise/1";
+    public const string AliasSchema = "depthview.aliasing/1";
 
     /// <summary>--detail: features narrower than the spot, measured on the map as it is.</summary>
     public static string Detail(string path, DetailReport r, string? overlay) => Write(w =>
@@ -97,6 +98,30 @@ public static class JsonReport
         Num(w, "shareVeryNoisy", r.ShareVeryNoisy);
         Num(w, "medianNoiseLevels", r.MedianNoiseLevels);
         Num(w, "medianNoiseMicrons", r.MedianNoiseMicrons);
+        Num(w, "seconds", r.Seconds);
+        w.WriteEndObject();
+    });
+
+    /// <summary>--aliasing: diagonal and curved step edges that jump a whole step in one pixel.</summary>
+    public static string Aliasing(string path, AliasReport r, string? overlay) => Write(w =>
+    {
+        w.WriteStartObject();
+        w.WriteString("schema", AliasSchema);
+        w.WriteString("depthview", BuildInfo.Version);
+        w.WriteBoolean("ok", true);
+        w.WriteString("path", path);
+        StringOrNull(w, "overlay", overlay is null ? null : FullPath(overlay));
+        w.WriteNumber("width", r.Width);
+        w.WriteNumber("height", r.Height);
+        Num(w, "blankRadiusPx", r.BlankRadiusPx);
+        w.WriteNumber("blankPixels", r.BlankPixels);
+        Num(w, "minStepLevels", r.MinStepLevels);
+        w.WriteNumber("edgePixels", r.EdgePixels);
+        w.WriteNumber("aliasedPixels", r.Aliased);
+        Num(w, "share", r.Share);
+        w.WriteBoolean("judged", r.EdgePixels >= EdgeAlias.MinEdges);
+        w.WriteBoolean("jagged", r.Jagged);
+        Num(w, "jaggedShare", EdgeAlias.JaggedShare);
         Num(w, "seconds", r.Seconds);
         w.WriteEndObject();
     });
@@ -698,6 +723,18 @@ public static class JsonReport
         NumOrNull(w, "dpiX", m.DpiX);
         NumOrNull(w, "dpiY", m.DpiY);
         w.WriteNumber("fileBytes", m.FileBytes);
+        // Added after 1.9.0: the display curve the file declares (TODO 9.6), or null.
+        var curve = DisplayCurve.Of(m);
+        if (curve.Kind == CurveKind.None) w.WriteNull("displayCurve");
+        else
+        {
+            w.WriteStartObject("displayCurve");
+            w.WriteString("kind", curve.JsonKind);
+            NumOrNull(w, "fileGamma", curve.Kind == CurveKind.Gamma ? curve.FileGamma : null);
+            w.WriteBoolean("canUndo", curve.CanUndo);
+            NumOrNull(w, "depthAtStoredHalf", curve.CanUndo ? curve.DepthAtStoredHalf : null);
+            w.WriteEndObject();
+        }
         w.WriteEndObject();
 
         w.WriteStartObject("content");
@@ -714,6 +751,17 @@ public static class JsonReport
         // Added 1.9.0: how one-sided the shading is; at or above litThreshold it looks lit.
         Num(w, "litScore", r.LitScore);
         Num(w, "litThreshold", LitCheck.Threshold);
+        // Added after 1.9.0: flattened peaks and jagged edges, on the circle the short side spans.
+        if (r.FlatPeaks is { } fp) w.WriteNumber("flatPeaks", fp.Count); else w.WriteNull("flatPeaks");
+        if (r.Aliasing is { } al)
+        {
+            w.WriteStartObject("jaggedEdges");
+            w.WriteNumber("edgePixels", al.EdgePixels);
+            Num(w, "share", al.Share);
+            w.WriteBoolean("jagged", al.Jagged);
+            w.WriteEndObject();
+        }
+        else w.WriteNull("jaggedEdges");
         w.WriteEndObject();
 
         w.WriteStartObject("levels");

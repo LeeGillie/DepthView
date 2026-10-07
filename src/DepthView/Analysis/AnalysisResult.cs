@@ -38,6 +38,13 @@ public sealed class AnalysisResult
     /// hundredths for a picture lit from one side. Added 1.9.0.
     /// </summary>
     public double LitScore;
+
+    /// <summary>
+    /// Flattened peaks and jagged edges (added after 1.9.0), on the circle the short side
+    /// spans. Null for float maps, mostly-colour pictures, or when the check could not run.
+    /// </summary>
+    public List<Processing.FlatPeak>? FlatPeaks;
+    public Processing.AliasReport? Aliasing;
     public int UniqueGreyLevels;
     public long UniqueNonGreyColors;
     public bool NonGreyColorsCapped;

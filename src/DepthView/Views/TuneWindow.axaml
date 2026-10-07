@@ -177,6 +177,8 @@
                                 ToolTip.Tip="Speckle on a surface meant to be smooth - skin, sky, a polished field - which cuts as speckle. Amber: half a layer or more at the pass count; red: two layers or more. Fine texture that is real detail is left alone where it can be told apart (texture only two or three pixels across cannot).&#x0a;&#x0a;Clean it in the sculpt, locally: a blur takes the real texture with it." />
                   <ComboBoxItem Content="Flattened peaks"
                                 ToolTip.Tip="Small flat tops on raised features that the slope below them does not explain - a peak clipped by whatever made the map (a depth estimator, an export that ran out of range). A natural summit is about as large as the band one level below it; a clipped one is several times larger.&#x0a;&#x0a;Rebuild them in the sculpt. DepthView only finds them." />
+                  <ComboBoxItem Content="Jagged edges"
+                                ToolTip.Tip="Diagonal and curved edges that jump from one level to the next in a single pixel, with no in-between value - a map rendered at its final size. They cut as staircases; red marks them. A map built at two to three times the size and reduced in an image editor carries in-between levels along its edges and comes out smooth.&#x0a;&#x0a;Walls along the pixel grid and the rim are not judged: a one-pixel jump there proves nothing. DepthView never resamples the map." />
                 </ComboBox>
               </Grid>
               <TextBlock Classes="note" Margin="24,2,0,0" TextWrapping="Wrap"

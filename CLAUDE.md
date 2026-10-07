@@ -649,6 +649,21 @@ and **E values are calibrated there, not in code**. The simulator runs on the re
 - Product names are examples, not endorsements (the footer says so). Keep advice paraphrased
   from the research doc, with sources.
 
+**Round two (2026-10-07, unreleased).**
+
+- **Jagged edges** (`EdgeAlias.cs`): diagonal/curved step edges only; a step edge has 85% of
+  its change in two of four sample steps, a stair 90% in one. The minimum step is 4% of the
+  range or three of the map's own level gaps, **capped at a quarter of the range** - uncapped,
+  a few-level map (the synthetic test) had a minimum step bigger than any edge and judged none.
+- **Display curve** (`DisplayCurve.cs`): sRGB chunk now parsed; sRGB beats gAMA; gAMA 1.0 is
+  linear (no curve); ICC alone is reported, not undone. Never change the stored values.
+- **Analysis shape checks** (`DepthAnalyzer.InspectShape`): flattened peaks and jagged edges on
+  the inscribed circle, integer and mostly-grey maps only, wrapped so a failure says nothing.
+  About 0.5 s on a 4096 px map.
+- **Main-window depth line**: the drop zone browses on a *click*; a drag of 6 px or more draws
+  the line. `ReliefWindow.SetLine` and `ReliefOptions.Line` draw it in 3D (`MarkLine`).
+  `--profile-line` without `--tune-ui` and `--preview linear` exist for screenshots.
+
 ---
 
 ## What is owed

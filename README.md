@@ -403,7 +403,7 @@ genuine file declares, and carries exactly what the honest 8-bit file carries.
 Three ways, all equivalent:
 
 * **Drag and drop** onto the panel at the left
-* **Click** the panel to open a file browser
+* **Click** the panel to open a file browser (once a map is loaded, a *drag* across it draws a depth line instead - see below)
 * **Ctrl+V** to paste
 
 > **Clipboard warning.** If you copy the *file* in your file manager, DepthView
@@ -420,6 +420,20 @@ Three ways, all equivalent:
 | Auto-stretch | min..max mapped to full black..white, so shallow depth ranges become visible. |
 | **Low byte only** | Shows just the bottom 8 bits of each 16-bit sample. A genuine 16-bit map shows structure. An imposter shows flat black. |
 | Colour mask | Greyscale pixels dimmed, non-grey pixels flagged red. |
+| As if the declared curve were undone | Only when the file declares a display curve (an sRGB tag or a gamma other than 1): the map as its depth would be if that curve was really applied. |
+
+**A declared display curve.** Depth is meant to be linear - equal steps in value, equal steps
+in depth. A PNG can say its values went through a display curve (sRGB, or gamma 1/2.2), and a
+map exported through a renderer's default view rather than Raw *is* bent: undone, a level stored
+halfway down sits about 79% of the way down. Many exporters stamp the tag on every PNG whether
+or not they applied the curve, so DepthView says what it would mean, lets you look at the map
+as if it were undone, and goes on using the values as stored - as a laser program does. A curve
+the file does not declare cannot be found from the pixels.
+
+**Depth along a line.** With a map loaded, drag across the picture: the depth along the line is
+plotted above the details - the file's own surface and the staircase it will be cut as - at the
+blank, depth and pass count last saved, against a 7 um spot. The 3D preview draws the same line on
+the surface in cyan, so the plot and the relief can be compared. Clear line takes it off.
 
 ### 3D relief preview
 
@@ -636,7 +650,14 @@ resolution inside the blank and each changing nothing in the file:
   Real edges and texture are not counted as noise. `DepthView --noise <map>`.
 - **Flattened peaks.** Small flat tops on raised features, below pure white - the "flat nose
   tip" a depth estimator or a clipped export leaves. Fixing one is a job for a sculpting
-  program; DepthView only shows where they are. `--survey` lists them too.
+  program; DepthView only shows where they are. `--survey` and the main window's findings list
+  them too.
+- **Jagged edges.** Diagonal and curved edges that jump a whole step in one pixel, with no
+  in-between value - a map rendered at its final size, which cuts curves as staircases. A map
+  built at two to three times the size and reduced in an image editor carries in-between levels
+  along its edges and comes out smooth; that is the cure, and DepthView never resamples the map
+  itself. Walls along the pixel grid and the rim are not judged. The main window reports it
+  too. `DepthView --aliasing <map>`.
 
 #### Finishing
 

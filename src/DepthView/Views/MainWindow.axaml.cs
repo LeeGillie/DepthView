@@ -19,6 +19,7 @@ using Avalonia.Threading;
 using DepthView.Analysis;
 using DepthView.Imaging;
 using DepthView.Integrations.Common;
+using DepthView.Processing;
 
 namespace DepthView.Views;
 
@@ -31,6 +32,16 @@ public partial class MainWindow : Window
     private bool _busy;
     private ReliefWindow? _relief;
     private TuneWindow? _tune;
+
+    /// <summary>The display curve the loaded file declares, for the "as if undone" preview.</summary>
+    private DisplayCurve? _curve;
+
+    // ---- the depth line on the picture (TODO 9.5, the main window's half) ----
+    private (double U0, double V0, double U1, double V1)? _line;
+    private ushort[]? _lineGrey;
+    private Point? _pressAt;
+    private bool _lineDrag;
+    private double _lu0, _lv0;
 
     /// <summary>Only set on the --about screenshot path; the About button uses a dialog.</summary>
     private AboutWindow? _about;
@@ -50,7 +61,8 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
 
-        DropZone.PointerPressed += async (_, _) => await BrowseAsync();
+        WireThumbLine();
+        Blank.Current.Changed += (_, _) => { if (_line is not null) UpdateLine(); };
         BrowseButton.Click += async (_, _) => await BrowseAsync();
         PasteButton.Click += async (_, _) => await PasteAsync();
         ReloadButton.Click += async (_, _) => await ReloadAsync();
@@ -137,6 +149,9 @@ public partial class MainWindow : Window
             // With --tune-ui, --relief means "open the tuning dialog already in its lit view"
             // rather than "also open the standalone viewer". One flag, one window: opening both
             // would leave a second copy of the same surface behind the dialog for no reason.
+            if (Program.StartupPreview is int pv && _image is not null) PreviewMode.SelectedIndex = pv;
+            if (Program.StartupMainLine is { Length: 4 } ml && _image is not null)
+                SetLine((ml[0], ml[1], ml[2], ml[3]));
             if (Program.StartupRelief && !Program.StartupTune) OpenRelief();
             if (Program.StartupTune) OpenTune();
             if (Program.ScreenshotPath is not null) ScheduleScreenshot();
@@ -569,6 +584,11 @@ public partial class MainWindow : Window
             _meta = meta;
             _result = result;
             _lastPath = path;
+            _lineGrey = null;
+            ClearLine();
+            _curve = DisplayCurve.Of(meta);
+            AsLinearItem.IsEnabled = _curve.CanUndo;
+            if (!_curve.CanUndo && PreviewMode.SelectedIndex == 4) PreviewMode.SelectedIndex = 0;
 
             DropHint.IsVisible = false;
             UpdatePreview();
@@ -607,6 +627,10 @@ public partial class MainWindow : Window
     private void ClearAll()
     {
         _image = null; _meta = null; _result = null; _lastPath = null;
+        _lineGrey = null; _curve = null;
+        ClearLine();
+        AsLinearItem.IsEnabled = false;
+        if (PreviewMode.SelectedIndex == 4) PreviewMode.SelectedIndex = 0;
         Thumb.Source = null;
         DropHint.IsVisible = true;
         VerdictCard.IsVisible = false;
@@ -636,6 +660,7 @@ public partial class MainWindow : Window
         _relief?.Close();
         _relief = new ReliefWindow(_image, _meta?.FileName ?? "image");
         _relief.Closed += (_, _) => _relief = null;
+        _relief.SetLine(_line);
         _relief.Show(this);
     }
 
@@ -719,6 +744,8 @@ public partial class MainWindow : Window
         int ph = Math.Max(1, (int)Math.Round(img.Height * scale));
 
         var buf = new byte[pw * ph * 4];
+        ThumbLine.ImageSize = new Size(pw, ph);
+        var curve = mode == 4 && _curve is { CanUndo: true } c ? c : null;
 
         double lo = _result?.MinLevel ?? 0;
         double hi = _result?.MaxLevel ?? img.MaxValue;
@@ -781,6 +808,13 @@ public partial class MainWindow : Window
                             }
                             break;
                         }
+                        case 4 when curve is not null: // as if the declared curve were undone
+                        {
+                            double m = Math.Max(1, img.MaxValue);
+                            byte f(int v) => (byte)Math.Clamp(curve.ToLinear(v / m) * 255.0 + 0.5, 0, 255);
+                            r = f(sr); g = f(sg); b = f(sb);
+                            break;
+                        }
                         default:
                             r = Scale(sr, img.MaxValue);
                             g = Scale(sg, img.MaxValue);
@@ -807,6 +841,115 @@ public partial class MainWindow : Window
         }
 
         Thumb.Source = bmp;
+    }
+
+    // ------------------------------------------------------------------ the depth line
+
+    /// <summary>
+    /// The picture is also where a depth line is drawn: drag across it to plot the depth along
+    /// the line. A click without a drag still browses, as it always has; so does any click
+    /// before a map is loaded.
+    /// </summary>
+    private void WireThumbLine()
+    {
+        (double U, double V)? Where(PointerEventArgs e, bool clamp)
+        {
+            var p = e.GetPosition(ThumbLine);
+            var r = ThumbLine.ImageRect();
+            if (r.Width <= 0 || r.Height <= 0) return null;
+            double u = (p.X - r.X) / r.Width, v = (p.Y - r.Y) / r.Height;
+            if (!clamp && (u < 0 || v < 0 || u > 1 || v > 1)) return null;
+            return (Math.Clamp(u, 0, 1), Math.Clamp(v, 0, 1));
+        }
+
+        DropZone.PointerPressed += async (_, e) =>
+        {
+            if (!e.GetCurrentPoint(DropZone).Properties.IsLeftButtonPressed) return;
+            if (_image is null || Thumb.Source is null || Where(e, clamp: false) is not { } at)
+            {
+                await BrowseAsync();
+                return;
+            }
+            _pressAt = e.GetPosition(DropZone);
+            (_lu0, _lv0) = at;
+            _lineDrag = false;
+            e.Pointer.Capture(DropZone);
+            e.Handled = true;
+        };
+        DropZone.PointerMoved += (_, e) =>
+        {
+            if (_pressAt is not { } start) return;
+            var p = e.GetPosition(DropZone);
+            if (!_lineDrag && Math.Abs(p.X - start.X) + Math.Abs(p.Y - start.Y) < 6) return;
+            _lineDrag = true;
+            if (Where(e, clamp: true) is { } at) ThumbLine.Set(_lu0, _lv0, at.U, at.V);
+        };
+        DropZone.PointerReleased += async (_, e) =>
+        {
+            if (_pressAt is null) return;
+            _pressAt = null;
+            e.Pointer.Capture(null);
+            if (!_lineDrag)
+            {
+                await BrowseAsync();
+                return;
+            }
+            _lineDrag = false;
+            if (Where(e, clamp: true) is not { } at) return;
+            if (Math.Abs(at.U - _lu0) < 0.01 && Math.Abs(at.V - _lv0) < 0.01) { ClearLine(); return; }
+            SetLine((_lu0, _lv0, at.U, at.V));
+        };
+        LineClearButton.Click += (_, _) => ClearLine();
+    }
+
+    private void SetLine((double U0, double V0, double U1, double V1) line)
+    {
+        _line = line;
+        ThumbLine.Set(line.U0, line.V0, line.U1, line.V1);
+        UpdateLine();
+        _relief?.SetLine(line);
+    }
+
+    private void ClearLine()
+    {
+        _line = null;
+        ThumbLine.Clear();
+        LinePlot.Clear();
+        LinePanel.IsVisible = false;
+        _relief?.SetLine(null);
+    }
+
+    /// <summary>
+    /// Depth along the line, from the file's own levels at full resolution, at the blank, depth
+    /// and pass count the program last saved, against the UV spot the Tune window starts at.
+    /// </summary>
+    private void UpdateLine()
+    {
+        if (_line is not { } l || _image is null) { LinePanel.IsVisible = false; return; }
+        LinePanel.IsVisible = true;
+        if (_image.Kind == SampleKind.Float)
+        {
+            LinePlot.Clear();
+            LineCaption.Text = "A floating-point map has no levels to slice. Tune or convert it first.";
+            return;
+        }
+
+        _lineGrey ??= DepthTuner.ExtractGrey(_image);
+        int w = _image.Width, h = _image.Height;
+        double x0 = l.U0 * (w - 1), y0 = l.V0 * (h - 1), x1 = l.U1 * (w - 1), y1 = l.V1 * (h - 1);
+        var levels = TerraceMap.Profile(_lineGrey, w, h, x0, y0, x1, y1);
+        double blank = Blank.Current.DiameterMm, depth = Blank.Current.TargetDepthMm;
+        double ppmm = Math.Min(w, h) / blank;
+        double lengthMm = Math.Sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)) / ppmm;
+        int passes = Preferences.Current.DefaultPasses;
+        const double spot = 7;
+
+        LinePlot.SetData(levels, _image.MaxValue, passes, lengthMm, depth, spot, "Depth along the line, as stored");
+        LineCaption.Text = (LinePlot.EdgesCrossed == 0
+                ? $"No layer edge along this line at {passes:N0} passes."
+                : $"{LinePlot.EdgesCrossed:N0} layer edges along it at {passes:N0} passes; the treads between them are a median "
+                  + $"{LinePlot.MedianTreadMicrons:0} um along the line against a {spot:0} um spot.")
+            + $" On a {blank:0.#} mm blank, {depth:0.00} mm deep. The blank, passes and spot are set in the Tune window.";
     }
 
     private static byte Scale(int v, int max)
@@ -909,6 +1052,16 @@ public partial class MainWindow : Window
         Row("ICC profile", m.HasIccProfile ? m.IccProfileName ?? "embedded" : "none",
             "Colour management applied to depth values will alter them. Depth maps are usually best stored with no profile.",
             m.HasIccProfile ? WarnBrush : ValueBrush);
+        var curve = DisplayCurve.Of(m);
+        if (curve.Kind != CurveKind.None)
+            Row("Display curve", curve.CanUndo
+                    ? $"{curve.Name} - undone, halfway down is {curve.DepthAtStoredHalf * 100:F0}% down"
+                    : $"{curve.Name} - cannot be undone here",
+                "A display curve the file declares (an sRGB chunk, a gAMA other than 1, an ICC profile). Depth is meant to be "
+                + "linear; if the curve was really applied, the depth is bent. Many exporters tag every PNG whether or not they "
+                + "applied it, so the tag alone proves nothing. Preview: As if the declared curve were undone shows the "
+                + "difference. The values are used as stored.",
+                WarnBrush);
         if (m.DpiX is { } dx) Row("Resolution", $"{dx:F1} x {m.DpiY:F1} DPI", "Physical resolution hint. Irrelevant to depth accuracy.");
 
         // ---- measured ----
@@ -921,6 +1074,21 @@ public partial class MainWindow : Window
                 ? $"{r.FloatMin:G6} .. {r.FloatMax:G6} (float32)"
                 : $"0 .. {r.MaxValue:N0}",
             "The full value range the container can represent.");
+        if (r.FlatPeaks is { } fp)
+            Row("Flattened peaks", fp.Count == 0 ? "none" : $"{fp.Count:N0}, the largest {fp[0].Pixels:N0} px at level {fp[0].Level:N0}",
+                "Small flat tops on raised features, below pure white, that the slope below them does not explain - peaks "
+                + "clipped by whatever made the map. Measured on the circle the short side spans. Tune, Mark: Flattened peaks "
+                + "shows where.",
+                fp.Count == 0 ? ValueBrush : WarnBrush);
+        if (r.Aliasing is { } al)
+            Row("Jagged edges", al.EdgePixels < EdgeAlias.MinEdges
+                    ? "too few diagonal step edges to judge"
+                    : $"{al.Share * 100:F0}% of {al.EdgePixels:N0} diagonal step-edge px jump in one pixel",
+                "Diagonal and curved step edges that jump from one level to the next in a single pixel, with no in-between "
+                + "value: a map rendered at its final size, which cuts curves as stairs. Under 40% is a map built larger and "
+                + "reduced; 60% and over is jagged. The rim and walls along the pixel grid are not judged. Tune, Mark: "
+                + "Jagged edges shows where.",
+                al.Jagged ? WarnBrush : ValueBrush);
 
         Row("Unique grey levels", r.UniqueGreyLevels.ToString("N0"),
             "Distinct values where R = G = B. This is the single most important number on this screen: " +

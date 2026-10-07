@@ -552,6 +552,156 @@ def check_inspect(exe, work):
     check(code == 2 and "relve" in err, f"--render --finish with an unknown key: exit {code}, {err.strip()[:200]}")
 
 
+def write_grey16_tagged(path, w, h, pixel, chunks):
+    """As write_grey16, with extra chunks (tag, data) before the image data."""
+    import struct
+    import zlib
+    rows = bytearray()
+    for y in range(h):
+        rows.append(0)
+        for x in range(w):
+            rows += struct.pack(">H", pixel(x, y))
+
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
+
+    with open(path, "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n")
+        f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 16, 0, 0, 0, 0)))
+        for tag, data in chunks:
+            f.write(chunk(tag, data))
+        f.write(chunk(b"IDAT", zlib.compress(bytes(rows))))
+        f.write(chunk(b"IEND", b""))
+
+
+def shapes_pixel(ss):
+    """A disc and a tilted bar on a flat field, drawn with ss x ss samples per pixel and
+    averaged - ss 1 is art rendered at its final size, ss 3 art built at 3x and reduced."""
+    import math
+    c, s = math.cos(0.5), math.sin(0.5)
+
+    def inside(x, y):
+        if (x - 130) ** 2 + (y - 170) ** 2 < 70 ** 2:
+            return 50000
+        X, Y = (x - 260) * c + (y - 230) * s, -(x - 260) * s + (y - 230) * c
+        if abs(X) < 60 and abs(Y) < 25:
+            return 40000
+        return 20000
+
+    def px(x, y):
+        total = 0
+        for i in range(ss):
+            for j in range(ss):
+                total += inside(x + (i + 0.5) / ss - 0.5, y + (j + 0.5) / ss - 0.5)
+        return int(round(total / (ss * ss)))
+    return px
+
+
+def letters_pixel(stroke):
+    """Block letters H, I, T, L and an O ring, 60 px tall, every stroke `stroke` px wide."""
+    bars = []
+    for k, x0 in enumerate((80, 140, 190, 250)):
+        if k == 0:    # H
+            bars += [(x0, 170, x0 + stroke, 230), (x0 + 36 - stroke, 170, x0 + 36, 230),
+                     (x0, 200 - stroke // 2, x0 + 36, 200 - stroke // 2 + stroke)]
+        elif k == 1:  # I
+            bars += [(x0 + 15, 170, x0 + 15 + stroke, 230)]
+        elif k == 2:  # T
+            bars += [(x0, 170, x0 + 36, 170 + stroke), (x0 + 18 - stroke // 2, 170, x0 + 18 - stroke // 2 + stroke, 230)]
+        else:         # L
+            bars += [(x0, 170, x0 + stroke, 230), (x0, 230 - stroke, x0 + 36, 230)]
+
+    def px(x, y):
+        for x0, y0, x1, y1 in bars:
+            if x0 <= x < x1 and y0 <= y < y1:
+                return 45000
+        r = ((x - 300) ** 2 + (y - 290) ** 2) ** 0.5
+        if 30 - stroke <= r < 30:    # O
+            return 45000
+        return 20000
+    return px
+
+
+def check_round2(exe, work):
+    """Jagged edges, the display curve, the report's shape fields, and lettering against the spot."""
+    hard = os.path.join(work, "shapes-hard.png")
+    smooth = os.path.join(work, "shapes-3x.png")
+    write_grey16(hard, 400, 400, shapes_pixel(1))
+    write_grey16(smooth, 400, 400, shapes_pixel(3))
+
+    code, h, _, _ = run(exe, "--aliasing", hard, "--json", "--blank", "4", cwd=work)
+    h = h or {}
+    check(code == 0 and h.get("schema") == "depthview.aliasing/1", f"--aliasing: exit {code}, schema {h.get('schema')!r}")
+    check(h.get("judged") is True and h.get("jagged") is True and h.get("share", 0) >= 0.8,
+          f"aliasing: art drawn at final size should be jagged: {h.get('share')}, {h.get('edgePixels')} px")
+    code, s, _, _ = run(exe, "--aliasing", smooth, "--json", "--blank", "4", cwd=work)
+    s = s or {}
+    check(s.get("judged") is True and s.get("jagged") is False and s.get("share", 1) <= 0.45,
+          f"aliasing: the same art built at 3x and reduced should be smooth: {s.get('share')}")
+
+    code, rep, _, _ = run(exe, "--report", hard, smooth, "--json", cwd=work)
+    files = {f["name"]: f for f in (rep or {}).get("files", [])}
+    hc = (files.get("shapes-hard.png") or {}).get("content") or {}
+    je = hc.get("jaggedEdges") or {}
+    check(je.get("jagged") is True, f"report: jaggedEdges for the hard art: {je}")
+    titles = [f.get("title") for f in (files.get("shapes-hard.png") or {}).get("findings", [])]
+    check("Jagged edges" in titles, f"report: no Jagged edges finding: {titles}")
+    sc = (files.get("shapes-3x.png") or {}).get("content") or {}
+    check((sc.get("jaggedEdges") or {}).get("jagged") is False, f"report: jaggedEdges for the 3x art: {sc.get('jaggedEdges')}")
+    check(hc.get("flatPeaks") == 0, f"report: flatPeaks on flat shapes should be 0: {hc.get('flatPeaks')}")
+    check((hc and (files.get("shapes-hard.png") or {}).get("container", {}).get("displayCurve", "x") is None),
+          "report: an untagged file has displayCurve null")
+
+    syn = os.path.join(work, "synthetic.png")
+    if os.path.exists(syn):
+        code, rep, _, _ = run(exe, "--report", syn, "--json", cwd=work)
+        e = ((rep or {}).get("files") or [{}])[0]
+        check((e.get("content") or {}).get("flatPeaks", 0) >= 1, f"report: the clipped dome is a flattened peak: {e.get('content')}")
+        check("Flattened peaks" in [f.get("title") for f in e.get("findings", [])], "report: no Flattened peaks finding")
+
+    # A display curve: sRGB, and a plain gamma 1/2.2. Undone, half-way down is ~79% down.
+    import struct
+    ramp = lambda x, y: int(x * 65535 / 255) if x < 256 else 65535
+    srgb = os.path.join(work, "ramp-srgb.png")
+    write_grey16_tagged(srgb, 256, 64, ramp, [(b"sRGB", b"\x00"), (b"gAMA", struct.pack(">I", 45455))])
+    gam = os.path.join(work, "ramp-gamma.png")
+    write_grey16_tagged(gam, 256, 64, ramp, [(b"gAMA", struct.pack(">I", 45455))])
+    lin = os.path.join(work, "ramp-linear.png")
+    write_grey16_tagged(lin, 256, 64, ramp, [(b"gAMA", struct.pack(">I", 100000))])
+    code, rep, _, _ = run(exe, "--report", srgb, gam, lin, "--json", cwd=work)
+    files = {f["name"]: f for f in (rep or {}).get("files", [])}
+    dc = ((files.get("ramp-srgb.png") or {}).get("container") or {}).get("displayCurve") or {}
+    check(dc.get("kind") == "srgb" and dc.get("canUndo") is True and abs(dc.get("depthAtStoredHalf", 0) - 0.786) < 0.01,
+          f"display curve: sRGB (overriding gAMA) expected: {dc}")
+    dg = ((files.get("ramp-gamma.png") or {}).get("container") or {}).get("displayCurve") or {}
+    check(dg.get("kind") == "gamma" and abs(dg.get("fileGamma", 0) - 0.45455) < 1e-4
+          and abs(dg.get("depthAtStoredHalf", 0) - (1 - 0.5 ** 2.2)) < 0.01, f"display curve: gamma expected: {dg}")
+    dl = ((files.get("ramp-linear.png") or {}).get("container") or {}).get("displayCurve", "x")
+    check(dl is None, f"display curve: gamma 1.0 is linear, not a curve: {dl}")
+    st = [f.get("title", "") for f in (files.get("ramp-srgb.png") or {}).get("findings", [])]
+    check(any(x.startswith("Display curve declared") for x in st), f"display curve: no finding: {st}")
+    lt = [f.get("title", "") for f in (files.get("ramp-linear.png") or {}).get("findings", [])]
+    check("Linear gamma declared" in lt, f"display curve: gamma 1.0 should be reported as linear: {lt}")
+
+    # Lettering against the spot: 30 um on 10 um pixels is 3 px. Strokes of 1-2 px are under
+    # the spot, 4 px under two spots, 8 px under neither.
+    common = ("--json", "--passes", "256", "--blank", "4", "--depth-mm", "0.5", "--spot", "30")
+    share = {}
+    for stroke in (1, 2, 4, 8):
+        path = os.path.join(work, f"letters-{stroke}.png")
+        fn = letters_pixel(stroke)
+        write_grey16(path, 400, 400, fn)
+        ink = sum(1 for y in range(400) for x in range(400) if fn(x, y) == 45000)
+        code, doc, _, _ = run(exe, "--detail", path, *common, cwd=work)
+        doc = doc or {}
+        one = (doc.get("underSpot") or {}).get("raisedPixels", 0) / ink
+        two = (doc.get("underTwoSpots") or {}).get("raisedPixels", 0) / ink
+        share[stroke] = (round(one, 2), round(two, 2))
+    check(share[1][0] >= 0.8 and share[2][0] >= 0.8, f"lettering: 1-2 px strokes should be under the spot: {share}")
+    check(share[4][0] <= 0.15 and share[4][1] >= 0.6, f"lettering: 4 px strokes should be under two spots only: {share}")
+    check(share[8][0] <= 0.1 and share[8][1] <= 0.2, f"lettering: 8 px strokes should survive: {share}")
+
+
 def run_text(exe, *args, cwd=None):
     p = subprocess.run([exe, *args], capture_output=True, text=True, cwd=cwd)
     return p.returncode, None, p.stdout, p.stderr
@@ -662,6 +812,9 @@ def main(exe):
 
         # --- detail under the spot, pixel noise, flattened peaks, a finished render ---
         check_inspect(exe, work)
+
+        # --- jagged edges, the display curve, the report's shape fields, lettering ----
+        check_round2(exe, work)
 
         # --- the original is never written over -------------------------------------
         size = os.path.getsize(src)

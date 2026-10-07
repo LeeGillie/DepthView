@@ -977,7 +977,9 @@ direction (summed x/y derivatives over the design point one way); on a depth map
 pure white (white is the untouched surface, not a clipped peak), between 16 px and 1% of the
 design, and at least three times the size of the one-level band below it (a rounded top has a
 wide band; a clipped one almost none). In `--survey` (text, and `flatPeaks` in JSON) and the
-Tune window's Mark box ("Flattened peaks"). Still open: a line in the analysis findings.
+Tune window's Mark box ("Flattened peaks"). Also in the analysis (2026-10-07): a "Flattened
+peaks" finding and row, and `content.flatPeaks` in `depthview.report/1`, on the circle the
+short side spans.
 Original plan:
 
 A small area that is perfectly flat at the top of a local bump, below pure white, is usually
@@ -1012,7 +1014,12 @@ add an antiqued preset (brass, silver, copper) that darkens by local cavity (dep
 to the neighbourhood, not absolute depth) and brightens local peaks, so a user can see
 whether a map will still read once it is antiqued. Label it as a look, not a prediction.
 
-### 9.5 ~~A depth-profile line~~  **Built 2026-10-06 in the Tune window** (for 1.9.0)
+### 9.5 ~~A depth-profile line~~  **Built 2026-10-06 in the Tune window** (for 1.9.0); **main window 2026-10-07**
+
+Main window (unreleased): drag across the picture (a plain click still browses) and the plot
+appears above the details, at the saved blank, depth and pass count against a 7 um spot; the
+3D preview lays the same line on the surface in cyan (`ReliefOptions.Line`).
+`--profile-line` without `--tune-ui` sets it for screenshots.
 
 Drag across either Tune pane: `Controls/LineProfilePlot.cs` draws the map's curve and the
 staircase the passes will cut, in mm, with the spot for scale. Built as a new control rather
@@ -1025,7 +1032,14 @@ It shows how depth *progresses* along a surface - the property that decides whet
 area cuts smooth - which no single number does. Reuse `Controls/ProfilePlot`. Optionally
 draw the same line on the relief preview so the two can be compared.
 
-### 9.6 "As stored" vs "as if linear"  *(small)*
+### 9.6 ~~"As stored" vs "as if linear"~~  **Built 2026-10-07** (unreleased)
+
+`Analysis/DisplayCurve.cs`. The PNG decoder now reads the sRGB chunk (it read gAMA and iCCP
+already); sRGB overrides gAMA as the PNG specification says. A declared curve gets a finding
+in depth terms ("undone, a level stored halfway down sits 79% of the way down"), says plainly
+that the tag alone proves nothing, and the main window's Preview has "As if the declared curve
+were undone". The values are always used as stored. An ICC profile's curve is not undone - it
+is said so. `container.displayCurve` in `depthview.report/1`. Original plan:
 
 DepthView reads a PNG's gamma, sRGB and ICC declarations and lists them, but does not say
 what they mean for depth: a map exported through a display curve (an sRGB view transform
@@ -1040,7 +1054,9 @@ detected from the pixels alone; do not pretend otherwise.
 max/min per disc row; `CloseLarge` max-pools for big radii), `--detail` (`depthview.detail/1`)
 and the Mark box ("Detail finer than the spot"): red under one spot, amber under two, counted
 where a feature stands a layer step proud. Blodgett at 30 um: 0.13% (thin branches), 2 s at
-4096 px. Still open: the lettering fixture at several stroke widths. Original plan:
+4096 px. The lettering fixture is in `check_json.py` (block H, I, T, L and an O at strokes of
+1, 2, 4 and 8 px against a 3 px spot: 1-2 px under the spot, 4 px under two, 8 px neither).
+Original plan:
 
 Cut with a larger spot, a design loses its finest detail first: lettering edges round, thin
 lines are nearly lost, and small dots and stippling blur. Which details survive is a question about feature *width* against
@@ -1056,7 +1072,16 @@ which is the honest way to compare lenses: same file, two spot sizes.
 - Mind lettering: a stroke narrower than the spot is the commonest casualty and the one users
   notice first. A fixture with text at several stroke widths makes the test.
 
-### 9.8 Jagged edges, and the case for supersampling  *(code only)*
+### 9.8 ~~Jagged edges, and the case for supersampling~~  **Built 2026-10-07** (unreleased)
+
+`Processing/EdgeAlias.cs`, `--aliasing` (or `--jaggies`; `depthview.aliasing/1`), the Mark box
+("Jagged edges"), a finding and row in the analysis, `content.jaggedEdges` in the report.
+Step edges are those where most of the change across five samples along the gradient
+happens in two; only diagonal and curved ones (20-70 degrees) are judged, inside 96% of the
+blank radius, so the rim and grid-aligned walls never decide it. A stair carries 90% of the
+change in one pixel. Synthetic art at final size: 95% stairs; built at 2-4x and reduced:
+14-35%. Real maps here (Blodgett, Wolf, Huey, Eagle, generated, Dolly): 0-30%. Jagged at 60%
+(E). Original plan:
 
 A map built at two to three times its final size and then reduced carries in-between levels
 along its edges, which come out smooth (fine hair and whiskers show it best). A map rendered at its final size instead

@@ -40,7 +40,11 @@ Next up, roughly in order:
   blank), the depth-profile line (§9.5: drag across either Tune pane), the lit-render check
   (§9.1: "LOOKS LIT, NOT DEPTH", warn only), and Help buttons that open the guides on GitHub
   at the copy's own release tag (Lee chose links over PDFs in the zip, to keep downloads
-  small). Design notes in CLAUDE.md. Next: the bench work (§7.1 spot coupon, §7.2 mass loss).
+  small). Design notes in CLAUDE.md.
+- **Next feature release (designed 2026-10-07, §10):** the .dvp profile, the job report, and
+  the finishing preview. Research in `docs/research/finishing-chemistry.md`. Then TODO low-hanging
+  fruit (§9.7, §9.2, §9.3), then the ablation simulation - which needs the bench work (§7.1 spot
+  coupon, §7.2 mass loss) done first, so start the coupons alongside.
 - **§9 still open: inspection beyond the depth map** - flattened peaks (§9.2), a noise map
   (§9.3), an antiqued finish in the preview (§9.4), "as stored" vs "as if linear" (§9.6), fine
   detail against the spot (§9.7, the strongest) and jagged edges (§9.8).
@@ -985,7 +989,7 @@ real. It answers "where should I clean up before cutting" without blurring anyth
 separate noise from fine texture (scales, stitching, engraved lines), which is exactly what
 a blur gets wrong - compare local noise with local gradient strength.
 
-### 9.4 An "antiqued" finish in the relief preview  *(rendering)*
+### 9.4 An "antiqued" finish in the relief preview  *(rendering - now part of §10.3)*
 
 Finished coins read because of the finishing: dark recesses, polished high points, a
 patina. The preview already finishes the untouched field and the engraved floor differently;
@@ -1053,3 +1057,117 @@ where a one-pixel jump is a stair, not vertical walls along the pixel grid.
   against results belongs with LaserTuner or MOPAChroma, if anywhere.
 - **Sculpting fixes themselves.** Remodelling a nose or rebuilding an eye is a sculptor's
   judgement in a sculpting program. DepthView points; it does not reshape.
+
+---
+
+## 10. Finishing preview, job report and .dvp profiles  *(design, 2026-10-07 - for Lee's markup before code)*
+
+Lee's idea: once a coin is tuned and the engraving is settled, a further phase shows only the
+finished piece in 3D through the post-processing a maker actually does - clean, polish, antique,
+relieve the high points, seal - then prints a report of the whole job and saves the settings as
+a profile to reuse. Research behind it: `docs/research/finishing-chemistry.md` (2026-10-07; every
+value marked V sourced, C calculated, E estimate). **Read it rather than re-deriving anything.**
+
+Build order, because each piece feeds the next: **10.1 the .dvp profile** (the report and the
+preview both read and write it), then **10.2 the report**, then **10.3 the finishing preview**
+(the largest). §9.4 (antiqued finish) is absorbed into 10.3.
+
+### 10.1 The .dvp profile ("DepthView parameters")
+
+A small JSON file beside the map - same folder, same base name, `.dvp` - so a later map can
+start from the same settings. Schema `depthview.params/1`, versioned like the JSON outputs.
+
+- **Two kinds of setting, kept apart.** *Portable*: workpiece, material, laser, pass count,
+  depth, rim, spot, finishing recipe, notes. *Map-specific*: black and white points, flat areas,
+  centring, wizard answers - true of one map only. The file records the map it was made for (name,
+  size, bit depth, a hash). Applied to a different map, the portable part applies and the
+  map-specific part is re-suggested or shown as "from another map", never applied blindly.
+- **Workpiece, not blank.** Shape (round now; rectangle and others later), size, thickness,
+  material - so going beyond coins does not change the file format.
+- **Laser:** type (UV / MOPA / later CO2, diode), lens, spot, and - when a G-code job is attached -
+  the settings the machine was actually sent, read by the existing G-code analyser (layers, power,
+  speed, frequency, pulse width). Never typed in when they can be read.
+- Writing it never touches the map. A read-only or synced folder asks where to save instead.
+  The tuned PNG can carry the same recipe in a text chunk (PngEncoder already writes provenance).
+- Command line: `--params <file.dvp>` for `--tune`, `--terraces` and the JSON commands, so a host
+  program (MakeIt) gets the same profile for free; `--save-params` writes one.
+- **Done when:** save from the Tune window, open a different map, load the profile, and only the
+  portable settings arrive, with the rest flagged; the JSON round-trips; `check_json.py` covers it.
+
+### 10.2 The job report
+
+An HTML page opened in the browser, to print or save as PDF - no new library, all three platforms,
+pictures and charts inline. Contents:
+
+- The map (file facts, verdict, levels, histogram with the clipped ends shaded), the workpiece
+  and material, the laser (type, lens, spot, and the G-code settings when attached).
+- The tuning: every setting, which came from the wizard and which the user changed by hand.
+- What the job will do: depths, depth per pass, the terrace figures and overlay, a depth line,
+  the before/after relief.
+- The finishing recipe from 10.3 with its renders, product names as *examples*, and each
+  product's safety badge (below).
+- Notes. A footer: DepthView version, date, and "a preview is a look, not a prediction".
+- **Done when:** one button (and `--report-html`) writes it beside the map from the current .dvp.
+
+### 10.3 The finishing preview
+
+A stage-by-stage 3D view of the finished piece. The research reduces every stage to one idea:
+**darken everything, then rub back the highs** - so the preview patinates the whole surface and
+subtracts it, never paints patina into the recesses.
+
+**Stages** (research §"Process-state table"): 0 raw off the laser (dark oxide, powder in recesses)
+-> 1 clean (brush and rinse / ultrasonic / pin tumbler / pickle / bead blast - each changes the
+floor's roughness and how well patina holds) -> 2 optional pre-polish (soft buff rounds edges,
+hard felt keeps them crisp) -> 3 darken -> 4 relieve -> 5 seal (none / wax / satin / gloss
+lacquer). Each stage on or off, each with its few controls, and a scrubber to step through them.
+
+**Darken (3):** material first, then product family, then strength and dwell.
+- Brass, copper, bronze: selenium cold blacks (JAX Black, Brown-Black, Brown; Birchwood Casey
+  Brass Black, Antique Black M20/M24/M38). Dilution moves black to brown.
+- Silver: tellurium instant blacks (Griffith Silver Black, JAX Silver Blackener, Win-Ox), or liver
+  of sulfur through its colour sequence (gold, pink, magenta, blue, purple, bronze, grey, black).
+- Nickel silver: JAX Silver Blackener, JAX Pewter Black. Carbon steel: Perma Blue, Oxpho-Blue.
+  Aluminium: Birchwood Casey Aluminum Black. Stainless: Presto Black SSB (the only verified
+  room-temperature one), or heat tint by temperature. Titanium: no black - anodizing colour by
+  voltage or heat colour, computed as a thin film (research has the thickness table).
+- Wood and acrylic (UV only on the Lumos Ultra - 1064 nm passes through both): paint, wax or epoxy
+  fill, then sand back - the same model as darken-and-relieve.
+- Products are **examples, not endorsements**, each with a safety badge from its SDS: selenium
+  blacks "corrosive, toxic, hazardous waste (D002, D010)"; liver of sulfur "releases H2S,
+  ventilate"; tellurium blacks "HCl + Te"; anodizing "lethal voltage". Never mix acid blackeners
+  with sulfide solutions (H2S). Novacan Black Patina is out (sold for lead and solder).
+- Dwell and strength move darkness; overdone gives the powdery, flaky black the sources warn of.
+
+**Relieve (4):** the user picks a *tool*, not an abstract slider, because the sources agree that
+tool stiffness, not grit, decides how deep it reaches. Each tool is a probe with radius r,
+reach below the surface envelope d_reach, and cut rate k (research "Proposed buff model", all E):
+flat block, hard strop or felt with rouge, eraser, Pro Polishing pad, cloth over a fingertip,
+steel wool or Scotch-Brite, brass brush, soft buff, 3M radial bristle discs by grade, pin tumbler.
+Then pressure and time. The model: envelope = morphological closing of the height map with a disc
+of radius r; depth below it decides contact; coverage = c0 * exp(-k * contact * time). It gives the
+sourced order - peaks and edges first, then broad plateaus and upper walls, narrow crevices last -
+and the sourced difference that wide shallow fields survive a flat block but not a soft buff.
+Grit sets whether the bared metal ends satin or bright; steel wool and paper leave a direction.
+The height map is the tuned map at true scale, so r and d_reach are real millimetres.
+
+**Rendering:** extend the existing software relief renderer rather than start again.
+- Bare metal: F0 colour from the research tables (physicallybased.info / Lagarde / Hoffman agree;
+  bronze and nickel silver are E), roughness by finish (laser floor 0.7-0.9 is the one measured
+  anchor; the rest E), anisotropy for brushed and wool-rubbed areas.
+- Patina: a dielectric layer blended by coverage (diffuse colour, F0 about 0.1-0.2, matte to
+  satin), its colour from the product and darkness. Thin films (anodizing, heat tint, early liver
+  of sulfur) change the metal's own reflectance through a thickness-to-colour table instead.
+- Sealers: wax lightens the patina a little and lowers roughness on rough areas; lacquer adds a
+  clearcoat over everything, recesses included.
+- **Labelled as a look, not a prediction**, as the relief preview is.
+
+**Calibration - the weak part, and how to fix it.** Patina colours, finish roughness and tool
+reach are estimates: no source publishes them. A handful of test coins closes the gap - brass,
+copper and stainless, one product each, relieved with three tools of known stiffness, photographed
+under fixed light (the MOPAChroma Capture rig suits it). Ship the estimates marked as such, then
+replace them with Lee's measurements; the data lives in one file of materials, products and tools
+(each value tagged V/C/E with its source), not in code.
+
+- **Done when:** a Blodgett-style brass coin can be stepped raw -> cleaned -> darkened (JAX
+  Brown-Black) -> relieved (soft buff vs flat block visibly different) -> waxed, and the result
+  goes into the report.

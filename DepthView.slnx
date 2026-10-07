@@ -99,6 +99,7 @@
     <File Path="docs/images/tuning/14-picture-as-relief.png" />
   </Folder>
   <Folder Name="/docs/research/">
+    <File Path="docs/research/finishing-chemistry.md" />
     <File Path="docs/research/laser-ablation-baselines.md" />
   </Folder>
   <Folder Name="/packaging/">

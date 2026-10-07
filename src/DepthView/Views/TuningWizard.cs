@@ -116,6 +116,7 @@ public sealed class TuningWizard : Window
         _src = src;
         Title = "Tuning wizard";
         Width = 1280; Height = 860; MinWidth = 980; MinHeight = 640;
+        Program.SizeForCapture(this);
         Background = WindowBg;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         try { Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://DepthView/Assets/depthview-icon-256.png"))); }

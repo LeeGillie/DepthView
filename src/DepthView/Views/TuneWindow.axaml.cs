@@ -116,6 +116,7 @@ public partial class TuneWindow : Window
     public TuneWindow(ImageData image, AnalysisResult result, string fileName, string? sourcePath)
     {
         InitializeComponent();
+        Program.SizeForCapture(this);
 
         _image = image;
         _source = result;

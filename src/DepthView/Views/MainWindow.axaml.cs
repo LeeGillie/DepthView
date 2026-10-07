@@ -187,10 +187,11 @@ public partial class MainWindow : Window
                     Program.StartupWizard && _tune?.Wizard is { } wizard ? wizard :
                     Program.StartupTune && _tune is not null ? _tune :
                     Program.StartupRelief && _relief is not null ? _relief : this;
-                var size = new PixelSize(Math.Max(1, (int)target.ClientSize.Width),
-                                         Math.Max(1, (int)target.ClientSize.Height));
+                double k = Program.ScreenshotScale;
+                var size = new PixelSize(Math.Max(1, (int)Math.Round(target.ClientSize.Width * k)),
+                                         Math.Max(1, (int)Math.Round(target.ClientSize.Height * k)));
 
-                using var rtb = new RenderTargetBitmap(size, new Vector(96, 96));
+                using var rtb = new RenderTargetBitmap(size, new Vector(96 * k, 96 * k));
                 rtb.Render(target);
                 using var fs = File.Create(Program.ScreenshotPath!);
                 rtb.Save(fs);

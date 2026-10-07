@@ -89,6 +89,19 @@ internal static partial class Program
     /// </summary>
     public static int? WindowWidth, WindowHeight;
 
+    /// <summary>--screenshot-scale n: capture at n times the window's own pixels (2 for a 4K frame of a 1920 x 1080 window).</summary>
+    public static double ScreenshotScale = 1;
+
+    /// <summary>Applies --window to a dialog that is about to be captured, so every window can fill a frame.</summary>
+    public static void SizeForCapture(Avalonia.Controls.Window w)
+    {
+        if (ScreenshotPath is null || WindowWidth is not int ww || WindowHeight is not int wh) return;
+        w.MinWidth = Math.Min(w.MinWidth, ww);
+        w.MinHeight = Math.Min(w.MinHeight, wh);
+        w.Width = ww;
+        w.Height = wh;
+    }
+
     /// <summary>Camera angle to open the relief preview at, when given on the command line.</summary>
     public static double? StartupYaw, StartupPitch;
 
@@ -127,6 +140,9 @@ internal static partial class Program
           DepthView <image> --screenshot <out.png> [--relief] [--delay <ms>]
                                           capture the window to a PNG and exit
                                           (used to keep the README images reproducible)
+                                          --screenshot-scale <n> captures at n times
+                                          the window's pixels (2: a 1920 x 1080 window
+                                          as a 4K frame)
           DepthView --window <w> <h>      open the window at this size, to check the
                                           layout at screen sizes you do not own
           DepthView --version             print the version and exit
@@ -192,6 +208,9 @@ internal static partial class Program
                                 pressure relieveMinutes seal stage, by catalogue id, e.g.
                                 "darken=jax_black;strength=0.5;minutes=1;relieve=propad;seal=wax"
                                 (stage raw|clean|polish|darken|relieve|seal shows it part way)
+            --finish-maps <prefix>  also write the finished surface as texture maps for
+                                another renderer: <prefix>-color, -metal, -rough (8-bit)
+                                and -height (16-bit, white untouched) PNGs
 
         What the tuning wizard measures, without changing anything
           DepthView --survey <image> [--passes <n>] [--json]
@@ -546,6 +565,12 @@ internal static partial class Program
 
         int sh = Array.FindIndex(args, a => a == "--screenshot");
         if (sh >= 0 && sh + 1 < args.Length) ScreenshotPath = args[sh + 1];
+
+        int ssc = Array.FindIndex(args, a => a == "--screenshot-scale");
+        if (ssc >= 0 && ssc + 1 < args.Length && double.TryParse(args[ssc + 1],
+                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double sc)
+            && sc >= 1 && sc <= 4)
+            ScreenshotScale = sc;
 
         int dl = Array.FindIndex(args, a => a == "--delay");
         if (dl >= 0 && dl + 1 < args.Length && int.TryParse(args[dl + 1], out int ms) && ms > 0)
@@ -1795,7 +1820,7 @@ internal static partial class Program
         double? blankArg = null, thickArg = null, depthArg = null;
         double texScale = double.NaN, texRot = double.NaN, albStr = double.NaN, micStr = double.NaN;
         int slices = 0, size = 900;
-        string? finishSpec = null;
+        string? finishSpec = null, finishMaps = null;
 
         double D(string[] a, ref int i, double fallback)
             => i + 1 < a.Length && double.TryParse(a[i + 1],
@@ -1827,6 +1852,7 @@ internal static partial class Program
                 case "--orbit": orbit = true; yaw = D(rest, ref i, 0); pitch = D(rest, ref i, 62); break;
                 case "--zoom": zoomMul = D(rest, ref i, 1); break;
                 case "--finish": if (i + 1 < rest.Length) finishSpec = rest[++i]; break;
+                case "--finish-maps": if (i + 1 < rest.Length) finishMaps = rest[++i]; break;
                 default:
                     if (!rest[i].StartsWith('-') && input is null) input = rest[i];
                     break;
@@ -1905,6 +1931,7 @@ internal static partial class Program
                 Console.WriteLine($"Engraving dark {fin.DarkShareEngraved * 100:0}%   deep half dark {fin.DarkShareFloors * 100:0}%   " +
                                   $"highs bright {fin.BrightShareTop * 100:0}%   ({fin.Seconds:0.00} s)");
                 foreach (var wn in fin.Warnings) Console.WriteLine("! " + wn);
+                if (finishMaps is not null) WriteFinishMaps(fin.Layer, field, finishMaps);
             }
 
             var buf = new byte[(long)w * h * 4];
@@ -1935,6 +1962,37 @@ internal static partial class Program
             Console.Error.WriteLine("Render failed: " + ex.Message);
             return 2;
         }
+    }
+
+    /// <summary>
+    /// --finish-maps prefix: the finished surface as texture maps for another renderer -
+    /// prefix-color.png (sRGB base colour: metal under its patina), prefix-metal.png (how
+    /// metallic: 1 bare, 0 under full patina), prefix-rough.png and prefix-height.png (16-bit).
+    /// </summary>
+    private static void WriteFinishMaps(Rendering.FinishLayer L, float[] field, string prefix)
+    {
+        int w = L.W, h = L.H;
+        var col = new SixLabors.ImageSharp.PixelFormats.Rgb24[(long)w * h];
+        var met = new SixLabors.ImageSharp.PixelFormats.L8[(long)w * h];
+        var rough = new SixLabors.ImageSharp.PixelFormats.L8[(long)w * h];
+        var hgt = new SixLabors.ImageSharp.PixelFormats.L16[(long)w * h];
+        static byte S(double lin) => (byte)Math.Clamp(Math.Round(
+            (lin <= 0.0031308 ? lin * 12.92 : 1.055 * Math.Pow(lin, 1 / 2.4) - 0.055) * 255), 0, 255);
+        for (long i = 0; i < col.LongLength; i++)
+        {
+            double c = L.Void[i] != 0 ? 0 : L.Cover[i], pk = L.Pickle[i];
+            double mr = L.MetalR + (L.PickleR - L.MetalR) * pk, mg = L.MetalG + (L.PickleG - L.MetalG) * pk,
+                   mb = L.MetalB + (L.PickleB - L.MetalB) * pk;
+            col[i] = new(S(mr + (L.PatR[i] - mr) * c), S(mg + (L.PatG[i] - mg) * c), S(mb + (L.PatB[i] - mb) * c));
+            met[i] = new((byte)Math.Round((1 - c) * 255));
+            rough[i] = new((byte)Math.Round(Math.Clamp(L.MetalRough[i] + (L.PatRough[i] - L.MetalRough[i]) * c, 0, 1) * 255));
+            hgt[i] = new((ushort)Math.Round(Math.Clamp(field[i], 0, 1) * 65535));
+        }
+        using (var a = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Rgb24>(col, w, h)) a.SaveAsPng(prefix + "-color.png");
+        using (var a = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.L8>(met, w, h)) a.SaveAsPng(prefix + "-metal.png");
+        using (var a = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.L8>(rough, w, h)) a.SaveAsPng(prefix + "-rough.png");
+        using (var a = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.L16>(hgt, w, h)) a.SaveAsPng(prefix + "-height.png");
+        Console.WriteLine($"finish maps {w}x{h} -> {prefix}-color/-metal/-rough/-height.png");
     }
 
     private static IEnumerable<string> Expand(string input)

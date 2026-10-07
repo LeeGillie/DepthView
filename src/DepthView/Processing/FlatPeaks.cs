@@ -113,8 +113,14 @@ public static class FlatPeaks
                     }
                 }
 
-                if (region.Count >= RatioLimit * band)
-                    found.Add((region.Count, v, sx / region.Count, sy / region.Count, band));
+                if (region.Count < RatioLimit * band) continue;
+
+                // A flat top that ends in a wall - lettering, a raised panel - is designed flat,
+                // not clipped: three pixels out it has already dropped most of the way to what
+                // it stands on. A clipped summit is still on the slope it was cut from there.
+                if (DropThreePixelsOut(grey, w, h, region) > 0.05 * maxValue) continue;
+
+                found.Add((region.Count, v, sx / region.Count, sy / region.Count, band));
             }
         }
 
@@ -123,6 +129,34 @@ public static class FlatPeaks
         for (int k = 0; k < found.Count && k < limit; k++)
             list.Add(new FlatPeak(k + 1, found[k].px, found[k].lvl, found[k].cx, found[k].cy, found[k].band));
         return list;
+    }
+
+    /// <summary>
+    /// How far below the plateau the ground is three pixels outside it: the plateau's level
+    /// less the median of the third ring of pixels around it (4-connected steps).
+    /// </summary>
+    private static double DropThreePixelsOut(ushort[] grey, int w, int h, List<long> region)
+    {
+        var seen = new HashSet<long>(region);
+        var ring = new List<long>(region);
+        int level = grey[region[0]];
+        for (int step = 0; step < 3; step++)
+        {
+            var next = new List<long>();
+            foreach (long p in ring)
+            {
+                int px = (int)(p % w), py = (int)(p / w);
+                if (px == 0 || py == 0 || px == w - 1 || py == h - 1) continue;
+                foreach (long q in new[] { p - 1, p + 1, p - w, p + w })
+                    if (seen.Add(q)) next.Add(q);
+            }
+            ring = next;
+        }
+        if (ring.Count == 0) return 0;
+        var levels = new int[ring.Count];
+        for (int i = 0; i < ring.Count; i++) levels[i] = grey[ring[i]];
+        Array.Sort(levels);
+        return level - levels[levels.Length / 2];
     }
 
     /// <summary>Per-pixel classes for the overlay: 2 on each flattened peak's plateau.</summary>

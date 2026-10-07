@@ -91,6 +91,7 @@ public sealed class FinishWindow : Window
 
         Title = $"Finishing - {fileName}";
         Width = 1320; Height = 860; MinWidth = 900; MinHeight = 560;
+        Program.SizeForCapture(this);
         Background = Bg;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         try { Icon = new WindowIcon(Avalonia.Platform.AssetLoader.Open(new Uri("avares://DepthView/Assets/depthview-icon-256.png"))); }

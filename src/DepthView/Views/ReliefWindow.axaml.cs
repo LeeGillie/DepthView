@@ -42,6 +42,7 @@ public partial class ReliefWindow : Window
     public ReliefWindow(ImageData image, string caption)
     {
         InitializeComponent();
+        Program.SizeForCapture(this);
 
         _zHint = new ZScaleHint(ExagSlider, ExagLabel, ExagVerdict);
 

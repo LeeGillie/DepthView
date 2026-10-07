@@ -2,51 +2,43 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.8.0 — a tuning wizard, and a guide to tuning
+## What's new in 1.9.0 — where the layers will show
 
-**A tuning wizard.** **Tuning wizard…**, at the top of the Tune window, asks a few questions
-about what you want the coin to be — which program will cut it, whether the background is a
-surround or a cut-away floor, what to do with a rim drawn into the art, what should be full
-depth and what should stay untouched, whether flat areas should engrave flat, how many
-layers — and shows every answer on the picture as you make it, flat or as lit metal. Each
-question shows what DepthView measured and why it matters, and one answer is marked
-*Recommended*. That is a suggestion, never a decision: the wizard only sets the Tune window's
-own controls, and **you have the final word**, there and afterwards.
+**Where the layers will show as steps.** A sliced job cuts a stack of flat layers, and every
+layer edge is a step one pass high. On a steep surface the steps crowd together and the beam
+blends them; on a gentle one - a cheek, a neck, a sky - they spread apart and show as contour
+lines, **however many bits the file has**. Tick **Show where the layers will show as steps**
+in the Tune window and DepthView marks them on both pictures, measured at full resolution
+against your spot size and pass count: amber where the flat treads either side of an edge are
+wider than the spot, red where they are more than three spots wide. The results card says
+what share of the layer edges will show, how many passes would blend nine in ten - or that
+more passes cannot help, because the file's own levels are the steps, as with an 8-bit map at
+a high layer count. Only the blank is measured; the corners of a square map are not on the
+coin.
 
-**A tuning guide.** [docs/TUNING-GUIDE.md](https://github.com/LeeGillie/DepthView/blob/main/docs/TUNING-GUIDE.md)
-tunes one coin for MakeIt and for LightBurn, change by change, then shows more coins with
-different outcomes: a drawn rim kept or replaced, a surround or a floor, an export with grid
-lines in its backdrop, and a picture of a coin that is not a depth map.
+**Depth along a line.** Drag across either picture in the Tune window to plot the depth along
+that line: the file's own surface, and the staircase it will be cut as at your pass count,
+with the spot as a scale bar.
 
-**New in the Tune window, and on the command line:**
+**LOOKS LIT, NOT DEPTH.** A grey shaded render of a relief - the kind many depth-map tools and
+marketplaces show as a preview - is not a depth map, but it used to pass as one. DepthView now
+recognises the one-sided light and shadow of a render and warns. It is a warning rather than a
+verdict until it has met many more files.
 
-- **Centre the blank on the design** (`--fit design`) for a coin drawn off-centre. It may
-  crop background, never design, and still resamples nothing. DepthView says when a design
-  sits off centre.
-- **Replace the design's own rim** (`--cover-rim`). A rim drawn into the art goes under the
-  new, untouched rim, so the coin's rim is the blank's own surface, with no trench beside it,
-  and all of the depth goes to the design.
-- **Even out a shaded surround** (`--uniform-surround`). A vignetted backdrop, or marks left
-  by the program that exported the map, is made one level so none of it is taken for design.
-- **Flat areas** (`--flat`). Nearly level areas can be flattened to one level or smoothed of
-  pixel noise, so a floor meant to be flat does not engrave speckled.
-- **Empty gaps.** When a few small pockets sit far below the rest of the design, the wizard
-  offers to close the empty range between them rather than spend layers cutting nothing.
-- `--survey` prints everything the wizard measures, and `--levels-from` takes its suggested
-  level points.
+**Help.** A new **Help** button at the top right opens the user guide and the tuning guide,
+and the Tune window has its own **Tuning guide** button. They open in your browser at the
+edition written for the version you are running, so after an update you read the guide that
+matches the program in front of you. Help also brings back these notes.
 
-**A picture is not a depth map.** A file that is mostly colour — a render, a tinted preview,
-a photograph of a coin — is now reported as **NOT A DEPTH MAP** instead of being judged on
-its few grey pixels. A batch report exits 1 for it, as it does for an imposter.
-
-For other programs: `--survey --json` is new (schema `depthview.survey/1`), and
-`depthview.tune/1` and `depthview.report/1` gain fields, none changed; see
+For other programs: `--terraces --json` is new (schema `depthview.terrace/1`), `--tune --json`
+reports the terraces before and after, and `depthview.report/1` gains `litScore` and
+`litThreshold`; nothing existing changed. See
 [docs/INTEGRATION.md](https://github.com/LeeGillie/DepthView/blob/main/docs/INTEGRATION.md).
 
 ## Updating
 
-**From 1.4.0 to 1.7.0:** the green bar will offer this release — click **Update now**.
-When 1.8.0 starts, it offers these notes.
+**From 1.4.0 to 1.8.0:** the green bar will offer this release — click **Update now**.
+When 1.9.0 starts, it offers these notes.
 
 **From 1.3.0 or earlier:** those versions cannot update themselves. Download this release by
 hand once; from then on, updates come to you.
@@ -74,9 +66,10 @@ folder and DepthView is gone.
 **Unzip it first**, somewhere you can write to — Documents or your home folder, not
 `C:\Program Files`. On Windows, right-click the zip and choose *Extract All…*.
 
-**The guides, as PDFs:** `DepthView-*-User-Guide.pdf` is the whole user guide and
-`DepthView-*-Tuning-Guide.pdf` the tuning guide, for reading offline or printing. Both are
-made from the pages on GitHub, which stay the authoritative version.
+**The guides:** inside the program, **Help** opens the user guide and the tuning guide for
+your version. `DepthView-*-User-Guide.pdf` and `DepthView-*-Tuning-Guide.pdf` are the same
+guides for reading offline or printing, made from the pages on GitHub, which stay the
+authoritative version.
 
 ## Running it
 

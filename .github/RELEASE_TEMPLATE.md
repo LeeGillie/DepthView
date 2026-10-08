@@ -2,49 +2,49 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.10.0 — before and after the laser
+## What's new in 1.11.0 — the whole job, kept
 
-**The finishing preview.** A tuned coin is only half done when the laser stops. **Finishing**
-in the Tune window takes it through the work that follows, for brass, copper and bronze:
-clean away the oxide, pre-polish, darken, take the patina back from the high points, and
-seal - stage by stage, on the coin you just tuned. Choose the product, its strength and its
-time; choose the tool, and see the difference between a flat pad that keeps the recesses dark
-and a soft buff that follows the surface down and strips them. Every choice carries its
-advice, where the numbers come from and how sure they are, and its safety warnings: hover for
-a hint, or open the guidance panel. It is a look, not a prediction, and nothing in it changes
-the depth map.
+**Save the settings with the map.** **Save settings** at the foot of the Tune window writes a
+small `.dvp` file beside the map, and opening that map again brings it back tuned as you left
+it. **Load settings...** starts a different map from a saved job: the blank, laser, pass count,
+rim, output, finishing recipe and notes all arrive, while the black and white points and any
+flat-area changes - which belong to one picture - are suggested afresh for the new map. The map
+itself is never touched.
 
-**More to mark in the Tune window.** The checkbox for layer steps is now a **Mark** box, and
-it offers four more, each measured at full resolution inside the blank:
+**The job report.** **Job report ...** writes one page about the whole job and opens it in your
+browser, to print or save as PDF: the map and its verdict, the blank and laser, every tuning
+setting, before-and-after pictures and lit reliefs, where the layers will show, what the job
+will cut, the depth across the middle, the finishing recipe with its safety notes, and your
+notes. A new **JOB** section in the Tune window records the laser, the lens and notes for it.
 
-- **Detail finer than the spot** - raised and recessed detail narrower than one or two spots,
-  which the beam will round off or lose.
-- **Pixel noise on smooth surfaces** - speckle the laser would cut faithfully.
-- **Flattened peaks** - small flat tops below pure white, the clipped "flat nose tip".
-- **Jagged edges** - diagonal and curved edges that jump a whole step in one pixel, the mark of
-  a map drawn at its final size, which cuts curves as staircases. Built larger and reduced,
-  the edges come out smooth; DepthView never resamples the map itself.
+**Stainless steel and titanium** in the finishing preview. On stainless: Presto Black SSB, the
+verified room-temperature black, finished with oil - or heat tint, straw to purple to blue. On
+titanium, which cannot be blackened: anodizing colours by voltage, purple, blue, gold and green,
+with the highs rubbed back to grey metal. Each carries its advice and safety notes.
 
-**In the analysis.** Flattened peaks and jagged edges are now findings in the main window.
-So is a declared display curve: a PNG can say its values went through sRGB or a gamma curve,
-and if they really did, the depth is bent. DepthView says what the curve would mean, Preview
-can show the map as if it were undone, and the values are always used as stored.
+**Two more checks.**
 
-**Depth along a line in the main window.** Drag across the picture (a click still browses)
-to plot the depth along the line, at your saved blank, depth and pass count; the 3D preview
-draws the same line on the surface in cyan.
+- **Isolated spikes** - single pixels that stand clear of all their neighbours, one pass firing
+  where nothing was intended: a pit drilled below a smooth surface, or a needle left standing.
+  In the analysis, and in the Tune window's **Mark** box.
+- **Dithered pictures** - a map exported as dots carries tone as how densely the dots are
+  packed, and every dot would cut as a pit or a pin. DepthView now says so as the verdict, names
+  the kind of dither, and stops quoting level figures that would only describe the dots.
 
-For other programs: `--detail`, `--noise` and `--aliasing` are new (schemas
-`depthview.detail/1`, `depthview.noise/1`, `depthview.aliasing/1`), `--survey` lists
-`flatPeaks`, `depthview.report/1` gains `container.displayCurve`, `content.flatPeaks` and
-`content.jaggedEdges`, and `--render --finish` renders a finished coin (with `--finish-maps`,
-as texture maps for another renderer). Nothing existing changed. See
+**Also:** the calibration coupon is now 6400 px by default, so its finest comb cell is drawn
+cleanly, and the About box thanks Victor Wolansky, whose published coin work shaped several of
+DepthView's checks.
+
+For other programs: `--spikes --json` is new (`depthview.spikes/1`), `depthview.report/1`
+gains `content.spikes` and `content.dither`, `--tune` takes `--params` and `--save-params` and
+reports them as `params`, the profile is `depthview.params/1`, and `--job-report` writes the
+page headlessly. Nothing existing changed. See
 [docs/INTEGRATION.md](https://github.com/LeeGillie/DepthView/blob/main/docs/INTEGRATION.md).
 
 ## Updating
 
-**From 1.4.0 to 1.9.0:** the green bar will offer this release — click **Update now**.
-When 1.10.0 starts, it offers these notes.
+**From 1.4.0 to 1.10.0:** the green bar will offer this release — click **Update now**.
+When 1.11.0 starts, it offers these notes.
 
 **From 1.3.0 or earlier:** those versions cannot update themselves. Download this release by
 hand once; from then on, updates come to you.

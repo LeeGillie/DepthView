@@ -702,6 +702,139 @@ def check_round2(exe, work):
     check(share[8][0] <= 0.1 and share[8][1] <= 0.2, f"lettering: 8 px strokes should survive: {share}")
 
 
+def png_size(path):
+    import struct
+    with open(path, "rb") as f:
+        head = f.read(24)
+    return struct.unpack(">II", head[16:24])
+
+
+def check_round3(exe, work):
+    """Spikes, dither, the .dvp profile, the job report, stainless and titanium finishing (1.11.0)."""
+    import math
+    N = 256
+
+    def dome(x, y):
+        r = math.hypot(x - N / 2, y - N / 2) / (N / 2)
+        return int(max(0.0, min(1.0, (1 - r * r) * 0.8 + 0.1)) * 65535)
+
+    # Spikes: twelve single pixels on a smooth dome, six pits and six pins.
+    pits = [(80 + 12 * k, 100) for k in range(6)]
+    pins = [(80 + 12 * k, 150) for k in range(6)]
+    def spiky(x, y):
+        v = dome(x, y)
+        if (x, y) in pits: return max(0, v - 20000)
+        if (x, y) in pins: return min(65535, v + 20000)
+        return v
+    sp = os.path.join(work, "spiky.png")
+    write_grey16(sp, N, N, spiky)
+    code, d, _, _ = run(exe, "--spikes", sp, "--json", cwd=work)
+    d = d or {}
+    check(code == 0 and d.get("schema") == "depthview.spikes/1", f"--spikes: exit {code}, schema {d.get('schema')!r}")
+    check(d.get("pits") == 6 and d.get("pins") == 6, f"--spikes: expected 6 pits and 6 pins, got {d.get('pits')}, {d.get('pins')}")
+    smooth = os.path.join(work, "dome.png")
+    write_grey16(smooth, N, N, dome)
+    code, d, _, _ = run(exe, "--spikes", smooth, "--json", cwd=work)
+    check((d or {}).get("pits") == 0 and (d or {}).get("pins") == 0, f"--spikes: a smooth dome has none: {d}")
+
+    # Dither: the dome as an ordered (Bayer 4x4) dither and as error diffusion.
+    bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    def ordered(x, y):
+        return 65535 if dome(x, y) / 65535 > (bayer[y % 4][x % 4] + 0.5) / 16 else 0
+    bd = os.path.join(work, "bayer.png")
+    write_grey16(bd, N, N, ordered)
+    err = [[dome(x, y) / 65535 for x in range(N)] for y in range(N)]
+    fs = [[0] * N for _ in range(N)]
+    for y in range(N):
+        for x in range(N):
+            o = 1.0 if err[y][x] >= 0.5 else 0.0
+            e = err[y][x] - o
+            fs[y][x] = 65535 if o else 0
+            if x + 1 < N: err[y][x + 1] += e * 7 / 16
+            if y + 1 < N:
+                if x > 0: err[y + 1][x - 1] += e * 3 / 16
+                err[y + 1][x] += e * 5 / 16
+                if x + 1 < N: err[y + 1][x + 1] += e / 16
+    fd = os.path.join(work, "fs.png")
+    write_grey16(fd, N, N, lambda x, y: fs[y][x])
+    code, rep, _, _ = run(exe, "--report", bd, fd, smooth, sp, "--json", cwd=work)
+    files = {f["name"]: f for f in (rep or {}).get("files", [])}
+    for name, kind in (("bayer.png", "ordered"), ("fs.png", "error-diffused")):
+        f = files.get(name) or {}
+        dt = (f.get("content") or {}).get("dither") or {}
+        check(dt.get("dithered") is True and dt.get("kind") == kind, f"dither: {name} should be {kind}: {dt}")
+        check((f.get("verdict") or {}).get("title", "").startswith("DITHERED"), f"dither: {name} verdict {(f.get('verdict') or {}).get('title')}")
+        titles = [x.get("title") for x in f.get("findings", [])]
+        check("What 256 passes would do" not in titles and "Isolated spikes" not in titles,
+              f"dither: level figures and spikes should not be quoted for {name}: {titles}")
+    dd = ((files.get("dome.png") or {}).get("content") or {}).get("dither") or {}
+    check(dd.get("dithered") is False, f"dither: a smooth dome is not dithered: {dd}")
+    sf = files.get("spiky.png") or {}
+    check(((sf.get("content") or {}).get("spikes") or {}).get("pits") == 6, f"report: spikes in content: {(sf.get('content') or {}).get('spikes')}")
+    check("Isolated spikes" in [x.get("title") for x in sf.get("findings", [])], "report: no Isolated spikes finding")
+
+    # The .dvp profile: written by --save-params, read back by --params.
+    dvp = os.path.join(work, "dome.dvp")
+    code, d, _, _ = run(exe, "--tune", smooth, "--out", os.path.join(work, "dome-t.png"), "--json",
+                        "--blank", "40", "--depth-mm", "0.6", "--rim-mm", "1", "--black", "9000", "--white", "60000",
+                        "--passes", "72", "--spot", "30", "--bits", "8", "--save-params", cwd=work)
+    check(code == 0 and os.path.exists(dvp), f"--save-params: exit {code}, profile written {os.path.exists(dvp)}")
+    prof = json.load(open(dvp, encoding="utf-8")) if os.path.exists(dvp) else {}
+    check(prof.get("schema") == "depthview.params/1", f"profile schema {prof.get('schema')!r}")
+    port = prof.get("portable") or {}
+    check((port.get("laser") or {}).get("passes") == 72 and (port.get("laser") or {}).get("spotMicrons") == 30
+          and (port.get("rim") or {}).get("enabled") is True and (port.get("output") or {}).get("bitDepth") == 8,
+          f"profile portable part: {port}")
+    check((prof.get("mapSpecific") or {}).get("blackPoint") == 9000, f"profile map-specific part: {prof.get('mapSpecific')}")
+    check(((d or {}).get("params") or {}).get("saved") and same_file(d["params"]["saved"], dvp), f"tune params.saved: {(d or {}).get('params')}")
+
+    code, d, _, _ = run(exe, "--tune", smooth, "--params", dvp, "--out", os.path.join(work, "dome-t2.png"), "--json", cwd=work)
+    d = d or {}
+    check((d.get("params") or {}).get("sameMap") is True and (d.get("params") or {}).get("mapSpecificApplied") is True,
+          f"--params on the same map: {d.get('params')}")
+    check((d.get("applied") or {}).get("blackPoint") == 9000 and d.get("passes") == 72, f"--params on the same map applied {d.get('applied')}, passes {d.get('passes')}")
+    code, d, _, _ = run(exe, "--tune", sp, "--params", dvp, "--out", os.path.join(work, "spiky-t.png"), "--json", cwd=work)
+    d = d or {}
+    check((d.get("params") or {}).get("sameMap") is False and (d.get("params") or {}).get("mapSpecificApplied") is False,
+          f"--params on another map: {d.get('params')}")
+    check((d.get("applied") or {}).get("blackPoint") != 9000 and d.get("passes") == 72,
+          f"--params on another map: levels must be re-suggested, job settings kept: {d.get('applied')}, passes {d.get('passes')}")
+    code, d, _, _ = run(exe, "--terraces", smooth, "--params", dvp, "--json", cwd=work)
+    check((d or {}).get("passes") == 72, f"--terraces --params: passes {(d or {}).get('passes')}")
+    code, d, _, _ = run(exe, "--tune", smooth, "--params", dvp, "--save-params", smooth, "--out", os.path.join(work, "x.png"), "--json", cwd=work)
+    check(code == 0 and os.path.getsize(smooth) > 0 and png_size(smooth) == (N, N), "--save-params never writes over the map")
+
+    # The job report.
+    html = os.path.join(work, "dome-job-report.html")
+    code, _, out, err = run_text(exe, "--job-report", smooth, "--params", dvp,
+                                 "--finish", "material=stainless;clean=blast;darken=presto_ssb;relieve=propad;seal=oil", cwd=work)
+    check(code == 0 and os.path.exists(html), f"--job-report: exit {code}, written {os.path.exists(html)} {err[:200]}")
+    if os.path.exists(html):
+        page = open(html, encoding="utf-8").read()
+        for want in ("<title>Job report", "Before and after", "What the job will cut", "Tuning settings",
+                     "Presto Black SSB", "Stainless steel", "data:image/png;base64", "a look, not a prediction"):
+            check(want in page, f"job report lacks {want!r}")
+    code, _, _, _ = run_text(exe, "--job-report", smooth, "--out", smooth, cwd=work)
+    check(code == 2, "--job-report must refuse to write over the map")
+
+    # Stainless and titanium in the finishing preview.
+    for recipe, want in (("material=stainless;darken=presto_ssb;relieve=propad;seal=oil", "Presto Black SSB"),
+                         ("material=stainless;darken=heat_blue;relieve=propad", "Heat tint - blue"),
+                         ("material=titanium;darken=anod_gold;relieve=propad", "Anodize - gold")):
+        code, _, out, err = run_text(exe, "--render", smooth, "--finish", recipe, "--size", "200",
+                                     "--out", os.path.join(work, "fin.png"), cwd=work)
+        check(code == 0 and want in out, f"--render --finish {recipe}: exit {code}, {out[:200]} {err[:200]}")
+    code, _, out, _ = run_text(exe, "--render", smooth, "--finish", "material=titanium;darken=jax_black", "--size", "200",
+                               "--out", os.path.join(work, "fin.png"), cwd=work)
+    check("not a usual choice for titanium" in out, f"a selenium black on titanium should be flagged: {out[:300]}")
+
+    # The calibration coupon's default size.
+    coupon = os.path.join(work, "coupon.png")
+    code, _, _, _ = run_text(exe, "--calibrate", "--out", coupon, cwd=work)
+    check(code == 0 and os.path.exists(coupon) and png_size(coupon) == (6400, 6400),
+          f"--calibrate default size should be 6400: {png_size(coupon) if os.path.exists(coupon) else None}")
+
+
 def run_text(exe, *args, cwd=None):
     p = subprocess.run([exe, *args], capture_output=True, text=True, cwd=cwd)
     return p.returncode, None, p.stdout, p.stderr
@@ -815,6 +948,9 @@ def main(exe):
 
         # --- jagged edges, the display curve, the report's shape fields, lettering ----
         check_round2(exe, work)
+
+        # --- spikes, dither, .dvp profiles, the job report, stainless and titanium -----
+        check_round3(exe, work)
 
         # --- the original is never written over -------------------------------------
         size = os.path.getsize(src)

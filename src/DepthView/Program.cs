@@ -122,7 +122,7 @@ internal static partial class Program
                                           and height) and plots it; without --tune-ui
                                           it goes on the main window's picture.
                                           --show-overlay <terraces|detail|noise|peaks|
-                                          jagged> picks what Mark shows, and
+                                          jagged|spikes> picks what Mark shows, and
                                           --finish-ui ["recipe"] opens the finishing
                                           preview (recipe as for --render --finish)
                                           Either relief view also takes --blank <mm>,
@@ -247,6 +247,10 @@ internal static partial class Program
                               pixel - a map rendered at its final size, which cuts curves as
                               stairs (red). The rim and walls along the pixel grid are not
                               judged. --jaggies is the same. --json: depthview.aliasing/1
+          DepthView --spikes <image> [--out <overlay.png>] [--json]
+                              single pixels that stand clear of all eight neighbours: pits
+                              cut below a smooth surface (red) and pins left standing
+                              (amber). --json: depthview.spikes/1
 
         Tune a depth map (writes a new file, never over the original)
           DepthView --tune <image> [options]
@@ -335,12 +339,30 @@ internal static partial class Program
                                 "write DPI" box is clear
           Black and white default to the 0.1 and 99.9 percentiles, because one stray pixel
           at an extreme is enough to make a min/max stretch do nothing.
+          Settings profiles (.dvp, beside the map with the same name):
+            --params <file.dvp> start from a saved profile; anything on the command line
+                                wins over it. Its levels and flat-area changes apply only
+                                when it was made for this same map
+            --save-params [file.dvp]
+                                write the settings used as a profile (default beside the
+                                input). --params also works with --terraces, --detail,
+                                --noise, --aliasing, --spikes and --job-report
+
+        Job report (one printable page: open it in a browser, print or save as PDF)
+          DepthView --job-report <image> [--params <file.dvp>] [--finish "<recipe>"]
+                                [--passes <n>] [--blank <mm>] [--thick <mm>] [--depth-mm <mm>]
+                                [--spot <um>] [--out <file.html>]
+                                the map, the blank and laser, every tuning setting, what the
+                                job will cut before and after tuning, the finishing recipe
+                                with its safety notes, and the profile's notes. Written
+                                beside the map as <image>-job-report.html unless --out says
+                                otherwise. --report-html is the same
 
         Calibration coupon (engrave it once per machine and material, then measure it)
           DepthView --calibrate [options]
             --blank <mm>        diameter of the blank the coupon is drawn for (default 40)
             --rim-mm <mm>       rim width to leave untouched at the edge (default 1.0)
-            --size <px>         output width and height in pixels (default 4096)
+            --size <px>         output width and height in pixels (default 6400)
             --steps <n>         steps in the depth wedge, 4 to 64 (default 16)
             --machine <name>    stamped into the file and the worksheet
             --material <name>   likewise, so a drawer of coupons stays identifiable
@@ -422,6 +444,9 @@ internal static partial class Program
         int tidx = Array.FindIndex(args, a => a is "--tune");
         if (tidx >= 0) return RunTune(args.Skip(tidx + 1).ToArray());
 
+        int jridx = Array.FindIndex(args, a => a is "--job-report" or "--report-html");
+        if (jridx >= 0) return RunJobReport(args.Skip(jridx + 1).ToArray());
+
         int ridx = Array.FindIndex(args, a => a is "--render");
         if (ridx >= 0) return RunRender(args.Skip(ridx + 1).ToArray());
 
@@ -431,12 +456,13 @@ internal static partial class Program
         int tridx = Array.FindIndex(args, a => a is "--terraces");
         if (tridx >= 0) return RunTerraces(args.Skip(tridx + 1).ToArray());
 
-        int dtidx = Array.FindIndex(args, a => a is "--detail" or "--noise" or "--aliasing" or "--jaggies");
+        int dtidx = Array.FindIndex(args, a => a is "--detail" or "--noise" or "--aliasing" or "--jaggies" or "--spikes");
         if (dtidx >= 0)
             return RunInspect(args.Skip(dtidx + 1).ToArray(), args[dtidx] switch
             {
                 "--detail" => "detail",
                 "--noise" => "noise",
+                "--spikes" => "spikes",
                 _ => "aliasing",
             });
 
@@ -510,7 +536,8 @@ internal static partial class Program
             if (soi >= 0 && soi + 1 < args.Length)
                 StartupMark = args[soi + 1].ToLowerInvariant() switch
                 {
-                    "terraces" or "steps" => 1, "detail" => 2, "noise" => 3, "peaks" => 4, "jagged" or "aliasing" => 5, _ => 0,
+                    "terraces" or "steps" => 1, "detail" => 2, "noise" => 3, "peaks" => 4, "jagged" or "aliasing" => 5,
+                    "spikes" => 6, _ => 0,
                 };
             int pli = Array.IndexOf(args, "--profile-line");
             if (pli >= 0 && pli + 1 < args.Length)
@@ -1164,6 +1191,12 @@ internal static partial class Program
         double blank = Blank.Current.DiameterMm, depth = Blank.Current.TargetDepthMm;
         // WeCreat support give 6-8 um for the Lumos Ultra UV spot; the same default as --tune.
         double spot = 7;
+        if (ParamsDefaults(rest, ref passes, ref blank, ref depth, ref spot) is string perr)
+        {
+            Console.Error.WriteLine(perr);
+            if (rest.Contains("--json")) Console.WriteLine(JsonReport.Error(JsonReport.TerraceSchema, perr));
+            return 2;
+        }
 
         for (int i = 0; i < rest.Length; i++)
         {
@@ -1171,6 +1204,7 @@ internal static partial class Program
             string? Next() => i + 1 < rest.Length ? rest[++i] : null;
             switch (a)
             {
+                case "--params": Next(); break;
                 case "--json": json = true; break;
                 case "--out": overlay = Next(); break;
                 case "--passes": if (int.TryParse(Next(), out int p) && p > 1) passes = p; break;
@@ -1235,18 +1269,26 @@ internal static partial class Program
         {
             "detail" => JsonReport.DetailSchema,
             "noise" => JsonReport.NoiseSchema,
+            "spikes" => JsonReport.SpikeSchema,
             _ => JsonReport.AliasSchema,
         };
         string? input = null, overlay = null;
         bool json = false;
         int passes = 256;
         double blank = Blank.Current.DiameterMm, depth = Blank.Current.TargetDepthMm, spot = 7;
+        if (ParamsDefaults(rest, ref passes, ref blank, ref depth, ref spot) is string perr)
+        {
+            Console.Error.WriteLine(perr);
+            if (rest.Contains("--json")) Console.WriteLine(JsonReport.Error(schema, perr));
+            return 2;
+        }
         for (int i = 0; i < rest.Length; i++)
         {
             string a = rest[i];
             string? Next() => i + 1 < rest.Length ? rest[++i] : null;
             switch (a)
             {
+                case "--params": Next(); break;
                 case "--json": json = true; break;
                 case "--out": overlay = Next(); break;
                 case "--passes": if (int.TryParse(Next(), out int p) && p > 1) passes = p; break;
@@ -1261,6 +1303,7 @@ internal static partial class Program
         {
             "detail" => "Usage: DepthView --detail <image> [--passes n] [--blank mm] [--depth-mm mm] [--spot um] [--out overlay.png] [--json]",
             "noise" => "Usage: DepthView --noise <image> [--passes n] [--blank mm] [--depth-mm mm] [--out overlay.png] [--json]",
+            "spikes" => "Usage: DepthView --spikes <image> [--out overlay.png] [--json]",
             _ => "Usage: DepthView --aliasing <image> [--blank mm] [--out overlay.png] [--json]",
         };
         if (input is null || !File.Exists(input))
@@ -1302,6 +1345,20 @@ internal static partial class Program
             lines = NoiseLines(r);
             legend = "amber: noise of half a layer or more, red: two layers or more";
         }
+        else if (mode == "spikes")
+        {
+            var r = Spikes.Find(grey, w, h, max);
+            classes = null;
+            if (overlay is not null)
+            {
+                var bgraS = Spikes.Overlay(grey, w, h, max, r, w, h, Math.Min(w, h) / 2.0);
+                using var imgS = SixLabors.ImageSharp.Image.LoadPixelData<SixLabors.ImageSharp.PixelFormats.Bgra32>(bgraS, w, h);
+                imgS.SaveAsPng(overlay);
+            }
+            body = JsonReport.Spikes(Path.GetFullPath(input), r, overlay);
+            lines = SpikeLines(r);
+            legend = "red: a pit (a pixel darker than all its neighbours), amber: a pin (lighter); the 50 largest";
+        }
         else
         {
             var r = EdgeAlias.Measure(grey, w, h, max, ppmm, keepClasses: overlay is not null);
@@ -1327,11 +1384,22 @@ internal static partial class Program
         {
             "detail" => $"Detail finer than the spot in {Path.GetFileName(input)} at {passes:N0} passes",
             "noise" => $"Pixel noise in {Path.GetFileName(input)} at {passes:N0} passes",
+            "spikes" => $"Isolated spikes in {Path.GetFileName(input)}",
             _ => $"Jagged edges in {Path.GetFileName(input)}",
         });
         foreach (var line in lines) Console.WriteLine("  " + line);
         if (overlay is not null) Console.WriteLine($"  overlay         {Path.GetFileName(overlay)} - {legend}");
         return 0;
+    }
+
+    /// <summary>The spike figures in words.</summary>
+    internal static IEnumerable<string> SpikeLines(SpikeReport r)
+    {
+        yield return $"threshold       {r.MinStepLevels:N0} levels clear of every neighbour ({r.MinStepLevels * 100 / Math.Max(1, r.RangeLevels):F0}% of the design's range)";
+        if (r.Count == 0) { yield return "spikes          none inside the blank"; yield break; }
+        yield return $"spikes          {r.Count:N0}: {r.Pits:N0} pits (darker, cut below everything around them), {r.Pins:N0} pins (lighter, left standing)";
+        var s = r.Largest[0];
+        yield return $"largest         {Math.Abs(s.Delta):N0} levels at ({s.X}, {s.Y}), {(s.Delta < 0 ? "a pit" : "a pin")}";
     }
 
     /// <summary>The jagged-edge figures in words.</summary>
@@ -1425,6 +1493,44 @@ internal static partial class Program
         // WeCreat support give 6-8 um for the Lumos Ultra UV spot; 7 sits in the middle.
         double spotMicrons = 7;
 
+        // A .dvp profile (1.11.0) is read before the flags, so anything spelled out on the
+        // command line wins over it. Its map-specific part waits until the map is loaded and
+        // recognised as the one the profile was made for.
+        DvpProfile? profile = null;
+        string? paramsPath = null, saveParams = null;
+        bool saveParamsWanted = false;
+        var paramProblems = new List<string>();
+        for (int i = 0; i < rest.Length; i++)
+        {
+            if (rest[i] == "--params" && i + 1 < rest.Length) paramsPath = rest[i + 1];
+            if (rest[i] == "--save-params")
+            {
+                saveParamsWanted = true;
+                if (i + 1 < rest.Length && !rest[i + 1].StartsWith('-') && rest[i + 1].EndsWith(DvpProfile.Extension, StringComparison.OrdinalIgnoreCase))
+                    saveParams = rest[i + 1];
+            }
+        }
+        if (paramsPath is not null)
+        {
+            try
+            {
+                profile = DvpProfile.Load(paramsPath, out var probs);
+                paramProblems.AddRange(probs);
+                profile.ApplyTo(o, mapSpecific: false, maxValue: 65535);
+                passes = profile.Passes;
+                spotMicrons = profile.SpotMicrons;
+                noDpi = !profile.WriteDpi;
+                wantOutline = profile.Outline;
+            }
+            catch (Exception ex)
+            {
+                string msg = $"Could not read the profile {paramsPath}: {ex.Message}";
+                if (rest.Contains("--json")) Console.WriteLine(JsonReport.Error(JsonReport.TuneSchema, msg));
+                Console.Error.WriteLine(msg);
+                return 2;
+            }
+        }
+
         for (int i = 0; i < rest.Length; i++)
         {
             string a = rest[i];
@@ -1432,6 +1538,10 @@ internal static partial class Program
 
             switch (a)
             {
+                case "--params": Next(); break;
+                case "--save-params":
+                    if (i + 1 < rest.Length && rest[i + 1].EndsWith(DvpProfile.Extension, StringComparison.OrdinalIgnoreCase)) i++;
+                    break;
                 case "--out": outPath = Next(); break;
                 case "--mask": maskPath = Next(); break;
                 case "--black": if (int.TryParse(Next(), out int b)) { o.BlackPoint = b; haveBlack = true; } break;
@@ -1511,7 +1621,8 @@ internal static partial class Program
         // host program, a script) is exactly the one that can get this wrong without noticing.
         if (SamePath(input, outPath)
             || (maskPath is not null && SamePath(input, maskPath))
-            || (outlinePath is not null && SamePath(input, outlinePath)))
+            || (outlinePath is not null && SamePath(input, outlinePath))
+            || (saveParams is not null && SamePath(input, saveParams)))
         {
             const string refuse = "Refusing to write over the input file. Give --out a different path.";
             if (json) Console.WriteLine(JsonReport.Error(JsonReport.TuneSchema, refuse));
@@ -1546,6 +1657,25 @@ internal static partial class Program
                 bool bgIsDesign = levelsFrom == "floor";
                 sb = survey.Floor(bgIsDesign, o.CoverDesignRim).Suggested;
                 sw = survey.Top(bgIsDesign, o.CoverDesignRim).Suggested;
+            }
+            bool? sameMap = null;
+            bool mapSpecificApplied = false;
+            string mapHash = DvpProfile.GreyHash(grey, loaded.Image.Width, loaded.Image.Height);
+            if (profile is not null)
+            {
+                sameMap = profile.SameMap(mapHash);
+                if (sameMap == true)
+                {
+                    if (!haveBlack && profile.BlackPoint is int pb) { sb = Math.Clamp(pb, 0, maxValue); }
+                    if (!haveWhite && profile.WhitePoint is int pw) { sw = Math.Clamp(pw, 0, maxValue); }
+                    if (flatSpec is null && profile.FlatActions.Count > 0) o.FlatActions = new List<FlatAction>(profile.FlatActions);
+                    mapSpecificApplied = true;
+                }
+                else
+                {
+                    paramProblems.Add($"The profile was made for {profile.MapName ?? "another map"}; its levels and flat-area changes were not applied, only the job settings.");
+                    Console.WriteLine($"  profile         {Path.GetFileName(paramsPath)}: made for {profile.MapName ?? "another map"} - job settings applied, levels re-suggested for this map");
+                }
             }
             if (!haveBlack) o.BlackPoint = sb;
             if (!haveWhite) o.WhitePoint = sw;
@@ -1757,10 +1887,30 @@ internal static partial class Program
                                 + " (--terraces on the output for the whole picture)");
             }
 
+            string? savedParams = null;
+            if (saveParamsWanted)
+            {
+                saveParams ??= DvpProfile.PathBeside(input);
+                var save = ProfileFromTune(o, profile, input, grey, loaded.Image.Width, loaded.Image.Height,
+                                           loaded.Image.BitDepth, maxValue, mapHash, passes, spotMicrons,
+                                           wantOutline, maskPath is not null);
+                save.Save(saveParams);
+                savedParams = saveParams;
+                Console.WriteLine($"  profile         settings written to {Path.GetFileName(saveParams)}");
+            }
+
             if (json)
             {
                 realOut.WriteLine(JsonReport.Tune(new JsonReport.TuneOutcome
                 {
+                    Params = profile is null && savedParams is null ? null : new JsonReport.ParamsUse
+                    {
+                        Loaded = paramsPath,
+                        SameMap = sameMap,
+                        MapSpecificApplied = mapSpecificApplied,
+                        Saved = savedParams,
+                        Problems = paramProblems,
+                    },
                     Input = input,
                     Output = outPath,
                     Mask = maskWritten,
@@ -1788,6 +1938,170 @@ internal static partial class Program
         finally
         {
             if (json) Console.SetOut(realOut);
+        }
+    }
+
+    /// <summary>
+    /// The settings of a command-line tune as a .dvp profile. A profile that was read is the
+    /// starting point, so what the command line did not touch (laser, lens, finish, notes)
+    /// survives the round trip.
+    /// </summary>
+    private static DvpProfile ProfileFromTune(TuningOptions o, DvpProfile? from, string input, ushort[] grey, int w, int h,
+                                              int bitDepth, int maxValue, string hash, int passes, double spot,
+                                              bool outline, bool mask)
+    {
+        var p = from ?? new DvpProfile();
+        p.MapName = Path.GetFileName(input);
+        p.MapWidth = w; p.MapHeight = h; p.MapBitDepth = bitDepth; p.MapMaxValue = maxValue;
+        p.MapHash = hash;
+        p.DiameterMm = o.BlankDiameterMm ?? p.DiameterMm;
+        if (o.TargetDepthMm is double td) p.TargetDepthMm = td;
+        p.Passes = passes;
+        p.SpotMicrons = spot;
+        p.Rim = o.AddRim;
+        if (o.RimWidthMm is double rw) p.RimWidthMm = rw;
+        p.RimRampMm = o.RimRampMm ?? 0;
+        p.Fit = o.Fit;
+        p.Pad = o.PadWith;
+        p.CoverDesignRim = o.CoverDesignRim;
+        p.UniformSurround = o.UniformSurround;
+        p.Stretch = o.Stretch;
+        p.Invert = o.Invert;
+        p.Slice = o.Slices > 0;
+        p.Dither = o.Dither;
+        p.OutputBitDepth = o.OutputBitDepth;
+        p.WriteDpi = o.Dpi is not null;
+        p.Outline = outline;
+        p.Mask = mask;
+        p.BlackPoint = o.BlackPoint;
+        p.WhitePoint = o.WhitePoint;
+        p.FlatActions = new List<FlatAction>(o.FlatActions);
+        return p;
+    }
+
+    /// <summary>
+    /// --params for the measuring commands: the job's pass count, blank, depth and spot, before
+    /// any flag that sets them. Returns an error message, or null.
+    /// </summary>
+    private static string? ParamsDefaults(string[] rest, ref int passes, ref double blank, ref double depth, ref double spot)
+    {
+        int k = Array.IndexOf(rest, "--params");
+        if (k < 0 || k + 1 >= rest.Length) return null;
+        try
+        {
+            var p = DvpProfile.Load(rest[k + 1], out _);
+            passes = p.Passes;
+            blank = p.DiameterMm;
+            depth = p.TargetDepthMm ?? Math.Clamp(p.ThicknessMm * p.DepthPercent / 100.0, Blank.MinDepthMm, Blank.MaxDepthMm);
+            spot = p.SpotMicrons;
+            return null;
+        }
+        catch (Exception ex) { return $"Could not read the profile {rest[k + 1]}: {ex.Message}"; }
+    }
+
+    /// <summary>
+    /// --job-report: the Tune window's Job report button, headless. Settings from --params
+    /// (levels only when it was made for this map), else the suggested levels and no rim.
+    /// </summary>
+    private static int RunJobReport(string[] rest)
+    {
+        AttachParentConsole();
+        string? input = null, outPath = null, paramsPath = null, finishSpec = null;
+        int? passesArg = null;
+        double? blankArg = null, thickArg = null, depthArg = null, spotArg = null;
+        for (int i = 0; i < rest.Length; i++)
+        {
+            string a = rest[i];
+            string? Next() => i + 1 < rest.Length ? rest[++i] : null;
+            switch (a)
+            {
+                case "--out": outPath = Next(); break;
+                case "--params": paramsPath = Next(); break;
+                case "--finish": finishSpec = Next(); break;
+                case "--passes": if (int.TryParse(Next(), out int p) && p > 1) passesArg = p; break;
+                case "--blank": if (double.TryParse(Next(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double b) && b > 0) blankArg = b; break;
+                case "--thick": if (double.TryParse(Next(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double t) && t > 0) thickArg = t; break;
+                case "--depth-mm": if (double.TryParse(Next(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double d) && d > 0) depthArg = d; break;
+                case "--spot": if (double.TryParse(Next(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double s) && s > 0) spotArg = s; break;
+                default: if (!a.StartsWith('-') && input is null) input = a; break;
+            }
+        }
+        if (input is null || !File.Exists(input))
+        {
+            Console.Error.WriteLine("Usage: DepthView --job-report <image> [--params file.dvp] [--finish recipe] [--out report.html]. See --help.");
+            return 2;
+        }
+        outPath ??= JobReport.PathBeside(input);
+        if (SamePath(input, outPath))
+        {
+            Console.Error.WriteLine("Refusing to write over the input file. Give --out a different path.");
+            return 2;
+        }
+
+        try
+        {
+            var (img, meta) = ImageLoader.Load(File.ReadAllBytes(input), Path.GetFileName(input), input, "job report");
+            var before = DepthAnalyzer.Analyze(img, meta);
+            var grey = DepthTuner.ExtractGrey(img);
+            DvpProfile? p = paramsPath is null ? null : DvpProfile.Load(paramsPath, out _);
+            bool same = p?.SameMap(DvpProfile.GreyHash(grey, img.Width, img.Height)) == true;
+
+            var o = new TuningOptions();
+            var (sb, sw) = DepthTuner.SuggestLevels(before.GreyHistogram);
+            o.BlackPoint = sb;
+            o.WhitePoint = sw;
+            p?.ApplyTo(o, mapSpecific: same, maxValue: img.MaxValue);
+
+            double blank = blankArg ?? p?.DiameterMm ?? Blank.Current.DiameterMm;
+            double thick = thickArg ?? p?.ThicknessMm ?? Blank.Current.ThicknessMm;
+            double depth = depthArg ?? p?.TargetDepthMm
+                ?? (p is not null ? Math.Clamp(p.ThicknessMm * p.DepthPercent / 100.0, Blank.MinDepthMm, Blank.MaxDepthMm)
+                                  : Blank.Current.TargetDepthMm);
+            o.BlankDiameterMm = blank;
+            o.TargetDepthMm = depth;
+            o.ResolvePhysical(img.Width, img.Height);
+            if (p is { WriteDpi: false }) o.Dpi = null;
+
+            Finishing.FinishRecipe? recipe = null;
+            if (finishSpec is not null)
+            {
+                recipe = Finishing.FinishRecipe.Parse(finishSpec, out var probs);
+                foreach (var pr in probs) Console.Error.WriteLine("--finish: " + pr);
+                if (probs.Count > 0) return 2;
+            }
+            else if (p?.Finish is string fs) recipe = Finishing.FinishRecipe.Parse(fs, out _);
+
+            var html = JobReport.Build(new JobReportInput
+            {
+                MapName = Path.GetFileName(input),
+                MapPath = input,
+                Image = img,
+                Before = before,
+                Grey = grey,
+                Options = o,
+                Passes = passesArg ?? p?.Passes ?? 256,
+                SpotMicrons = spotArg ?? p?.SpotMicrons ?? 7,
+                BlankMm = blank,
+                ThicknessMm = thick,
+                DepthMm = depth,
+                DepthFollowsThickness = depthArg is null && p is { TargetDepthMm: null },
+                LaserType = p?.LaserType,
+                Lens = p?.Lens,
+                Material = p?.Material ?? recipe?.Material,
+                Notes = p?.Notes,
+                Finish = recipe,
+                ProfilePath = paramsPath,
+            });
+            JobReport.Write(html, outPath);
+            Console.WriteLine($"Job report -> {outPath}");
+            if (p is not null && !same)
+                Console.WriteLine($"  profile         made for {p.MapName ?? "another map"}: job settings used, levels suggested for this map");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Job report failed: " + ex.Message);
+            return 2;
         }
     }
 

@@ -38,6 +38,39 @@ public static class JsonReport
     public const string DetailSchema = "depthview.detail/1";
     public const string NoiseSchema = "depthview.noise/1";
     public const string AliasSchema = "depthview.aliasing/1";
+    public const string SpikeSchema = "depthview.spikes/1";
+
+    /// <summary>--spikes: single pixels that stand clear of all eight neighbours (added 1.11.0).</summary>
+    public static string Spikes(string path, SpikeReport r, string? overlay) => Write(w =>
+    {
+        w.WriteStartObject();
+        w.WriteString("schema", SpikeSchema);
+        w.WriteString("depthview", BuildInfo.Version);
+        w.WriteBoolean("ok", true);
+        w.WriteString("path", path);
+        StringOrNull(w, "overlay", overlay is null ? null : FullPath(overlay));
+        w.WriteNumber("width", r.Width);
+        w.WriteNumber("height", r.Height);
+        Num(w, "blankRadiusPx", r.BlankRadiusPx);
+        w.WriteNumber("blankPixels", r.BlankPixels);
+        w.WriteNumber("rangeLevels", r.RangeLevels);
+        Num(w, "minStepLevels", r.MinStepLevels);
+        w.WriteNumber("pits", r.Pits);
+        w.WriteNumber("pins", r.Pins);
+        w.WriteStartArray("largest");
+        foreach (var s in r.Largest)
+        {
+            w.WriteStartObject();
+            w.WriteNumber("x", s.X);
+            w.WriteNumber("y", s.Y);
+            w.WriteNumber("level", s.Level);
+            w.WriteNumber("delta", s.Delta);
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
+        Num(w, "seconds", r.Seconds);
+        w.WriteEndObject();
+    });
 
     /// <summary>--detail: features narrower than the spot, measured on the map as it is.</summary>
     public static string Detail(string path, DetailReport r, string? overlay) => Write(w =>
@@ -341,6 +374,33 @@ public static class JsonReport
         /// target depth are known; otherwise null.</summary>
         public TerraceReport? TerracesBefore { get; init; }
         public TerraceReport? TerracesAfter { get; init; }
+
+        /// <summary>Added 1.11.0: the .dvp profile read (--params) and written (--save-params).</summary>
+        public ParamsUse? Params { get; init; }
+    }
+
+    /// <summary>What happened with a .dvp profile on a command-line run.</summary>
+    public sealed class ParamsUse
+    {
+        public string? Loaded { get; init; }
+        public bool? SameMap { get; init; }
+        public bool MapSpecificApplied { get; init; }
+        public string? Saved { get; init; }
+        public List<string> Problems { get; init; } = new();
+    }
+
+    private static void ParamsBody(Utf8JsonWriter w, ParamsUse? p)
+    {
+        if (p is null) { w.WriteNull("params"); return; }
+        w.WriteStartObject("params");
+        StringOrNull(w, "loaded", p.Loaded is null ? null : FullPath(p.Loaded));
+        if (p.SameMap is bool s) w.WriteBoolean("sameMap", s); else w.WriteNull("sameMap");
+        w.WriteBoolean("mapSpecificApplied", p.MapSpecificApplied);
+        StringOrNull(w, "saved", p.Saved is null ? null : FullPath(p.Saved));
+        w.WriteStartArray("problems");
+        foreach (var x in p.Problems) w.WriteStringValue(x);
+        w.WriteEndArray();
+        w.WriteEndObject();
     }
 
     public static string Tune(TuneOutcome t)
@@ -489,6 +549,8 @@ public static class JsonReport
                 w.WriteEndObject();
             }
             else w.WriteNull("terraces");
+
+            ParamsBody(w, t.Params);
 
             w.WritePropertyName("before");
             WriteAnalysis(w, t.Input, t.Before, passCounts, histogram: false);
@@ -762,6 +824,38 @@ public static class JsonReport
             w.WriteEndObject();
         }
         else w.WriteNull("jaggedEdges");
+        // Added 1.11.0: isolated spikes and dither, on the same circle.
+        if (r.Spikes is { } sp)
+        {
+            w.WriteStartObject("spikes");
+            w.WriteNumber("pits", sp.Pits);
+            w.WriteNumber("pins", sp.Pins);
+            Num(w, "minStepLevels", sp.MinStepLevels);
+            w.WriteStartArray("largest");
+            foreach (var s in sp.Largest.Take(10))
+            {
+                w.WriteStartObject();
+                w.WriteNumber("x", s.X);
+                w.WriteNumber("y", s.Y);
+                w.WriteNumber("level", s.Level);
+                w.WriteNumber("delta", s.Delta);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+            w.WriteEndObject();
+        }
+        else w.WriteNull("spikes");
+        if (r.Dither is { } dt)
+        {
+            w.WriteStartObject("dither");
+            w.WriteBoolean("dithered", dt.Dithered);
+            if (dt.Dithered) w.WriteString("kind", dt.KindName); else w.WriteNull("kind");
+            w.WriteNumber("levels", dt.Levels);
+            Num(w, "transitionShare", dt.TransitionShare);
+            NumOrNull(w, "periodicity", dt.Periodicity);
+            w.WriteEndObject();
+        }
+        else w.WriteNull("dither");
         w.WriteEndObject();
 
         w.WriteStartObject("levels");

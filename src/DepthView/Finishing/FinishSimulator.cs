@@ -453,7 +453,7 @@ public static class FinishSimulator
 
         if (r.StopAfter >= FinishStage.Darken && !dk.IsNone)
         {
-            if (cl.OxideLeft > 0.5)
+            if (cl.OxideLeft > 0.5 && !dk.Film)
                 W.Add("Laser oxide is still on the engraving, so the darkener will take unevenly. Clean it off first (ultrasonic or a pin tumbler).");
             if (!dk.Materials.Contains(m.Id))
                 W.Add($"{dk.Name} is not a usual choice for {m.Name.ToLowerInvariant()}.");
@@ -461,8 +461,10 @@ public static class FinishSimulator
                 W.Add($"{dk.Name} barely reacts with brass. A selenium black (JAX, Birchwood) is the dependable route.");
             if (res.Overdone)
                 W.Add("At this strength and time the black goes crusty and powdery and rubs off when relieved. Dilute to 35-50% or shorten the dip.");
-            else if (darkened && res.MeanDarkness < 0.5)
+            else if (darkened && !dk.Film && res.MeanDarkness < 0.5)
                 W.Add("Light: the recesses will read brown-grey rather than dark. Leave it longer or use it stronger.");
+            if (dk.Film)
+                W.Add("A thin interference film: its colour shifts toward blue at grazing angles, which this preview does not show.");
         }
 
         if (relieved)

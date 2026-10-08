@@ -3,7 +3,7 @@
 Everything discussed and consciously set aside, with enough context to pick it up cold.
 Ordered by my estimate of value per unit of work, not by size.
 
-### Resume here (updated 2026-10-07, 1.10.0)
+### Resume here (updated 2026-10-08, 1.11.0)
 
 1.4.0 brought true-scale relief, one program-wide blank, zip installers and the in-place
 updater; 1.5.0 added JSON output for host programs and enforces never writing over the input;
@@ -13,10 +13,10 @@ Next up, roughly in order:
 - **JSON interface for host programs** released in 1.5.0 (2026-09-30), and the cover note
   pointing WeCreat at `docs/INTEGRATION.md` sent the same day. Waiting on them (§8).
 - **Listen for Mac and Linux reports** on the 1.4.0 zips - only CI has run them (§6).
-- **§7.4 spikes and §7.5 dither detection** need no measured constant and can ship before
-  any coupon is cut. (§7.3 is built; §7.4's noise floor already ships in `--survey`.)
 - **§7.9** target-vs-simulated depth comparison and the suggested Z advance with an override
-  warning - designed, not built.
+  warning - designed, not built, and **it needs the simulator (§7.6)**: "simulated depth" and a
+  Z advance derived from removal per pass are both outputs of the ablation model. Moved in with
+  the simulator work (2026-10-08) rather than built on a guess.
 - **G-code reading released in 1.6.0 (2026-09-30)** (§8), in the window too (browse or drop a
   `.gc`). Decoding confirmed for relief against Lee's settings panel (CLAUDE.md). Open
   question it raised: Z descends 10 um per layer with MakeIt's Z-descent switch off - ask
@@ -44,18 +44,25 @@ Next up, roughly in order:
 - **1.10.0 (2026-10-07)**: the finishing preview's first cut for brass, copper and bronze
   (§10.3), the Tune window's Mark box (detail finer than the spot §9.7, pixel noise §9.3,
   flattened peaks §9.2, jagged edges §9.8), display-curve findings and the "as if undone"
-  preview (§9.6), and the depth line in the main window (§9.5). Announced in LUOM with the
-  promo video (https://youtu.be/bNdW8oT88HU).
-- **Next feature release (designed 2026-10-07, §10):** the .dvp profile and the job report;
-  the finishing preview grows from its first cut. Research in `docs/research/finishing-chemistry.md`. Then TODO low-hanging
-  fruit (§9.7, §9.2, §9.3), then the ablation simulation - which needs the bench work (§7.1 spot
-  coupon, §7.2 mass loss) done first, so start the coupons alongside.
-- **§9 still open: inspection beyond the depth map** - flattened peaks (§9.2), a noise map
-  (§9.3), an antiqued finish in the preview (§9.4), "as stored" vs "as if linear" (§9.6), fine
-  detail against the spot (§9.7, the strongest) and jagged edges (§9.8).
+  preview (§9.6), and the depth line in the main window (§9.5). Promo video
+  https://youtu.be/bNdW8oT88HU; the group post lists everything since 1.8.0.
+- **1.11.0 (2026-10-08)** - the clean line before the simulator: the .dvp profile (§10.1:
+  Save/Load settings, auto-load beside the map, `--params`/`--save-params`), the job report
+  (§10.2: Job report button, `--job-report`), stainless steel and titanium in the finishing
+  preview (§10.3), isolated spikes (§7.4) and dither detection (§7.5), the JOB section (laser,
+  lens, notes), Victor Wolansky in the credits, and the `--calibrate` default size raised to
+  6400 px.
+- **ImageSharp 4 needs a licence key.** Five advisories against ImageSharp 3.1.12 were published
+  2026-10-07, fixed only in 4.1.2, and ImageSharp 4 refuses to build without a Six Labors licence
+  (`sixlabors.lic` or `SixLaborsLicenseKey`). Lee chose (2026-10-08) to stay on 3.1.12 with the five
+  reviewed and suppressed in the csproj - the three high ones are in code DepthView never calls,
+  the two medium ones need a crafted TIFF or ICC profile. To do: ask Six Labors about a licence
+  for an open-source project, then move to 4.x (key as a CI secret too) and drop the suppressions.
+  The other road is DepthView's own readers for the remaining formats.
+- **Next: the ablation simulation** (§7.6/7.7), which needs the bench work first (§7.1 spot
+  coupon, §7.2 mass loss) - start the coupons. §7.9 rides on it.
 - **G-code capture watcher** (planned `GcodeCapture.cs`, `CaptureArchive.cs` - not yet
   written; `GcodeStream` and now `GcodeAnalyzer` are what they build on).
-- Decide the `--calibrate` default `--size`.
 - **The measurement programme has not started** - no coupon cut, nothing weighed. Depth
   prediction is not a capability yet; see CLAUDE.md, What is owed.
 
@@ -259,7 +266,8 @@ default coupon now warns about its own finest cell.** The warning is true — ba
 1 and 2 px — but a warning on every default run teaches people to ignore warnings. Either
 raise the default `--size` (4800 gives 3.0 px, 6400 gives the 4 px needed for bars at
 least 2 px wide) or accept it. Not changed unilaterally: 4096 is also the project's
-standard depth-map width and appears in README and CLAUDE.md figures.
+standard depth-map width and appears in README and CLAUDE.md figures. **Decided 2026-10-08
+(Lee): 6400**, so the finest cell has 2 px bars and the default run is quiet.
 
 Not done: the same check for an over-large `--rim-mm` or a tiny `--blank`.
 
@@ -652,7 +660,14 @@ gradient field is most of the way to existing.
   still show them. The terrace map settles that with a picture rather than an opinion. The
   "visible" threshold stays a setting until measured (§7.1).
 
-### 7.4 Spike detection and noise floor  *(code only; noise floor done, spikes open)*
+### 7.4 ~~Spike detection and noise floor~~  **Built** (noise floor 1.8.0; spikes 2026-10-08, 1.11.0)
+
+`Processing/Spikes.cs`, `--spikes` (`depthview.spikes/1`), the Mark box ("Isolated spikes"), a
+finding and a row in the analysis, `content.spikes` in the report. A spike is one pixel clear of
+all eight neighbours, in one direction, by more than they differ among themselves, and by at
+least the jagged-edge threshold (4% of the range or three level gaps, capped at a quarter).
+The Blodgett map has 44, all stray background-level pixels around the edge of the arch opening - real.
+Original plan:
 
 The Immerkær noise floor ships in `--survey` (1.8.0), for the whole design and per flat area.
 Spike detection is still to do.
@@ -672,7 +687,13 @@ how many distinct levels exist without asking how many of them are real.
 - **Done when:** both figures appear in the report with an explicit statement of what they
   can and cannot tell you.
 
-### 7.5 Dither detection  *(code only)*
+### 7.5 ~~Dither detection~~  **Built 2026-10-08** (1.11.0)
+
+`Processing/Dither.cs`: 16 levels or fewer inside the blank and 15% or more of neighbouring
+pairs differing; kind from the autocorrelation at lags 4 and 8 of the image minus its 9x9 mean
+(ordered >= 0.25; synthetic Bayer 0.91, Floyd-Steinberg 0.05). The verdict becomes "DITHERED:
+tone as dots, not depth", the level and pass findings are not quoted, and the imposter
+classification is cleared. `content.dither` in the report. Original plan:
 
 A dithered source arriving as a depth map is a category error — it encodes tone as pixel
 density, and a slicer will read that density as geometry. Detect the characteristic
@@ -1111,7 +1132,7 @@ where a one-pixel jump is a stair, not vertical walls along the pixel grid.
 
 ---
 
-## 10. Finishing preview, job report and .dvp profiles  *(design 2026-10-07, agreed by Lee; 10.3 first cut built 2026-10-07)*
+## 10. Finishing preview, job report and .dvp profiles  *(design 2026-10-07, agreed by Lee; 10.3 first cut built 2026-10-07; 10.1 and 10.2 built 2026-10-08, 1.11.0)*
 
 Lee's idea: once a coin is tuned and the engraving is settled, a further phase shows only the
 finished piece in 3D through the post-processing a maker actually does - clean, polish, antique,
@@ -1123,7 +1144,13 @@ Build order, because each piece feeds the next: **10.1 the .dvp profile** (the r
 preview both read and write it), then **10.2 the report**, then **10.3 the finishing preview**
 (the largest). §9.4 (antiqued finish) is absorbed into 10.3.
 
-### 10.1 The .dvp profile ("DepthView parameters")
+### 10.1 ~~The .dvp profile ("DepthView parameters")~~  **Built 2026-10-08** (1.11.0)
+
+`Processing/DvpProfile.cs`. Built as designed, with these choices: the map is recognised by a
+SHA-256 of its grey samples and size (so a renamed or re-saved copy still matches); the Tune
+window picks up a profile beside the map on opening only when it matches; laser type, lens and
+notes are the JOB section's three controls. Not done: the G-code settings in the profile, and the
+recipe in the tuned PNG's text chunk. Original plan:
 
 A small JSON file beside the map - same folder, same base name, `.dvp` - so a later map can
 start from the same settings. Schema `depthview.params/1`, versioned like the JSON outputs.
@@ -1145,7 +1172,12 @@ start from the same settings. Schema `depthview.params/1`, versioned like the JS
 - **Done when:** save from the Tune window, open a different map, load the profile, and only the
   portable settings arrive, with the rest flagged; the JSON round-trips; `check_json.py` covers it.
 
-### 10.2 The job report
+### 10.2 ~~The job report~~  **Built 2026-10-08** (1.11.0)
+
+`Analysis/JobReport.cs`, the Tune window's **Job report ...**, `--job-report` (`--report-html`).
+Self-contained HTML (pictures as data URIs, charts as inline SVG), light and print-friendly. "Which
+came from the wizard and which the user changed" is coarse - it says whether the wizard was used,
+not setting by setting; that needs the window to track the wizard's values. Original plan:
 
 An HTML page opened in the browser, to print or save as PDF - no new library, all three platforms,
 pictures and charts inline. Contents:
@@ -1191,11 +1223,17 @@ Built ahead of 10.1/10.2 on purpose; the recipe is plain data ready for the .dvp
   bright; a soft buff strips the deep half (warned); hard felt brightens only the highest
   tops - the done-when's "soft buff vs flat block visibly different" holds.
 
-Still open, in rough order: silver, nickel silver, steel, stainless, aluminium and titanium
-chemistries and thin-film colour (the research has the tables); anisotropy for brushed and
-wool-rubbed areas; edge rounding with dwell; the coin's own edge in 3D (outside the blank is
-drawn as background); remembering the recipe across sessions and in the .dvp (10.1); the
-report (10.2); and the calibration coins, after which E values become measurements.
+**Stainless and titanium added 2026-10-08 (1.11.0)**: Presto Black SSB, heat tint (straw, purple,
+blue) and anodizing (purple, blue, gold, green; colours from the single-layer film table blended
+30% toward bare metal), a light-oil sealer, and `film` darkeners that skip the "too light" check
+and say their colour shifts with angle.
+
+Still open, in rough order: silver, nickel silver, steel and aluminium
+chemistries; a real thin-film shader (colour shifting with angle) for heat tint and
+anodizing; anisotropy for brushed and wool-rubbed areas; edge rounding with dwell; the coin's
+own edge in 3D (outside the blank is drawn as background); remembering the recipe across
+sessions (it travels in the .dvp since 1.11.0); and the calibration coins, after which E values
+become measurements.
 
 Design as agreed:
 

@@ -79,6 +79,17 @@ public sealed class FinishRecipe
         return r;
     }
 
+    /// <summary>The recipe as key=value pairs - what Parse reads, --finish takes and a .dvp stores.</summary>
+    public string ToSpec()
+    {
+        var ci = CultureInfo.InvariantCulture;
+        return string.Join(";",
+            $"material={Material}", $"clean={Clean}", $"prepolish={Prepolish}",
+            $"darken={Darkener}", $"strength={Strength.ToString("0.##", ci)}", $"minutes={DarkenMinutes.ToString("0.##", ci)}",
+            $"relieve={Tool}", $"pressure={Pressure}", $"relieveminutes={RelieveMinutes.ToString("0.##", ci)}",
+            $"seal={Sealer}", $"stage={StopAfter.ToString().ToLowerInvariant()}");
+    }
+
     /// <summary>The recipe in words, with makers, for a report or the console.</summary>
     public string Describe(FinishCatalogue c)
     {

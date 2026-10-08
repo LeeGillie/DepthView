@@ -39,6 +39,23 @@ public sealed class FinishWindow : Window
     /// <summary>The last recipe and panel state, kept for the session so reopening picks up where you were.</summary>
     private static FinishRecipe _lastRecipe = new();
     private static bool _guideOpen = true;
+    private static bool _used;
+
+    /// <summary>
+    /// The recipe this session has settled on - from the finishing window, or from a .dvp
+    /// that carried one - or null when finishing has not come up at all.
+    /// </summary>
+    public static FinishRecipe? SessionRecipe => _used ? _lastRecipe.Clone() : null;
+
+    /// <summary>Start the session from a recipe read out of a profile.</summary>
+    public static void Seed(FinishRecipe r)
+    {
+        _lastRecipe = r.Clone();
+        _used = true;
+    }
+
+    /// <summary>The recipe as it stands in this open window.</summary>
+    public FinishRecipe Recipe => _r.Clone();
 
     private readonly FinishCatalogue _cat = FinishCatalogue.Builtin;
     private readonly FinishRecipe _r;
@@ -88,6 +105,7 @@ public sealed class FinishWindow : Window
         _depthMm = Blank.Current.TargetDepthMm;
         _thickMm = Blank.Current.ThicknessMm;
         _r = (recipe ?? _lastRecipe).Clone();
+        _used = true;
 
         Title = $"Finishing - {fileName}";
         Width = 1320; Height = 860; MinWidth = 900; MinHeight = 560;

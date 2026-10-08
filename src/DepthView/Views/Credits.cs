@@ -83,6 +83,10 @@ public static class Credits
               + "a measurement is wrong; only somebody's actual file can tell you a correct "
               + "measurement is being reported with the wrong emphasis. None of those files "
               + "are distributed here - they belong to the people who made them."),
+            new("Victor Wolansky",
+                "Laser educator. His published coin work and technical notes shaped several of "
+              + "DepthView's checks: lit renders passed off as depth maps, flattened peaks, pixel "
+              + "noise, and finishing as part of the result rather than an afterthought."),
             new("LightBurn Software",
                 "For 3D Sliced Image mode, and for documentation candid enough to say where its "
               + "depth control ends. DepthView is built to answer the questions that leaves open."),

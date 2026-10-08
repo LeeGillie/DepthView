@@ -96,6 +96,10 @@ public static class ReportWriter
             sb.AppendLine("  Jagged edges      " + (al.EdgePixels < Processing.EdgeAlias.MinEdges
                 ? "too few diagonal step edges to judge"
                 : $"{al.Share * 100:F0}% of {al.EdgePixels:N0} diagonal step-edge px jump in one pixel"));
+        if (r.Spikes is { } sp && !r.IsDithered)
+            sb.AppendLine($"  Isolated spikes   " + (sp.Count == 0 ? "none" : $"{sp.Count:N0} ({sp.Pits:N0} pits, {sp.Pins:N0} pins)"));
+        if (r.Dither is { Dithered: true } dt)
+            sb.AppendLine($"  Dither            {dt.KindName}: {dt.Levels} levels, {dt.TransitionShare * 100:F0}% of neighbours differ");
         sb.AppendLine(r.IsFloat
             ? $"  Sample range      {r.FloatMin:G6} .. {r.FloatMax:G6} (float32)"
             : $"  Sample range      0 .. {r.MaxValue:N0}");

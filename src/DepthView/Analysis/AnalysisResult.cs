@@ -45,6 +45,16 @@ public sealed class AnalysisResult
     /// </summary>
     public List<Processing.FlatPeak>? FlatPeaks;
     public Processing.AliasReport? Aliasing;
+
+    /// <summary>
+    /// Isolated spikes and dither (added 1.11.0, TODO 7.4 and 7.5), on the same circle. Null
+    /// when the shape checks did not run.
+    /// </summary>
+    public Processing.SpikeReport? Spikes;
+    public Processing.DitherReport? Dither;
+
+    /// <summary>True when the map is a dithered picture: its level figures describe dots, not depth.</summary>
+    public bool IsDithered => Dither is { Dithered: true };
     public int UniqueGreyLevels;
     public long UniqueNonGreyColors;
     public bool NonGreyColorsCapped;

@@ -636,10 +636,10 @@ It is geometry. Whether a step of a given width is visible to the eye also depen
 height, the finish and the light; the spot is the honest dividing line the geometry supports.
 `DepthView --terraces <map>` does the same headlessly, with an overlay image and JSON.
 
-#### Detail, noise and flattened peaks
+#### Detail, noise, peaks, edges and spikes
 
-The **Mark** box above the pictures has three more inspections, each measured at full
-resolution inside the blank and each changing nothing in the file:
+The **Mark** box above the pictures has more inspections, each measured at full resolution
+inside the blank and each changing nothing in the file:
 
 - **Detail finer than the spot.** Lettering edges, thin lines and fine stippling are the first
   things a larger spot loses. Red marks raised or recessed detail narrower than one spot, amber
@@ -658,15 +658,33 @@ resolution inside the blank and each changing nothing in the file:
   along its edges and comes out smooth; that is the cure, and DepthView never resamples the map
   itself. Walls along the pixel grid and the rim are not judged. The main window reports it
   too. `DepthView --aliasing <map>`.
+- **Isolated spikes.** Single pixels that stand clear of all eight neighbours - one pass firing
+  where nothing was intended. A dark one (red) is a pit drilled below a smooth surface; a light
+  one (amber) is a needle left standing. Usually stray pixels from an export or a brush; a
+  median filter of radius 1 on the area removes them. The main window counts them.
+  `DepthView --spikes <map>`.
+
+**A dithered picture** is caught before any of this. A map exported as 1-bit or dithered dots
+carries tone as how densely the dots are packed, and a slicer reads every dot as a pit or a
+pin. DepthView names it - ordered (patterned) or error-diffused - as the verdict, **DITHERED:
+tone as dots, not depth**, and stops quoting level figures that would only describe the dots.
 
 #### Finishing
 
 **Finishing ...** in the Tune window shows the tuned relief as it would look after the work a
 maker does once the laser stops: clean, pre-polish, darken, relieve the highs, seal. Choose
-the metal (brass, copper or bronze for now), how you clean it, the darkener - JAX, Birchwood
-Casey, Birchwood Technologies, Sculpt Nouveau, liver of sulfur - its strength and time, the
-tool you rub back with and how hard, and the sealer. The chips above the picture show the coin
-after any step.
+the metal - brass, copper, bronze, stainless steel or titanium - how you clean it, the
+darkener - JAX, Birchwood Casey, Birchwood Technologies, Sculpt Nouveau, liver of sulfur - its
+strength and time, the tool you rub back with and how hard, and the sealer. The chips above the
+picture show the coin after any step.
+
+Stainless and titanium follow their own rules. The selenium blacks do not take on stainless:
+Presto Black SSB is the verified room-temperature black, after blasting, finished with oil, and
+heat gives temper colours rather than black - straw, purple, blue. Titanium cannot be blackened
+at all; anodizing gives colour by voltage (purple, blue, gold, green), and relieving the highs
+back to grey metal gives coloured recesses against silver highs. Heat tint and anodizing are
+thin films whose colour shifts toward blue at a glancing angle, which the preview does not
+show - it says so.
 
 Everything you can choose carries its advice: hover for a tooltip, or read the **Guidance**
 panel, which follows the step you last touched with what is known about it, the numbers, how
@@ -690,6 +708,29 @@ Products are named so you can find them; no maker has endorsed DepthView.
 `DepthView --render <map> --finish "darken=jax_black;relieve=propad;seal=wax"` renders one
 headlessly. The research behind every number is in
 [docs/research/finishing-chemistry.md](docs/research/finishing-chemistry.md).
+
+#### Saving the settings, and the job report
+
+**Save settings** at the foot of the Tune window writes a small `.dvp` file beside the map -
+same folder, same name - and opening that map again picks it up, tuned as you left it. **Load
+settings...** starts another map from a saved one. The job settings always arrive: the blank,
+the laser, the pass count, the rim, the output, the finishing recipe and your notes. The black
+and white points and any flat-area changes belong to one picture, so they arrive only when the
+profile was made for that same map (it records a fingerprint of the map's grey levels); on a
+different map they are suggested afresh and the status line says so. Writing a profile never
+touches the map.
+
+The **JOB** section at the bottom of the settings records what will cut it - the laser type,
+the lens, and notes for next time. Nothing there changes the map; it travels in the profile and
+heads the report.
+
+**Job report ...** at the top writes one page about the whole job and opens it in your browser,
+to print or save as PDF: the map and its verdict, the blank and laser, every tuning setting,
+before-and-after pictures and lit reliefs, where the layers will show, what the job will cut,
+the depth across the middle, the source histogram with the clipped ends shaded, anything the
+analysis flagged, the finishing recipe with its safety notes and render, and your notes. It is
+written beside the map as `<map>-job-report.html`. `DepthView --job-report <map> --params
+<map>.dvp` writes the same page from the command line.
 
 #### Fitting artwork inside the rim
 
@@ -885,12 +926,16 @@ DepthView --report <folder> --summary --out results.txt
 DepthView --report <image> --json    the same analysis as JSON, for another program to read
 DepthView --terraces <image> --passes 256 --spot 30 --out where.png
                                      where a job will terrace, and how many passes would blend it
+DepthView --spikes <image> --out spikes.png
+                                     single pixels that stand clear of all their neighbours
+DepthView --job-report <image> --params <image>.dvp
+                                     the printable job report, beside the image
 DepthView --gcode <job.gc>           what a G-code job actually sends the machine
 DepthView --project <file.lbrn2>     read a laser project and report its layers
 DepthView --lb <command>             drive a running copy of LightBurn over UDP
 ```
 
-**Calling DepthView from your own program.** `--report --json`, `--tune --json`, `--survey --json`, `--terraces --json` and `--gcode --json` print one
+**Calling DepthView from your own program.** `--report --json`, `--tune --json`, `--survey --json`, `--terraces --json`, `--spikes --json` and `--gcode --json` print one
 JSON document and nothing else, so a laser program, a script or an Electron app can run
 DepthView as a helper and act on the answer. [docs/INTEGRATION.md](docs/INTEGRATION.md) is the
 specification: the commands, every field, exit codes and a worked example.
@@ -904,6 +949,8 @@ DepthView --tune coin.png --blank 40 --rim-mm 0.9 --fit            # nothing get
 DepthView --tune coin.png --blank 40 --rim-mm 0.9 --fit canvas --pad untouched
 DepthView --tune coin.png --blank 40 --rim-mm 0.9 --fit design     # centre the blank on the design
 DepthView --tune coin.png --blank 40 --rim-mm 0.9 --mask rim.png --slices 256 --dither
+DepthView --tune coin.png --blank 40 --rim-mm 0.9 --save-params      # and keep the settings as coin.dvp
+DepthView --tune next.png --params coin.dvp                          # start another map from them
 DepthView coin.png --tune-ui --blank 40 --rim-mm 0.9 --fit   # the dialog, already set up
 ```
 
@@ -1240,4 +1287,8 @@ everything is MIT. The one worth knowing about is
 Split License: that grants plain Apache 2.0 terms to software licensed under an open source
 or source-available licence, which DepthView is. It is used only for TIFF, JPEG, BMP, WebP,
 GIF, TGA and QOI, plus PNG encoding on the `--render` path — the bit-exact decoders that
-matter for depth work are DepthView's own and carry no third-party dependency.
+matter for depth work are DepthView's own and carry no third-party dependency. Five advisories
+published in October 2026 against the 3.x line are reviewed in `DepthView.csproj`: three are
+in features DepthView never uses, and two concern decoding a deliberately crafted TIFF or ICC
+profile. The fix is in ImageSharp 4, which needs a licence key to build; moving to it is on the
+roadmap.

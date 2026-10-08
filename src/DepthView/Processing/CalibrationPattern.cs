@@ -17,7 +17,7 @@ public sealed class CalibrationSpec
     public double MarginMm = 1.0;
 
     /// <summary>Output resolution. 4096 px on a 40 mm blank is about 10 um per pixel.</summary>
-    public int Pixels = 4096;
+    public int Pixels = 6400;     // 4096 left the 25 um comb cell at 2.56 px per line pair, warned on every default run
 
     /// <summary>Steps in the depth wedge. Each is one measurement.</summary>
     public int WedgeSteps = 16;

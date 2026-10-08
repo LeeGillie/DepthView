@@ -81,6 +81,8 @@ public static class DepthAnalyzer
             r.FlatPeaks = Processing.FlatPeaks.Find(grey, w, h, r.MaxValue,
                 (x, y) => (x - cx) * (x - cx) + (y - cy) * (y - cy) <= rr);
             r.Aliasing = EdgeAlias.Measure(grey, w, h, r.MaxValue, 0, keepClasses: false);
+            r.Dither = Processing.Dither.Detect(grey, w, h, r.MaxValue);
+            r.Spikes = Processing.Spikes.Find(grey, w, h, r.MaxValue);
         }
         catch (Exception)
         {
@@ -512,6 +514,33 @@ public static class DepthAnalyzer
             f.Add(new Finding(Severity.Warn, "Looks lit from one side", litDetail));
         }
 
+        // A dithered picture (1.11.0, TODO 7.5): tone carried as the density of a few levels.
+        // Every level statistic below would describe dots, so the verdict says so and the
+        // level findings are not quoted.
+        bool dithered = r.IsDithered;
+        if (dithered)
+        {
+            var d = r.Dither!;
+            string kind = d.Kind switch
+            {
+                Processing.DitherKind.Ordered => "an ordered (patterned) dither",
+                Processing.DitherKind.ErrorDiffused => "an error-diffused dither",
+                _ => "a dither",
+            };
+            r.Verdict = "DITHERED: tone as dots, not depth";
+            r.VerdictDetail =
+                $"Only {d.Levels} distinct level{(d.Levels == 1 ? "" : "s")} inside the blank, and {d.TransitionShare * 100:F0}% of " +
+                $"neighbouring pixels differ: this is {kind}, a picture that shows tone by how densely its dots are packed. " +
+                "Engraved as depth, every dot is cut as a pit or left as a pin and the tones are lost. The level figures " +
+                "below describe the dots, not a surface. Get the greyscale depth map the picture was made from - not a " +
+                "1-bit or dithered export of it.";
+            r.VerdictSeverity = Severity.Alert;
+            r.Imposter = ImposterKind.None;   // a level pattern among two or three dot levels means nothing
+            f.RemoveAll(x => x.Title is "Uniform level ladder" or "Byte-replicated levels" or "Low byte always zero"
+                                     or "Levels do not fill the container");
+            f.Add(new Finding(Severity.Alert, "Dithered picture", r.VerdictDetail));
+        }
+
         // ---- supporting findings ----
 
         if (r.NonGreyPixels > 0)
@@ -524,7 +553,7 @@ public static class DepthAnalyzer
                 "a colourised preview, or an encoded (turbo/viridis) depth image."));
         }
 
-        if (r.UsedLevels.Length > 1)
+        if (r.UsedLevels.Length > 1 && !dithered)
         {
             // 256 is the reference point because it is where 8-bit runs out, so it is the
             // pass count at which "would a 16-bit file have helped" gets its answer.
@@ -590,7 +619,7 @@ public static class DepthAnalyzer
                 "It matters beyond tidiness: LightBurn treats a 24-bit image as 8-bit, so an RGB wrapper " +
                 "can also throw away depth precision that the file appears to have."));
 
-        if (r.MaxLevel < r.MaxValue || r.MinLevel > 0)
+        if ((r.MaxLevel < r.MaxValue || r.MinLevel > 0) && !dithered)
         {
             double util = r.RangeUtilisation * 100;
             f.Add(new Finding(util < 60 ? Severity.Warn : Severity.Info, "Range utilisation",
@@ -600,7 +629,7 @@ public static class DepthAnalyzer
               + "rather than finer."));
         }
 
-        if (r.GapCount > 0 && !r.UniformLadder)
+        if (r.GapCount > 0 && !r.UniformLadder && !dithered)
             f.Add(new Finding(Severity.Info, "Histogram gaps",
                 $"{r.GapCount:N0} gaps inside the occupied range, the largest being {r.LargestGap:N0} " +
                 "consecutive empty levels. Isolated gaps are normal; a regular comb is not."));
@@ -614,10 +643,25 @@ public static class DepthAnalyzer
         AddCommonFindings(r);
     }
 
-    /// <summary>Flattened peaks and jagged edges, when the shape checks ran.</summary>
+    /// <summary>Flattened peaks, jagged edges and spikes, when the shape checks ran.</summary>
     private static void AddShapeFindings(AnalysisResult r)
     {
         var f = r.Findings;
+        // On a dithered picture every dot is a "spike" and every dot edge a stair: say nothing more.
+        if (r.IsDithered) return;
+
+        if (r.Spikes is { Count: > 0 } sp)
+        {
+            var big = sp.Largest[0];
+            f.Add(new Finding(sp.Count >= Processing.Spikes.WarnCount ? Severity.Warn : Severity.Info,
+                sp.Count == 1 ? "An isolated spike" : "Isolated spikes",
+                $"{sp.Count:N0} single pixel{(sp.Count == 1 ? "" : "s")} stand clear of all eight neighbours by at least " +
+                $"{sp.MinStepLevels:N0} levels ({sp.Pits:N0} darker - pits, {sp.Pins:N0} lighter - pins). The largest is " +
+                $"{Math.Abs(big.Delta):N0} levels ({Math.Abs(big.Delta) * 100.0 / Math.Max(1, sp.RangeLevels):F0}% of the design's range) at " +
+                $"({big.X}, {big.Y}). A spike is not texture: it is one pass firing where nothing was intended - a pit drilled " +
+                "below a smooth surface, or a needle left standing. Usually stray pixels from an export or a brush; remove them " +
+                "in the image editor (a median filter of radius 1 on the affected area). Tune, Mark: Isolated spikes shows where."));
+        }
 
         if (r.FlatPeaks is { Count: > 0 } peaks)
         {

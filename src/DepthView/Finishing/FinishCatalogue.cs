@@ -94,6 +94,12 @@ public sealed class FinishDarkener : FinishEntry
 
     public FinishHazard? Hazard { get; set; }
 
+    /// <summary>
+    /// A thin interference film (heat tint, anodizing) rather than a dark patina: its colour is
+    /// the point, so "too light" is not a fault, and it shifts with the viewing angle.
+    /// </summary>
+    public bool Film { get; set; }
+
     [JsonIgnore] public bool IsNone => Stops.Count == 0;
 }
 

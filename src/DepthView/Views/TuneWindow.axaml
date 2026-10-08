@@ -85,6 +85,8 @@
                      FontSize="11" Foreground="#5E6773" />
           <Button x:Name="TuningGuideButton" Content="Tuning guide" Click="OnTuningGuide"
                   ToolTip.Tip="The tuning guide, at the edition written for this version: every control in this window worked through real coins, step by step. Opens in your browser." />
+          <Button x:Name="ReportButton" Content="Job report ..." Click="OnJobReport"
+                  ToolTip.Tip="A printable page of the whole job - the map, the blank, the laser, every setting and where it came from, what the job will cut, the finishing recipe with its safety notes, and your notes. Opens in your browser; print it or save it as PDF." />
           <Button x:Name="FinishingButton" Content="Finishing ..." Click="OnFinishing"
                   ToolTip.Tip="See the tuned relief cleaned, darkened, rubbed back and sealed, with what is known about each product and tool along the way. A look, not a prediction; nothing is written." />
           <Button x:Name="WizardButton" Classes="primary" Content="Tuning wizard ..."
@@ -179,6 +181,8 @@
                                 ToolTip.Tip="Small flat tops on raised features that the slope below them does not explain - a peak clipped by whatever made the map (a depth estimator, an export that ran out of range). A natural summit is about as large as the band one level below it; a clipped one is several times larger.&#x0a;&#x0a;Rebuild them in the sculpt. DepthView only finds them." />
                   <ComboBoxItem Content="Jagged edges"
                                 ToolTip.Tip="Diagonal and curved edges that jump from one level to the next in a single pixel, with no in-between value - a map rendered at its final size. They cut as staircases; red marks them. A map built at two to three times the size and reduced in an image editor carries in-between levels along its edges and comes out smooth.&#x0a;&#x0a;Walls along the pixel grid and the rim are not judged: a one-pixel jump there proves nothing. DepthView never resamples the map." />
+                  <ComboBoxItem Content="Isolated spikes"
+                                ToolTip.Tip="Single pixels that stand clear of all eight neighbours - a pass firing where nothing was intended. A dark one (red) is a pit drilled below a smooth surface; a light one (amber) is a needle left standing. The 50 largest are marked.&#x0a;&#x0a;Usually stray pixels from an export or a brush: a median filter of radius 1 on the area removes them. DepthView only finds them." />
                 </ComboBox>
               </Grid>
               <TextBlock Classes="note" Margin="24,2,0,0" TextWrapping="Wrap"
@@ -337,6 +341,31 @@
               <CheckBox x:Name="DpiCheck"
                         Content="Stamp the blank diameter as the file's true size"
                         ToolTip.Tip="Writes the resolution implied by the blank diameter as a pHYs chunk, so the map imports at true size instead of being scaled by hand. Only tick this if the blank diameter above is the size this map is actually meant to be engraved at." />
+
+              <!-- The job: what cuts it and notes about it. Nothing here changes a pixel; it
+                   travels in the .dvp profile and heads the job report. -->
+              <TextBlock Classes="section" Text="JOB" />
+              <Grid ColumnDefinitions="112,*">
+                <TextBlock Grid.Column="0" Classes="label" Text="Laser" />
+                <ComboBox Grid.Column="1" x:Name="LaserBox" HorizontalAlignment="Stretch" SelectedIndex="0"
+                          ToolTip.Tip="What will cut it. Recorded in the settings profile and the job report; it changes nothing here yet.">
+                  <ComboBoxItem Content="Not set" />
+                  <ComboBoxItem Content="UV" />
+                  <ComboBoxItem Content="MOPA fibre" />
+                  <ComboBoxItem Content="Q-switched fibre" />
+                  <ComboBoxItem Content="CO2" />
+                  <ComboBoxItem Content="Diode" />
+                </ComboBox>
+              </Grid>
+              <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
+                <TextBlock Grid.Column="0" Classes="label" Text="Lens" />
+                <TextBox Grid.Column="1" x:Name="LensBox" Watermark="e.g. F160, 110 x 110 mm"
+                         ToolTip.Tip="The lens or field, as you would name it. Recorded in the settings profile and the job report." />
+              </Grid>
+              <TextBlock Classes="label" Text="Notes" Margin="0,8,0,3" />
+              <TextBox x:Name="NotesBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="54"
+                       Watermark="Anything worth knowing next time - stock, supplier, what you would change"
+                       ToolTip.Tip="Kept in the settings profile and printed in the job report." />
             </StackPanel>
           </ScrollViewer>
 
@@ -390,6 +419,10 @@
                    VerticalAlignment="Center" TextWrapping="Wrap" />
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="9">
           <Button x:Name="ResetButton" Content="Reset" />
+          <Button x:Name="LoadParamsButton" Content="Load settings..."
+                  ToolTip.Tip="Read a .dvp settings profile. Job settings - blank, laser, passes, rim, output, finishing, notes - always arrive. Levels and flat-area changes arrive only when the profile was made for this same map; for another map they are re-suggested for this one." />
+          <Button x:Name="SaveParamsButton" Content="Save settings"
+                  ToolTip.Tip="Write these settings as a .dvp profile beside the map (same name, .dvp), so this map reopens tuned and a later map can start from the same job. The map itself is never touched." />
           <Button x:Name="SaveButton" Classes="primary" Content="Save tuned PNG..." />
           <Button x:Name="CloseButton" Content="Close" />
         </StackPanel>

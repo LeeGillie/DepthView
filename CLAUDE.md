@@ -664,6 +664,33 @@ and **E values are calibrated there, not in code**. The simulator runs on the re
   the line. `ReliefWindow.SetLine` and `ReliefOptions.Line` draw it in 3D (`MarkLine`).
   `--profile-line` without `--tune-ui` and `--preview linear` exist for screenshots.
 
+## Spikes, dither, .dvp profiles, the job report, stainless and titanium (built 2026-10-08, 1.11.0)
+
+Lee wanted a clean line drawn before the ablation simulator; this is it.
+
+- **Spikes** (`Processing/Spikes.cs`): a pixel clear of all eight neighbours in one direction,
+  by at least the jagged-edge threshold, *and* by at least twice the neighbours' own spread - so
+  a steep slope is never a spike. The Blodgett map's 44 are real: background-level strays around
+  the edge of the arch opening. Only the 50 largest are kept (per-thread lists are trimmed).
+- **Dither** (`Processing/Dither.cs`): <= 16 levels and >= 15% of neighbour pairs differing; the
+  kind from autocorrelation of the image minus its 9x9 mean at lags 4 and 8. When dithered, the
+  verdict is replaced, the imposter kind cleared, and the level/pass findings and shape findings
+  are not added - every dot would otherwise be a "spike" and every dot edge a "stair".
+- **.dvp** (`Processing/DvpProfile.cs`, `depthview.params/1`): portable vs map-specific, the map
+  recognised by `GreyHash` (SHA-256 of size + grey samples). `--params` is read *before* the flags
+  so the command line wins; its map-specific part waits until the map is loaded and hashed. The
+  Tune window auto-loads a profile beside the map only when it matches, and never during a
+  screenshot run. Saving refuses any path that does not end in `.dvp`, so it cannot write over a map.
+- **Job report** (`Analysis/JobReport.cs`): one self-contained HTML page, built at full resolution
+  (the tuned map is analysed in memory, not re-read). Written beside the map, else to TEMP; the
+  window opens it with `Launcher.LaunchFileInfoAsync`.
+- **Stainless and titanium**: catalogue data only, plus `FinishDarkener.Film` for thin films
+  (heat tint, anodizing) - those skip the "too light" and "oxide left" checks and add the
+  angle note. Anodize colours: the research's single-layer film table blended 30% to bare metal.
+- **Credits**: Victor Wolansky, with his go-ahead (2026-10-07), in `Views/Credits.cs` and
+  ACKNOWLEDGEMENTS.md. No link to his teaching until he names one.
+- `--calibrate` defaults to 6400 px (Lee, 2026-10-08), so the 25 um comb cell has 2 px bars.
+
 ---
 
 ## What is owed

@@ -1090,6 +1090,16 @@ public partial class MainWindow : Window
                 + "reduced; 60% and over is jagged. The rim and walls along the pixel grid are not judged. Tune, Mark: "
                 + "Jagged edges shows where.",
                 al.Jagged ? WarnBrush : ValueBrush);
+        if (r.Dither is { Dithered: true } dt)
+            Row("Dither", $"{dt.KindName}: {dt.Levels} levels, {dt.TransitionShare * 100:F0}% of neighbours differ",
+                "Tone carried as the density of a few levels - dots, not depth. Every level figure on this screen describes "
+                + "the dots. Get the greyscale map the picture was made from.", WarnBrush);
+        else if (r.Spikes is { } sp)
+            Row("Isolated spikes", sp.Count == 0 ? "none" : $"{sp.Count:N0} ({sp.Pits:N0} pits, {sp.Pins:N0} pins)",
+                "Single pixels that stand clear of all eight neighbours - one pass firing where nothing was intended. A dark "
+                + "one is a pit drilled below the surface, a light one a needle left standing. Tune, Mark: Isolated spikes "
+                + "shows where.",
+                sp.Count >= Processing.Spikes.WarnCount ? WarnBrush : ValueBrush);
 
         Row("Unique grey levels", r.UniqueGreyLevels.ToString("N0"),
             "Distinct values where R = G = B. This is the single most important number on this screen: " +

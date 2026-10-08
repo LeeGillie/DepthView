@@ -87,9 +87,9 @@ public partial class TuneWindow : Window
     private double _dragU0, _dragV0;
 
     /// <summary>What the pictures are marked with (the Mark box).</summary>
-    private enum Mark { None, Terraces, Detail, Noise, Peaks, Aliasing }
+    private enum Mark { None, Terraces, Detail, Noise, Peaks, Aliasing, Spikes }
 
-    private Mark MarkMode => (Mark)Math.Clamp(OverlayBox.SelectedIndex, 0, 5);
+    private Mark MarkMode => (Mark)Math.Clamp(OverlayBox.SelectedIndex, 0, (int)Mark.Spikes);
 
     private bool MarkOn => OverlayBox.SelectedIndex > 0;
 
@@ -182,6 +182,13 @@ public partial class TuneWindow : Window
         SaveButton.Click += async (_, _) => await SaveAsync();
         CloseButton.Click += (_, _) => Close();
         WizardButton.Click += async (_, _) => await OpenWizardAsync();
+        LoadParamsButton.Click += async (_, _) => await LoadProfileAsync();
+        SaveParamsButton.Click += async (_, _) => await SaveProfileAsync();
+
+        // A profile saved beside this map reopens it tuned. Not during a scripted capture,
+        // where the command line is the only authority.
+        if (Program.ScreenshotPath is null && sourcePath is not null && File.Exists(DvpProfile.PathBeside(sourcePath)))
+            Opened += async (_, _) => await AutoLoadProfileAsync();
 
         // --wizard: open it over this window as soon as this window is up, for screenshots.
         if (Program.StartupWizard)
@@ -282,7 +289,7 @@ public partial class TuneWindow : Window
         // --show-terraces and --profile-line, for the same reason: so the terrace view and a
         // profile can be captured by a script.
         if (Program.StartupTerraces) OverlayBox.SelectedIndex = 1;
-        if (Program.StartupMark is int mk) OverlayBox.SelectedIndex = Math.Clamp(mk, 0, 5);
+        if (Program.StartupMark is int mk) OverlayBox.SelectedIndex = Math.Clamp(mk, 0, (int)Mark.Spikes);
         if (Program.StartupFinish is { } fin)
             Dispatcher.UIThread.Post(() => OpenFinishing(fin), DispatcherPriority.Background);
         if (Program.StartupProfileLine is { Length: 4 } pl)
@@ -536,8 +543,300 @@ public partial class TuneWindow : Window
                     ro = aO; rt = aT;
                     break;
                 }
+                case Mark.Spikes:
+                {
+                    var sO = Spikes.Find(_grey, _w, _h, _maxValue, token);
+                    var sT = Spikes.Find(tuned, tw, th, tmax, token);
+                    oo = Spikes.Overlay(_grey, _w, _h, _maxValue, sO, _pw, _ph, bO);
+                    ot = Spikes.Overlay(tuned, tw, th, tmax, sT, pw, ph, bT);
+                    ro = sO; rt = sT;
+                    break;
+                }
             }
             return (tuned, tw, th, tmax, mark, ro, rt, oo, ot);
+        }
+    }
+
+    // ------------------------------------------------------------------ .dvp profile and job report (1.11.0)
+
+    /// <summary>The profile last read, kept so what this window cannot edit (shape, material) survives a save.</summary>
+    private DvpProfile? _profile;
+    private string? _profilePath;
+    private string? _mapHash;
+    private bool _wizardUsed;
+
+    private string MapHash => _mapHash ??= DvpProfile.GreyHash(_grey, _w, _h);
+
+    /// <summary>The Laser box's entries, as the profile names them.</summary>
+    private static readonly string?[] LaserIds = { null, "uv", "mopa", "fiber", "co2", "diode" };
+
+    /// <summary>The finishing recipe this session has settled on: the open window's, else the last one.</summary>
+    private FinishRecipe? CurrentFinish() => Finishing is { IsVisible: true } f ? f.Recipe : FinishWindow.SessionRecipe;
+
+    /// <summary>These controls, the blank and the finishing recipe, as a profile.</summary>
+    private DvpProfile CurrentProfile()
+    {
+        var p = _profile ?? new DvpProfile();
+        var b = Blank.Current;
+        p.MapName = _fileName;
+        p.MapWidth = _w; p.MapHeight = _h; p.MapBitDepth = _image.BitDepth; p.MapMaxValue = _maxValue;
+        p.MapHash = MapHash;
+        p.DiameterMm = b.DiameterMm;
+        p.ThicknessMm = b.ThicknessMm;
+        p.DepthPercent = b.DepthPercent;
+        p.TargetDepthMm = b.DepthFollowsThickness ? null : b.TargetDepthMm;
+        if (CurrentFinish() is { } fin) { p.Finish = fin.ToSpec(); p.Material = fin.Material; }
+        p.LaserType = LaserIds[Math.Clamp(LaserBox.SelectedIndex, 0, LaserIds.Length - 1)];
+        p.Lens = string.IsNullOrWhiteSpace(LensBox.Text) ? null : LensBox.Text.Trim();
+        p.Notes = string.IsNullOrWhiteSpace(NotesBox.Text) ? null : NotesBox.Text.Trim();
+        p.SpotMicrons = (double)(SpotBox.Value ?? 7);
+        p.Passes = (int)(PassBox.Value ?? 256);
+        p.Rim = RimCheck.IsChecked == true;
+        p.RimWidthMm = (double)(RimBox.Value ?? 1);
+        p.RimRampMm = (double)(RampBox.Value ?? 0);
+        p.Fit = FitCheck.IsChecked != true ? FitPolicy.None
+              : FitPolicyBox.SelectedIndex switch { 1 => FitPolicy.Canvas, 2 => FitPolicy.Design, _ => FitPolicy.Content };
+        p.Pad = PadBox.SelectedIndex == 1 ? PadFill.Untouched : PadFill.Background;
+        p.CoverDesignRim = CoverRimCheck.IsChecked == true;
+        p.UniformSurround = SurroundCheck.IsChecked == true;
+        p.Stretch = StretchCheck.IsChecked == true;
+        p.Invert = InvertCheck.IsChecked == true;
+        p.Slice = SliceCheck.IsChecked == true;
+        p.Dither = DitherCheck.IsChecked == true;
+        p.OutputBitDepth = BitBox.SelectedIndex == 1 ? 8 : 16;
+        p.WriteDpi = DpiCheck.IsChecked == true;
+        p.Outline = OutlineCheck.IsChecked == true;
+        p.Mask = MaskCheck.IsChecked == true;
+        p.BlackPoint = (int)(BlackBox.Value ?? 0);
+        p.WhitePoint = (int)(WhiteBox.Value ?? _maxValue);
+        p.FlatActions = new List<FlatAction>(_flatActions);
+        return p;
+    }
+
+    /// <summary>
+    /// A profile onto this window. The job settings always arrive; the levels and flat-area
+    /// changes only when the profile was made for this same map - for another map they are
+    /// left as suggested here, and the status line says so.
+    /// </summary>
+    private async Task ApplyProfileAsync(DvpProfile p, string path)
+    {
+        bool same = p.SameMap(MapHash);
+        _profile = p;
+        _profilePath = path;
+
+        _loading = true;
+        var b = Blank.Current;
+        b.DiameterMm = p.DiameterMm;
+        b.ThicknessMm = p.ThicknessMm;
+        b.DepthPercent = p.DepthPercent;
+        if (p.TargetDepthMm is double td) b.TargetDepthMm = td; else b.FollowThickness();
+        LaserBox.SelectedIndex = Math.Max(0, Array.IndexOf(LaserIds, p.LaserType));
+        LensBox.Text = p.Lens ?? "";
+        NotesBox.Text = p.Notes ?? "";
+        SpotBox.Value = (decimal)p.SpotMicrons;
+        PassBox.Value = p.Passes;
+        RimCheck.IsChecked = p.Rim;
+        RimBox.Value = (decimal)Math.Round(p.RimWidthMm, 2);
+        RampBox.Value = (decimal)Math.Round(p.RimRampMm, 2);
+        FitCheck.IsChecked = p.Fit != FitPolicy.None;
+        FitPolicyBox.SelectedIndex = p.Fit switch { FitPolicy.Canvas => 1, FitPolicy.Design => 2, _ => 0 };
+        CoverRimCheck.IsChecked = p.CoverDesignRim;
+        PadBox.SelectedIndex = p.Pad == PadFill.Untouched ? 1 : 0;
+        SurroundCheck.IsChecked = p.UniformSurround;
+        StretchCheck.IsChecked = p.Stretch;
+        InvertCheck.IsChecked = p.Invert;
+        SliceCheck.IsChecked = p.Slice;
+        DitherCheck.IsChecked = p.Dither;
+        BitBox.SelectedIndex = p.OutputBitDepth == 8 ? 1 : 0;
+        DpiCheck.IsChecked = p.WriteDpi;
+        OutlineCheck.IsChecked = p.Outline;
+        MaskCheck.IsChecked = p.Mask;
+        if (p.Finish is string fs) FinishWindow.Seed(FinishRecipe.Parse(fs, out _));
+        _loading = false;
+
+        string note;
+        if (same)
+        {
+            ApplyLevels(p.BlackPoint ?? (int)(BlackBox.Value ?? 0), p.WhitePoint ?? (int)(WhiteBox.Value ?? _maxValue));
+            _flatActions = p.FlatActions.Where(a => a.Mode != FlatMode.Leave).ToList();
+            _flatHist = null;
+            if (_flatActions.Count > 0)
+            {
+                StatusText.Text = "Measuring the flat-area changes at full resolution ...";
+                var actions = _flatActions;
+                _flatHist = await Task.Run(() =>
+                {
+                    var g = (ushort[])_grey.Clone();
+                    FlatAreas.Apply(g, _w, _h, actions);
+                    var hist = new long[_maxValue + 1];
+                    foreach (var v in g) hist[v]++;
+                    return hist;
+                });
+            }
+            note = $"Settings from {Path.GetFileName(path)} applied. It was made for this map, so its levels"
+                 + (_flatActions.Count > 0 ? " and flat-area changes" : "") + " came too.";
+        }
+        else
+        {
+            note = $"Job settings from {Path.GetFileName(path)} applied. It was made for {p.MapName ?? "another map"}, "
+                 + "so its levels and flat-area changes were not: the levels here are suggested for this map.";
+        }
+        Recompute();
+        StatusText.Text = note;
+    }
+
+    /// <summary>A profile beside the map is picked up on opening - but only when it was made for this map.</summary>
+    private async Task AutoLoadProfileAsync()
+    {
+        if (_sourcePath is null) return;
+        string path = DvpProfile.PathBeside(_sourcePath);
+        try
+        {
+            var p = DvpProfile.Load(path, out _);
+            if (p.SameMap(MapHash)) await ApplyProfileAsync(p, path);
+            else StatusText.Text = $"{Path.GetFileName(path)} beside this map was made for {p.MapName ?? "another map"}. "
+                                 + "Load settings... uses its job settings.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"{Path.GetFileName(path)} could not be read: {ex.Message}";
+        }
+    }
+
+    private async Task LoadProfileAsync()
+    {
+        var top = GetTopLevel(this);
+        if (top?.StorageProvider is null) return;
+        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Load settings",
+            AllowMultiple = false,
+            FileTypeFilter = new[] { new FilePickerFileType("DepthView settings") { Patterns = new[] { "*.dvp" } } },
+            SuggestedStartLocation = _sourceDir is null ? null : await top.StorageProvider.TryGetFolderFromPathAsync(_sourceDir),
+        });
+        if (files.Count == 0) return;
+        try
+        {
+            string text;
+            await using (var s = await files[0].OpenReadAsync())
+            using (var rd = new StreamReader(s))
+                text = await rd.ReadToEndAsync();
+            var p = DvpProfile.Parse(text, out var problems);
+            await ApplyProfileAsync(p, files[0].TryGetLocalPath() ?? files[0].Name);
+            if (problems.Count > 0) StatusText.Text += "  " + string.Join("  ", problems);
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"{files[0].Name} could not be read: {ex.Message}";
+        }
+    }
+
+    /// <summary>Beside the map when it can be; otherwise asks where.</summary>
+    private async Task SaveProfileAsync()
+    {
+        var p = CurrentProfile();
+        if (_sourcePath is not null)
+        {
+            string beside = DvpProfile.PathBeside(_sourcePath);
+            try
+            {
+                p.Save(beside);
+                _profile = p;
+                _profilePath = beside;
+                StatusText.Text = $"Settings saved as {Path.GetFileName(beside)} beside the map. Opening {_fileName} again picks them up; "
+                                + "Load settings... starts another map from them. The map itself was not touched.";
+                return;
+            }
+            catch (Exception) { /* read-only or synced folder: ask instead */ }
+        }
+
+        var top = GetTopLevel(this);
+        if (top?.StorageProvider is null) return;
+        var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save settings",
+            SuggestedFileName = Path.GetFileNameWithoutExtension(_fileName) + DvpProfile.Extension,
+            DefaultExtension = "dvp",
+            FileTypeChoices = new[] { new FilePickerFileType("DepthView settings") { Patterns = new[] { "*.dvp" } } },
+        });
+        if (file is null) return;
+        try
+        {
+            await using (var s = await file.OpenWriteAsync())
+            {
+                if (s.CanSeek) s.SetLength(0);
+                var bytes = System.Text.Encoding.UTF8.GetBytes(p.ToJson() + Environment.NewLine);
+                await s.WriteAsync(bytes);
+            }
+            _profile = p;
+            _profilePath = file.TryGetLocalPath() ?? file.Name;
+            StatusText.Text = $"Settings saved as {file.Name}.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Saving the settings failed: " + ex.Message;
+        }
+    }
+
+    /// <summary>The job report: built at full resolution, written beside the map, opened in the browser.</summary>
+    private async void OnJobReport(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_busy) return;
+        _busy = true;
+        ReportButton.IsEnabled = false;
+        StatusText.Text = "Building the job report at full resolution ...";
+        try
+        {
+            var p = CurrentProfile();
+            var input = new JobReportInput
+            {
+                MapName = _fileName,
+                MapPath = _sourcePath,
+                Image = _image,
+                Before = _source,
+                Grey = _grey,
+                Options = Build(),
+                Passes = p.Passes,
+                SpotMicrons = p.SpotMicrons,
+                BlankMm = Blank.Current.DiameterMm,
+                ThicknessMm = Blank.Current.ThicknessMm,
+                DepthMm = Blank.Current.TargetDepthMm,
+                DepthFollowsThickness = Blank.Current.DepthFollowsThickness,
+                LaserType = p.LaserType,
+                Lens = p.Lens,
+                Material = p.Material,
+                Notes = p.Notes,
+                Finish = CurrentFinish(),
+                ProfilePath = _profilePath,
+                WizardUsed = _wizardUsed,
+            };
+            string html = await Task.Run(() => JobReport.Build(input));
+
+            string path;
+            try
+            {
+                if (_sourcePath is null) throw new IOException("pasted");
+                path = JobReport.Write(html, JobReport.PathBeside(_sourcePath));
+            }
+            catch (Exception)
+            {
+                path = JobReport.Write(html, Path.Combine(Path.GetTempPath(),
+                    Path.GetFileNameWithoutExtension(_fileName) + "-job-report.html"));
+            }
+
+            var top = GetTopLevel(this);
+            bool opened = top is not null && await top.Launcher.LaunchFileInfoAsync(new FileInfo(path));
+            StatusText.Text = (opened ? "Job report opened in your browser - print it or save it as PDF from there. " : "")
+                            + $"Written as {path}.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "The job report failed: " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+            ReportButton.IsEnabled = true;
         }
     }
 
@@ -583,6 +882,9 @@ public partial class TuneWindow : Window
             ? "\nToo few diagonal or curved step edges to judge."
             : $"\nJagged edges: {a.Share * 100:F0}% of the diagonal and curved step edges jump a whole step in one pixel (red)"
               + (a.Jagged ? " - rendered at its final size; export larger and reduce." : "."),
+        SpikeReport s => s.Count == 0
+            ? "\nNo isolated spikes: no pixel stands clear of all its neighbours."
+            : $"\nIsolated spikes: {s.Count:N0} - {s.Pits:N0} pits (red), {s.Pins:N0} pins (amber); the 50 largest are marked.",
         _ => "",
     };
 
@@ -608,6 +910,9 @@ public partial class TuneWindow : Window
             case (AliasReport a, AliasReport b):
                 yield return $"Jagged edges           {a.Share * 100:F0}%  to  {b.Share * 100:F0}% of the step edges";
                 break;
+            case (SpikeReport a, SpikeReport b):
+                yield return $"Isolated spikes        {a.Count:N0}  to  {b.Count:N0}";
+                break;
         }
     }
 
@@ -618,6 +923,7 @@ public partial class TuneWindow : Window
         Mark.Noise => "Noisy smooth surface",
         Mark.Peaks => "Flattened peaks",
         Mark.Aliasing => "Jagged edges",
+        Mark.Spikes => "Isolated spikes",
         _ => "",
     };
 
@@ -1064,6 +1370,7 @@ public partial class TuneWindow : Window
 
         _flatActions = o.FlatActions.Where(a => a.Mode != FlatMode.Leave).ToList();
         _wizardName = plan.SuggestedName;
+        _wizardUsed = true;
         _flatHist = null;
         if (_flatActions.Count > 0)
         {

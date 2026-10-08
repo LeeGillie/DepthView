@@ -21,6 +21,8 @@ so the host needs no .NET runtime and nothing else installed.
 |---|---|
 | Analyse a depth map: true bit depth, levels actually used, 8-bit-in-16-bit imposters, range use, depths per pass count | **Built.** `--report --json` |
 | Tune a depth map into a new file: level points, stretch, rim, fit, quantise, invert, bit depth | **Built.** `--tune --json` |
+| Save and reuse a job's settings beside the map | **Built** (1.11.0). `.dvp` profiles, `depthview.params/1`: `--params`, `--save-params` |
+| A printable report of the job | **Built** (1.11.0). `--job-report` writes one self-contained HTML page |
 | Exchange engraving settings (power, speed, passes, frequency, pulse width, ...) with the host | **Not built.** Designed below so a host can plan for it |
 | Read a G-code job: power levels actually sent, line spacing, heights, settings in MakeIt's units | **Built.** `--gcode --json` |
 | Where a map will terrace at a pass count, judged against the spot (geometry, not a depth prediction) | **Built** (1.9.0). `--terraces --json` |
@@ -136,6 +138,8 @@ The options most useful to a host:
 | `--flat <leave\|smooth\|flatten,...>` | one word per nearly level area, in `--survey`'s order: `smooth` removes pixel noise only, `flatten` makes the area one level |
 | `--uniform-surround` | (added 1.8.0) when the surround is not one level - shaded, vignetted, or marked by the program that exported it (`--survey`'s `background.shaded`) - set all of it to the background level before the level points, so none of it is taken for design. Does nothing on a clean surround |
 | `--no-dpi` | write no resolution into the PNG, even with `--blank` |
+| `--params <file.dvp>` | (added 1.11.0) start from a saved profile (`depthview.params/1`, below); options on the command line win over it. Its level points and flat-area changes apply only when it was made for the same map |
+| `--save-params [file.dvp]` | (added 1.11.0) write the settings used as a profile, by default beside the input with the same name |
 
 **Survey** - what the tuning wizard measures; changes nothing:
 
@@ -167,6 +171,22 @@ that jump a whole step in one pixel, the mark of a map rendered at its final siz
 
 ```
 DepthView --aliasing <file> --json [--blank <mm>] [--out <overlay.png>]
+```
+
+**Isolated spikes** (added 1.11.0) - single pixels that stand clear of all eight neighbours:
+
+```
+DepthView --spikes <file> --json [--out <overlay.png>]
+```
+
+`--terraces`, `--detail`, `--noise`, `--aliasing` and `--spikes` also take `--params <file.dvp>`
+(added 1.11.0) for the pass count, blank, depth and spot.
+
+**Job report** (added 1.11.0; `--report-html` is the same) - one self-contained HTML page for a
+person to read and print, not for parsing:
+
+```
+DepthView --job-report <file> [--params <file.dvp>] [--finish "<recipe>"] [--out <report.html>]
 ```
 
 `--help` lists everything. **`--out` may not name the input file**: DepthView refuses, exits 2,
@@ -208,7 +228,7 @@ entry:
 | `verdict.imposter` | `none`, `replicated257` (8-bit bytes doubled into 16), `highByteOnly` (8-bit shifted into the high byte), `quantisedLadder` (evenly spaced levels, e.g. 10-bit), `sparseLevels` |
 | `verdict.title`, `verdict.detail` | plain-English explanation, ready to show a user |
 | `container.*` | what the file declares: `format`, `colorModel`, `declaredBitDepth`, `declaredChannels`, `hasAlpha`, `isPalette`, `bitExactDecode`, `dpiX`, `dpiY`, `fileBytes`, and (added 1.10.0) `displayCurve`: `null`, or the display curve the file declares - `kind` (`srgb`, `gamma` or `icc`; an sRGB chunk overrides gAMA, and gAMA 1.0 is linear, so `null`), `fileGamma` (the gAMA value, for `gamma`), `canUndo` (`false` for `icc`), `depthAtStoredHalf` (how far down a level stored halfway down would be if the curve were undone: about 0.79 for sRGB). The tag alone does not prove the curve was applied; DepthView always uses the values as stored |
-| `content.*` | what the pixels contain: `width`, `height`, `channels`, `bitDepth`, `maxValue`, `isFloat`, `uniqueGreyLevels`, `greyPixels`, `nonGreyPixels`, `greyStoredAsColor`, (added 1.10.0) `flatPeaks` (how many flattened peaks, as in `--survey`, on the circle the short side spans) and `jaggedEdges` (`edgePixels` judged, `share` that jump in one pixel, `jagged`), each `null` for a float map or a mostly-colour picture, and (added 1.9.0) `litScore` - how one-sided the shading is, near 0 for a depth map and a few hundredths for a render lit from one side - and `litThreshold`, the score at which the verdict says it looks lit |
+| `content.*` | what the pixels contain: `width`, `height`, `channels`, `bitDepth`, `maxValue`, `isFloat`, `uniqueGreyLevels`, `greyPixels`, `nonGreyPixels`, `greyStoredAsColor`, (added 1.11.0) `spikes` (`pits`, `pins`, `minStepLevels`, and the `largest` ten as `x`, `y`, `level`, `delta` - negative for a pit) and `dither` (`dithered`, `kind` - `ordered` or `error-diffused` - `levels`, `transitionShare`, `periodicity`); when `dither.dithered` is true the verdict is `DITHERED: tone as dots, not depth` and the level figures describe dots, not a surface; (added 1.10.0) `flatPeaks` (how many flattened peaks, as in `--survey`, on the circle the short side spans) and `jaggedEdges` (`edgePixels` judged, `share` that jump in one pixel, `jagged`), each `null` for a float map or a mostly-colour picture, and (added 1.9.0) `litScore` - how one-sided the shading is, near 0 for a depth map and a few hundredths for a render lit from one side - and `litThreshold`, the score at which the verdict says it looks lit |
 | `levels.*` | `min`, `max`, `rangeUse` (0-1), `occupancy` (0-1), `effectiveBits`, `step` (1 for genuine data; 257, 256, 64... for imposters), `uniformLadder`, `gaps`, `largestGap`, `mean`, `median`, `stdDev`, `p1`, `p99`, `pureBlackPixels`, `pureWhitePixels`, `headroomTop`, `headroomBottom` |
 | `passCounts[]` | one row per pass count: `passes`; `depths` (distinct engraved depths actually produced); `uniform`, `relief`, `empty` (what the passes do - they always sum to `passes`); `stretched` (depths if the range were filled); `bandSpread` (`min`, `max`, `ratio` of levels per band; `null` when the map has fewer levels than passes) |
 | `findings[]` | `severity`, `title`, `detail` - everything the window's report lists |
@@ -288,6 +308,7 @@ A complete example, for an 8-bit map saved as 16-bit:
 | `target` | with `--depth-mm`: `depthMm`, `passes`, `targetMicronsPerPass`; else `null`. **This is the target divided by the passes, not a prediction** of what each pass will cut |
 | `passes` | the pass count the figures were computed for |
 | `terraces` | (added 1.9.0) with `--blank` and `--depth-mm`: `before` and `after`, each the fields of a `depthview.terrace/1` document below (from `width` to `seconds`) for the input and for the file as written; else `null` |
+| `params` | (added 1.11.0) with `--params` or `--save-params`: `loaded` (path or `null`), `sameMap` (whether the profile was made for this map; `null` when none was read), `mapSpecificApplied`, `saved` (path or `null`), `problems[]`; else `null` |
 | `before`, `after` | full report entries, as above, for the input and for the file written. `after` is measured by reading the new file back, not predicted |
 
 ---
@@ -397,6 +418,43 @@ blank radius so a rim never decides the answer.
 
 ---
 
+## `depthview.spikes/1`
+
+Isolated spikes (added 1.11.0). A spike is one pixel that stands clear of all eight of its
+neighbours, in the same direction, by more than they differ among themselves - one pass firing
+where nothing was intended. Inside the inscribed circle; inspection only.
+
+| Field | Meaning |
+|---|---|
+| `ok`, `path`, `overlay` | as above; the overlay marks the 50 largest, pits red and pins amber |
+| `width`, `height`, `blankRadiusPx`, `blankPixels` | as above |
+| `rangeLevels` | the design's range (0.1 to 99.9 percentile) inside the blank |
+| `minStepLevels` | how far clear of every neighbour a pixel must stand: 4% of the range, or three of the map's own level gaps when larger, capped at a quarter of the range |
+| `pits`, `pins` | darker spikes (cut below everything around them) and lighter ones (left standing) |
+| `largest[]` | up to 50, largest first: `x`, `y`, `level`, `delta` (negative for a pit) |
+| `seconds` | time taken |
+
+---
+
+## `depthview.params/1`
+
+A `.dvp` profile (added 1.11.0): a job's settings saved beside its map, same folder and base
+name, so a later map can start from them. Written by the Tune window's **Save settings** and by
+`--save-params`; read by **Load settings...**, by the Tune window on opening when one sits beside
+the map, and by `--params`. Indented JSON; unknown fields are ignored.
+
+| Field | Meaning |
+|---|---|
+| `schema`, `depthview`, `saved` | `depthview.params/1`, the version that wrote it, and when (UTC) |
+| `map` | the map it was made for: `name`, `width`, `height`, `bitDepth`, `maxValue`, `greyHash` (SHA-256 of the grey samples and size, so the same picture is recognised whatever it is called) |
+| `portable.workpiece` | `shape` (`round`), `diameterMm`, `thicknessMm`, `targetDepthMm` (`null` when it follows the thickness), `depthPercent`, `material` |
+| `portable.laser` | `type` (`uv`, `mopa`, `fiber`, `co2`, `diode` or `null`), `lens`, `spotMicrons`, `passes` |
+| `portable.rim` | `enabled`, `widthMm`, `rampMm`, `fit` (`none`, `artwork`, `canvas`, `design`), `pad` (`background`, `untouched`), `coverDesignRim` |
+| `portable.*` | `uniformSurround`, `stretch`, `invert`, `quantise`, `ditherSlices`; `output` (`bitDepth`, `writeDpi`, `outline`, `rimMask`); `finish` (the recipe as `--finish` takes it, or `null`); `notes` |
+| `mapSpecific` | `blackPoint`, `whitePoint`, `flatAreas[]` (`mode`, `low`, `high`, `level`, `maskWidth`, `maskHeight`, `mask` as base64 bits). Applied only when `map.greyHash` matches the map being tuned |
+
+---
+
 ## `depthview.gcode/1`
 
 ```
@@ -462,6 +520,9 @@ MakeIt has been seen cutting two layers at the same height.
 ---
 
 ## Designed, not built: exchanging settings
+
+(The `.dvp` profile above is the job side of this - the settings a person chose, saved with the
+map. What follows is the laser side, which needs depth prediction first.)
 
 Once DepthView can predict depth, a map and the settings it is cut with stop being independent:
 changing one changes which values of the other are right. The intended shape is a settings

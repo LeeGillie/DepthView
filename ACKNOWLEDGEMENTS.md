@@ -46,6 +46,12 @@ you, which this tool had not been reporting.
 distinction between the two arguments worth drawing out. Disagreement that stays with the
 source text is more useful than agreement that does not.
 
+## A practitioner's eye
+
+**Victor Wolansky** — laser educator. His published coin work and technical notes shaped
+several of DepthView's checks: lit renders passed off as depth maps, flattened peaks, pixel
+noise, and finishing as part of the result rather than an afterthought.
+
 ## Prior art and context
 
 **LightBurn Software** — for the 3D Sliced Image mode DepthView is largely aimed at, and for

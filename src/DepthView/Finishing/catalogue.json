@@ -1,6 +1,6 @@
 {
   "schema": "depthview.finishing-catalogue/1",
-  "about": "What the finishing window knows about cleaning, darkening, relieving and sealing copper alloys. Every number carries a basis: V = taken from the cited source, C = calculated from sourced inputs, E = an estimate no source gives, to be calibrated against photographed test coins. Colours are sRGB hex; roughness is perceptual 0 (mirror) to 1 (chalk). Research notes: docs/research/finishing-chemistry.md.",
+  "about": "What the finishing window knows about cleaning, darkening, relieving and sealing brass, copper, bronze, stainless steel and titanium. Every number carries a basis: V = taken from the cited source, C = calculated from sourced inputs, E = an estimate no source gives, to be calibrated against photographed test coins. Colours are sRGB hex; roughness is perceptual 0 (mirror) to 1 (chalk). Research notes: docs/research/finishing-chemistry.md.",
 
   "materials": [
     {
@@ -35,6 +35,29 @@
       "advice": "Same chemistry as brass and copper. No measured reflectance was found for bronze, so its colour here is an estimate between copper and brass.",
       "sources": [
         { "title": "Birchwood Technologies: traditional patinas", "url": "https://www.birchwoodtechnologies.com/traditional-patinas/" }
+      ]
+    },
+    {
+      "id": "stainless", "name": "Stainless steel (304)",
+      "f0": "#D6D1CB", "f0Basis": "V (grade not specified)",
+      "stockRoughness": 0.12, "laserFloorRoughness": 0.85, "roughnessBasis": "V (ablated floor Sa 14-17 um); E (mapping)",
+      "oxide": "#26262A", "pickleTint": null, "colourBasis": "E",
+      "advice": "Resists the copper-alloy chemistry: the selenium blacks do not take. Presto Black SSB is the only verified room-temperature black, and only after abrasive or media-blast activation - which a freshly ablated recess needs anyway. Heat gives temper colours rather than black: straw, brown, purple, blue, and past about 100 nm of oxide a dark blue-grey.",
+      "sources": [
+        { "title": "Birchwood Technologies: Presto Black SSB instructions", "url": "https://birchwoodtechnologies.com/wp-content/uploads/2019/08/Presto-Black-SSB-Inst.pdf" },
+        { "title": "Heat Treat Today: temper colours on stainless", "url": "https://www.heattreattoday.com/?p=69814" },
+        { "title": "MDPI Metals 2025: laser-ablated floor roughness", "url": "https://www.mdpi.com/2075-4701/15/5/519" }
+      ]
+    },
+    {
+      "id": "titanium", "name": "Titanium",
+      "f0": "#B1AAA2", "f0Basis": "V",
+      "stockRoughness": 0.12, "laserFloorRoughness": 0.85, "roughnessBasis": "E",
+      "oxide": "#3A3633", "pickleTint": null, "colourBasis": "E",
+      "advice": "Titanium cannot be blackened. Anodizing gives interference colours set by the voltage - bronze, purple, blue, gold, green - but no black and no red. For dark recesses, use a fill. One idea, inferred rather than sourced: anodize the whole piece, then relieve the highs back to grey metal, for coloured recesses against silver highs.",
+      "sources": [
+        { "title": "Blade HQ: how to anodize titanium", "url": "https://www.bladehq.com/blog/how-to-anodize-titanium" },
+        { "title": "Monster Bolts: anodized titanium colour chart", "url": "https://monsterbolts.com/pages/anodized-titanium-color-chart" }
       ]
     }
   ],
@@ -125,7 +148,7 @@
 
   "darkeners": [
     {
-      "id": "none", "name": "No darkener", "maker": "", "materials": ["brass", "copper", "bronze"],
+      "id": "none", "name": "No darkener", "maker": "", "materials": ["brass", "copper", "bronze", "stainless", "titanium"],
       "stops": [], "diluteStops": [], "tauMinutes": 1, "defaultStrength": 1, "defaultMinutes": 0, "maxMinutes": 0,
       "roughness": 0.5, "f0": 0.04, "holdOnBrass": 1, "durability": 1, "overdo": 99,
       "hazard": null, "basis": "-",
@@ -267,6 +290,367 @@
         { "title": "Potterycrafts: Sculpt Nouveau Tiffany Green", "url": "https://potterycrafts.co.uk/products/sculpt-nouveau-traditional-tiffany-green-patina" },
         { "title": "David M Bowman Studio: patina formulas", "url": "https://davidmbowman.com/patinas/formulas.htm" }
       ]
+    },
+    {
+      "id": "presto_ssb",
+      "name": "Presto Black SSB",
+      "maker": "Birchwood Technologies",
+      "materials": [
+        "stainless"
+      ],
+      "stops": [
+        "#6A6A6E",
+        "#45454A",
+        "#2E2E32",
+        "#242427",
+        "#202022"
+      ],
+      "diluteStops": [
+        "#6A6A6E",
+        "#4E4E52",
+        "#3A3A3E",
+        "#303034",
+        "#2A2A2E"
+      ],
+      "tauMinutes": 0.6,
+      "defaultStrength": 1,
+      "defaultMinutes": 2,
+      "maxMinutes": 6,
+      "roughness": 0.45,
+      "f0": 0.15,
+      "holdOnBrass": 1,
+      "durability": 1,
+      "overdo": 99,
+      "hazard": {
+        "badge": "SDS - caution",
+        "level": "caution",
+        "text": "Read the safety data sheet before use. Gloves and eye protection. Keep acid blackeners away from sulfide solutions."
+      },
+      "basis": "V (product, process, time); E (colours, rate)",
+      "advice": "The only verified room-temperature black for stainless. Solvent-clean, activate by blasting or abrading, brush on several coats for about 1-3 minutes, rinse, and seal with oil. Abrade the highs for the antique look.",
+      "sources": [
+        {
+          "title": "Birchwood Technologies: Presto Black SSB instructions",
+          "url": "https://birchwoodtechnologies.com/wp-content/uploads/2019/08/Presto-Black-SSB-Inst.pdf"
+        }
+      ]
+    },
+    {
+      "id": "heat_straw",
+      "name": "Heat tint - straw (about 340 C)",
+      "maker": "Oven or torch",
+      "materials": [
+        "stainless"
+      ],
+      "film": true,
+      "stops": [
+        "#D6D1CB",
+        "#E3D3A0",
+        "#D9B66A"
+      ],
+      "diluteStops": [
+        "#D6D1CB",
+        "#E3D3A0",
+        "#D9B66A"
+      ],
+      "tauMinutes": 0.3,
+      "defaultStrength": 1,
+      "defaultMinutes": 2,
+      "maxMinutes": 60,
+      "roughness": 0.25,
+      "f0": 0.3,
+      "holdOnBrass": 1,
+      "durability": 1.5,
+      "overdo": 99,
+      "hazard": {
+        "badge": "Heat - burns",
+        "level": "caution",
+        "text": "About 340 C in air. Burn and fire risk; let the piece cool before handling."
+      },
+      "basis": "V (colour order, temperatures); E (hex colours, rate)",
+      "advice": "Temper colour, not a coating: an oxide film thin enough to show interference colour. Straw is the first colour to show. It covers the whole piece - relieve the highs back to bright steel afterwards. The colour shifts toward blue at grazing angles, which the preview does not show.",
+      "sources": [
+        {
+          "title": "TubingChina: heat tint on stainless",
+          "url": "https://tubingchina.com/Heat-tint-temper-colours-on-stainless-steel-surfaces-heated-in-air.htm"
+        },
+        {
+          "title": "Heat Treat Today: temper colours",
+          "url": "https://www.heattreattoday.com/?p=69814"
+        }
+      ]
+    },
+    {
+      "id": "heat_purple",
+      "name": "Heat tint - purple (about 450 C)",
+      "maker": "Oven or torch",
+      "materials": [
+        "stainless"
+      ],
+      "film": true,
+      "stops": [
+        "#D6D1CB",
+        "#D9B66A",
+        "#9C6A3A",
+        "#7D4A4E",
+        "#5B3A70"
+      ],
+      "diluteStops": [
+        "#D6D1CB",
+        "#D9B66A",
+        "#9C6A3A",
+        "#7D4A4E",
+        "#5B3A70"
+      ],
+      "tauMinutes": 0.3,
+      "defaultStrength": 1,
+      "defaultMinutes": 2,
+      "maxMinutes": 60,
+      "roughness": 0.25,
+      "f0": 0.3,
+      "holdOnBrass": 1,
+      "durability": 1.5,
+      "overdo": 99,
+      "hazard": {
+        "badge": "Heat - burns",
+        "level": "caution",
+        "text": "About 450 C in air. Burn and fire risk; let the piece cool before handling."
+      },
+      "basis": "V (colour order, temperatures); E (hex colours, rate)",
+      "advice": "Temper colour, not a coating: an oxide film thin enough to show interference colour. Purple comes after straw and brown. It covers the whole piece - relieve the highs back to bright steel afterwards. The colour shifts toward blue at grazing angles, which the preview does not show.",
+      "sources": [
+        {
+          "title": "TubingChina: heat tint on stainless",
+          "url": "https://tubingchina.com/Heat-tint-temper-colours-on-stainless-steel-surfaces-heated-in-air.htm"
+        },
+        {
+          "title": "Heat Treat Today: temper colours",
+          "url": "https://www.heattreattoday.com/?p=69814"
+        }
+      ]
+    },
+    {
+      "id": "heat_blue",
+      "name": "Heat tint - blue (about 540-600 C)",
+      "maker": "Oven or torch",
+      "materials": [
+        "stainless"
+      ],
+      "film": true,
+      "stops": [
+        "#D6D1CB",
+        "#D9B66A",
+        "#9C6A3A",
+        "#5B3A70",
+        "#3E5FA8",
+        "#2E3F72"
+      ],
+      "diluteStops": [
+        "#D6D1CB",
+        "#D9B66A",
+        "#9C6A3A",
+        "#5B3A70",
+        "#3E5FA8",
+        "#2E3F72"
+      ],
+      "tauMinutes": 0.3,
+      "defaultStrength": 1,
+      "defaultMinutes": 2,
+      "maxMinutes": 60,
+      "roughness": 0.25,
+      "f0": 0.3,
+      "holdOnBrass": 1,
+      "durability": 1.5,
+      "overdo": 99,
+      "hazard": {
+        "badge": "Heat - burns",
+        "level": "caution",
+        "text": "About 560 C in air. Burn and fire risk; let the piece cool before handling."
+      },
+      "basis": "V (colour order, temperatures); E (hex colours, rate)",
+      "advice": "Temper colour, not a coating: an oxide film thin enough to show interference colour. Blue is the last bright colour; past it the oxide turns dark blue-grey. It covers the whole piece - relieve the highs back to bright steel afterwards. The colour shifts toward blue at grazing angles, which the preview does not show.",
+      "sources": [
+        {
+          "title": "TubingChina: heat tint on stainless",
+          "url": "https://tubingchina.com/Heat-tint-temper-colours-on-stainless-steel-surfaces-heated-in-air.htm"
+        },
+        {
+          "title": "Heat Treat Today: temper colours",
+          "url": "https://www.heattreattoday.com/?p=69814"
+        }
+      ]
+    },
+    {
+      "id": "anod_purple",
+      "name": "Anodize - purple (16-20 V)",
+      "maker": "Anodizing",
+      "materials": [
+        "titanium"
+      ],
+      "film": true,
+      "stops": [
+        "#C8C8C8",
+        "#9F7583"
+      ],
+      "diluteStops": [
+        "#C8C8C8",
+        "#9F7583"
+      ],
+      "tauMinutes": 0.05,
+      "defaultStrength": 1,
+      "defaultMinutes": 1,
+      "maxMinutes": 5,
+      "roughness": 0.25,
+      "f0": 0.3,
+      "holdOnBrass": 1,
+      "durability": 1.5,
+      "overdo": 99,
+      "hazard": {
+        "badge": "V - lethal voltage",
+        "level": "danger",
+        "text": "Anodizing runs at up to about 100 V DC, which can kill. The pre-etch (Multi-Etch, Whink) is an acid. Follow the supplier's instructions."
+      },
+      "basis": "V (voltage ranges, colour order); C (colour, single-layer film calculation blended 30% toward bare metal)",
+      "advice": "About 16-20 V. The colour is set by the voltage, not the time: the film stops growing once it reaches it. Purple is the first strong colour after bronze. Degrease and etch first. Real parts look less saturated than the chart, more so on blasted surfaces. The colour shifts toward blue at grazing angles, which the preview does not show.",
+      "sources": [
+        {
+          "title": "Blade HQ: how to anodize titanium",
+          "url": "https://www.bladehq.com/blog/how-to-anodize-titanium"
+        },
+        {
+          "title": "Monster Bolts: anodized titanium colour chart",
+          "url": "https://monsterbolts.com/pages/anodized-titanium-color-chart"
+        }
+      ]
+    },
+    {
+      "id": "anod_blue",
+      "name": "Anodize - blue (21-30 V)",
+      "maker": "Anodizing",
+      "materials": [
+        "titanium"
+      ],
+      "film": true,
+      "stops": [
+        "#C8C8C8",
+        "#5696C3"
+      ],
+      "diluteStops": [
+        "#C8C8C8",
+        "#5696C3"
+      ],
+      "tauMinutes": 0.05,
+      "defaultStrength": 1,
+      "defaultMinutes": 1,
+      "maxMinutes": 5,
+      "roughness": 0.25,
+      "f0": 0.3,
+      "holdOnBrass": 1,
+      "durability": 1.5,
+      "overdo": 99,
+      "hazard": {
+        "badge": "V - lethal voltage",
+        "level": "danger",
+        "text": "Anodizing runs at up to about 100 V DC, which can kill. The pre-etch (Multi-Etch, Whink) is an acid. Follow the supplier's instructions."
+      },
+      "basis": "V (voltage ranges, colour order); C (colour, single-layer film calculation blended 30% toward bare metal)",
+      "advice": "About 21-30 V. The colour is set by the voltage, not the time: the film stops growing once it reaches it. The classic blue. Degrease and etch first. Real parts look less saturated than the chart, more so on blasted surfaces. The colour shifts toward blue at grazing angles, which the preview does not show.",
+      "sources": [
+        {
+          "title": "Blade HQ: how to anodize titanium",
+          "url": "https://www.bladehq.com/blog/how-to-anodize-titanium"
+        },
+        {
+          "title": "Monster Bolts: anodized titanium colour chart",
+          "url": "https://monsterbolts.com/pages/anodized-titanium-color-chart"
+        }
+      ]
+    },
+    {
+      "id": "anod_gold",
+      "name": "Anodize - gold (46-55 V)",
+      "maker": "Anodizing",
+      "materials": [
+        "titanium"
+      ],
+      "film": true,
+      "stops": [
+        "#C8C8C8",
+        "#D2C072"
+      ],
+      "diluteStops": [
+        "#C8C8C8",
+        "#D2C072"
+      ],
+      "tauMinutes": 0.05,
+      "defaultStrength": 1,
+      "defaultMinutes": 1,
+      "maxMinutes": 5,
+      "roughness": 0.25,
+      "f0": 0.3,
+      "holdOnBrass": 1,
+      "durability": 1.5,
+      "overdo": 99,
+      "hazard": {
+        "badge": "V - lethal voltage",
+        "level": "danger",
+        "text": "Anodizing runs at up to about 100 V DC, which can kill. The pre-etch (Multi-Etch, Whink) is an acid. Follow the supplier's instructions."
+      },
+      "basis": "V (voltage ranges, colour order); C (colour, single-layer film calculation blended 30% toward bare metal)",
+      "advice": "About 46-55 V. The colour is set by the voltage, not the time: the film stops growing once it reaches it. Gold to rose gold. Degrease and etch first. Real parts look less saturated than the chart, more so on blasted surfaces. The colour shifts toward blue at grazing angles, which the preview does not show.",
+      "sources": [
+        {
+          "title": "Blade HQ: how to anodize titanium",
+          "url": "https://www.bladehq.com/blog/how-to-anodize-titanium"
+        },
+        {
+          "title": "Monster Bolts: anodized titanium colour chart",
+          "url": "https://monsterbolts.com/pages/anodized-titanium-color-chart"
+        }
+      ]
+    },
+    {
+      "id": "anod_green",
+      "name": "Anodize - green (81-95 V)",
+      "maker": "Anodizing",
+      "materials": [
+        "titanium"
+      ],
+      "film": true,
+      "stops": [
+        "#C8C8C8",
+        "#8FCDA9"
+      ],
+      "diluteStops": [
+        "#C8C8C8",
+        "#8FCDA9"
+      ],
+      "tauMinutes": 0.05,
+      "defaultStrength": 1,
+      "defaultMinutes": 1,
+      "maxMinutes": 5,
+      "roughness": 0.25,
+      "f0": 0.3,
+      "holdOnBrass": 1,
+      "durability": 1.5,
+      "overdo": 99,
+      "hazard": {
+        "badge": "V - lethal voltage",
+        "level": "danger",
+        "text": "Anodizing runs at up to about 100 V DC, which can kill. The pre-etch (Multi-Etch, Whink) is an acid. Follow the supplier's instructions."
+      },
+      "basis": "V (voltage ranges, colour order); C (colour, single-layer film calculation blended 30% toward bare metal)",
+      "advice": "About 81-95 V. The colour is set by the voltage, not the time: the film stops growing once it reaches it. Green is near the top of the usual range. Degrease and etch first. Real parts look less saturated than the chart, more so on blasted surfaces. The colour shifts toward blue at grazing angles, which the preview does not show.",
+      "sources": [
+        {
+          "title": "Blade HQ: how to anodize titanium",
+          "url": "https://www.bladehq.com/blog/how-to-anodize-titanium"
+        },
+        {
+          "title": "Monster Bolts: anodized titanium colour chart",
+          "url": "https://monsterbolts.com/pages/anodized-titanium-color-chart"
+        }
+      ]
     }
   ],
 
@@ -361,7 +745,11 @@
       "basis": "V (qualitative); E (clear-coat numbers)",
       "advice": "Incralac is an acrylic with a benzotriazole corrosion inhibitor, developed for copper and bronze. Glossier than wax and holds the patina colour better; puts a clear shine over everything, recesses included.",
       "sources": [ { "title": "Rupert Harris: Incralac", "url": "https://rupertharris.com/products/incralac" },
-                   { "title": "Ganoksin Orchid: Renaissance wax vs lacquer", "url": "https://orchid.ganoksin.com/t/renaissance-wax/7507" } ] }
+                   { "title": "Ganoksin Orchid: Renaissance wax vs lacquer", "url": "https://orchid.ganoksin.com/t/renaissance-wax/7507" } ] },
+    { "id": "oil", "name": "Light oil", "lighten": 0, "roughDelta": -0.1, "clear": 0, "clearRoughness": 0,
+      "basis": "V (process: Presto Black SSB is finished with oil); E (look)",
+      "advice": "How black oxides on steel and stainless are finished: oil deepens the black and slows wear. Wipe off the excess; it stays slightly slick.",
+      "sources": [ { "title": "Birchwood Technologies: Presto Black SSB instructions", "url": "https://birchwoodtechnologies.com/wp-content/uploads/2019/08/Presto-Black-SSB-Inst.pdf" } ] }
   ],
 
   "general": [

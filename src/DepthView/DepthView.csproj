@@ -106,6 +106,24 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="SixLabors.ImageSharp" Version="$(ImageSharpVersion)" />
+    <!-- QR codes for the ablation study's coupon numbers (MIT; only the module matrix is used, no drawing). -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
+  <!--
+    The laser libraries, shared with MOPAChroma Atlas and built from the same commit: the
+    Atlas repository is a git submodule at external/MOPAChromaAtlas (clone with the
+    recurse-submodules option, or run git submodule update with init; a double dash
+    cannot be written inside this comment), and only its standalone
+    LumosUltra.* projects are referenced - nothing of the colour atlas itself. Their
+    Directory.Build.props (net10.0, the same Avalonia and ImageSharp versions) applies to
+    them, not to DepthView. Packages on nuget.org are the plan once their APIs settle.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\external\MOPAChromaAtlas\src\LumosUltra.Client\LumosUltra.Client.csproj" />
+    <ProjectReference Include="..\..\external\MOPAChromaAtlas\src\LumosUltra.Jobs\LumosUltra.Jobs.csproj" />
+    <ProjectReference Include="..\..\external\MOPAChromaAtlas\src\LumosUltra.Camera\LumosUltra.Camera.csproj" />
+    <ProjectReference Include="..\..\external\MOPAChromaAtlas\src\LumosUltra.Desktop\LumosUltra.Desktop.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,3 @@
+[submodule "external/MOPAChromaAtlas"]
+	path = external/MOPAChromaAtlas
+	url = https://github.com/LeeGillie/MOPAChromaAtlas.git

@@ -121,6 +121,15 @@
     <File Path="samples/make_samples.py" />
     <File Path="samples/README.md" />
   </Folder>
+  <Folder Name="/external/">
+    <File Path=".gitmodules" />
+  </Folder>
+  <Folder Name="/external/MOPAChromaAtlas/">
+    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Camera/LumosUltra.Camera.csproj" />
+    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Client/LumosUltra.Client.csproj" />
+    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Desktop/LumosUltra.Desktop.csproj" />
+    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Jobs/LumosUltra.Jobs.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/DepthView/DepthView.csproj" />
   </Folder>

@@ -30,6 +30,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: recursive   # external/MOPAChromaAtlas: the shared laser libraries
 
       - uses: actions/setup-dotnet@v6
         with:

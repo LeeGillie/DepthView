@@ -1036,7 +1036,7 @@ precision cannot be guaranteed.
 
 ## Building
 
-Requires the .NET 8 SDK or newer. Open `DepthView.slnx` in Visual Studio 2026, or:
+Requires the .NET 10 SDK or newer. Open `DepthView.slnx` in Visual Studio 2026, or:
 
 ```
 dotnet build src/DepthView/DepthView.csproj -c Release

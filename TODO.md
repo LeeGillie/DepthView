@@ -893,7 +893,7 @@ whether they should study integration themselves or be guided. A full proposal w
 ### What was proposed
 
 Their team said MakeIt's framework is Electron.js and asked how to integrate DepthView into it.
-**DepthView is .NET 8 + Avalonia and cannot be embedded in an Electron app** — correcting that
+**DepthView is .NET 10 + Avalonia and cannot be embedded in an Electron app** — correcting that
 premise was the first thing in the reply, because everything downstream of it was wasted effort.
 
 Three options offered, A recommended and named as the one to pick if only one is done:

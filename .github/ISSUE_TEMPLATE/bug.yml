@@ -7,7 +7,7 @@ body:
     attributes:
       label: Build info
       description: Open **About** and press **Copy build info**, then paste the line here.
-      placeholder: "DepthView 1.0.0 (2026-08-30) - .NET 8.0.x on ... - self-contained single file"
+      placeholder: "DepthView 1.0.0 (2026-08-30) - .NET 10.0.x on ... - self-contained single file"
     validations:
       required: true
 

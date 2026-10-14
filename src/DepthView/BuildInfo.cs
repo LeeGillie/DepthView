@@ -20,7 +20,7 @@ public static class BuildInfo
     /// <summary>UTC date the assembly was compiled, as "2026-08-29", or "unknown" if unstamped.</summary>
     public static string BuildDate { get; } = Metadata("BuildDate") ?? "unknown";
 
-    /// <summary>".NET 8.0.x" - the runtime actually executing, not the one it was built against.</summary>
+    /// <summary>".NET 10.0.x" - the runtime actually executing, not the one it was built against.</summary>
     public static string Runtime { get; } = RuntimeInformation.FrameworkDescription;
 
     /// <summary>The host OS as the runtime describes it, plus the process architecture.</summary>

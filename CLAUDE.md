@@ -5,7 +5,8 @@ Context for anyone — human or model — picking this up cold. `README.md` is f
 
 DepthView inspects candidate depth maps: what the file claims to be, what its pixels
 actually contain, and whether the two agree. It then tunes them for engraving. Cross
-platform, Avalonia, net8.0, published as self-contained single files for 7 RIDs.
+platform, Avalonia, net10.0 (moved from net8.0 on 2026-10-14, ahead of .NET 8's end of
+support in November 2026; the shared LumosUltra libraries target net10.0 too), published as self-contained single files for 7 RIDs.
 
 ---
 

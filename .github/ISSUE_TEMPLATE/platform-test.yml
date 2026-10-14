@@ -21,7 +21,7 @@ body:
         Open **About** in DepthView and press **Copy build info**, then paste it here.
         That one line carries the version, the runtime, your OS and architecture, and
         whether you ran a release binary or built from source.
-      placeholder: "DepthView 1.0.0 (2026-08-30) - .NET 8.0.x on ... - self-contained single file"
+      placeholder: "DepthView 1.0.0 (2026-08-30) - .NET 10.0.x on ... - self-contained single file"
     validations:
       required: true
 

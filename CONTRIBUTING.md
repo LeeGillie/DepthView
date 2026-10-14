@@ -13,7 +13,7 @@ you do, and a correction from you outranks anything derived by inspection.
 
 ## Build and run
 
-Requires the **.NET 8 SDK**. No other toolchain.
+Requires the **.NET 10 SDK**. No other toolchain.
 
 ```
 dotnet build                  # from the repository root

@@ -34,7 +34,7 @@ public sealed class AblationWindow : Window
     private readonly ListBox _studies = new(), _coupons = new();
     private readonly TextBlock _summary = Text("", 12, Ink), _designText = Text("", 12, Ink), _hover = Text("", 11, Muted), _status = Text("", 11, Muted);
     private readonly CouponPreview _preview = new() { MinHeight = 320 };
-    private readonly Button _newStudy, _import, _export, _convert, _deleteStudy, _reset, _plan, _cut, _measure, _remove, _jobs, _saveJob;
+    private readonly Button _newStudy, _import, _export, _convert, _deleteStudy, _reset, _plan, _cut, _measure, _remove, _jobs, _saveJob, _seeds;
 
     public AblationWindow() : this(AblationDatabase.Load()) { }
 
@@ -53,6 +53,7 @@ public sealed class AblationWindow : Window
         _convert = MakeButton("Carry to another rating...", "A copy of the study's design for the other MOPA rating (60 W or 100 W), every setting matched by watts. Predictions until cut and measured.");
         _deleteStudy = MakeButton("Delete study", "Remove the chosen study and its coupons from the database. Its test numbers are not reused.");
         _reset = MakeButton("Reset database...", "Start over for a test run: the current file is kept beside the new one, and numbering restarts at 1.");
+        _seeds = MakeButton("Reference studies...", "Add the reference studies bundled with DepthView - figures other people reported, with their source and grade on every one. Nothing in them was cut here.");
         _plan = MakeButton("Plan the next coupon", "Fill the next coupon with the next settings in the design and give it its test number.");
         _cut = MakeButton("Cut this coupon...", "Place it on the laser camera's picture, audit the job, send, arm and start.");
         _measure = MakeButton("Measure...", "Enter the depth readings for this coupon's patches. Waiting for the gauge: not built yet.");
@@ -62,7 +63,7 @@ public sealed class AblationWindow : Window
 
         var left = new DockPanel { Margin = new Thickness(12) };
         var leftButtons = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
-        foreach (var b in new[] { _newStudy, _import, _export, _convert, _deleteStudy, _reset }) { b.Margin = new Thickness(0, 0, 6, 6); leftButtons.Children.Add(b); }
+        foreach (var b in new[] { _newStudy, _import, _export, _convert, _seeds, _deleteStudy, _reset }) { b.Margin = new Thickness(0, 0, 6, 6); leftButtons.Children.Add(b); }
         DockPanel.SetDock(leftButtons, Dock.Bottom);
         left.Children.Add(leftButtons);
         var lh = Head("Studies"); DockPanel.SetDock(lh, Dock.Top); left.Children.Add(lh);
@@ -128,9 +129,26 @@ public sealed class AblationWindow : Window
         _remove.Click += async (_, _) => await RemoveAsync();
         _jobs.Click += (_, _) => { try { Directory.CreateDirectory(AblationDatabase.JobsFolder); Process.Start(new ProcessStartInfo(AblationDatabase.JobsFolder) { UseShellExecute = true }); } catch (Exception ex) { _status.Text = ex.Message; } };
 
+        _seeds.Click += async (_, _) => await OfferSeedsAsync(unasked: false);
+
         FillStudies();
         _status.Text = $"Database: {_db.Path} - next test number DV{_db.NextTestNumber}.";
+
+        // An empty database is offered the bundled reference studies once per seed set - with
+        // their sources in front of the person before anything is added. Not on the demo
+        // database or a screenshot run, which have their own contents.
+        Opened += async (_, _) =>
+        {
+            if (Program.StartupAblation || _db.Studies.Count > 0 || !_db.ShouldOfferSeeds) return;
+            await OfferSeedsAsync(unasked: true);
+        };
     }
+
+    /// <summary>The dialog this window last opened over itself (the seed offer), for the screenshot path.</summary>
+    public Window? CurrentDialog { get; private set; }
+
+    /// <summary>Selects the last study in the list (a reference study on the demo database), for the screenshot path.</summary>
+    public void SelectLastStudy() { if (_studies.Items.Count > 0) _studies.SelectedIndex = _studies.Items.Count - 1; }
 
     private Study? Study => (_studies.SelectedItem as ListBoxItem)?.Tag as Study;
     private Coupon? Coupon => (_coupons.SelectedItem as ListBoxItem)?.Tag as Coupon;
@@ -140,7 +158,8 @@ public sealed class AblationWindow : Window
         _studies.Items.Clear();
         foreach (var s in _db.Studies)
         {
-            var item = new ListBoxItem { Tag = s, Content = new TextBlock { Text = $"{s.Name}\n{s.Material.Summary} - {s.Laser.RatedPowerW:0} W {s.Laser.Kind}" + (s.Origin == "local" ? "" : $"\nimported: {s.Origin}"), TextWrapping = TextWrapping.Wrap, FontSize = 12 } };
+            string tag = s.Reference ? $"\nREFERENCE - {s.Origin}; nothing here was cut on this machine" : s.Origin == "local" ? "" : $"\nimported: {s.Origin}";
+            var item = new ListBoxItem { Tag = s, Content = new TextBlock { Text = $"{s.Name}\n{s.Material.Summary} - {s.Laser.RatedPowerW:0} W {s.Laser.Kind}{tag}", TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = s.Reference ? Muted : Ink } };
             _studies.Items.Add(item);
             if (ReferenceEquals(s, select)) _studies.SelectedItem = item;
         }
@@ -164,18 +183,31 @@ public sealed class AblationWindow : Window
             return;
         }
         var l = s.Layout;
-        _summary.Text = $"{s.Material.Summary} on {s.Laser.Summary}\n{s.Coupon.Summary} - every coupon must be exactly this size.\n{l.Summary}. Energy ceiling {s.EnergyCeilingJPerMm2:0} J/mm² per patch." + (s.Notes.Length > 0 ? $"\n{s.Notes}" : "");
-        int left = s.UnassignedDesign.Count();
-        _designText.Text = $"Design: {s.Design.Count} settings, {s.Design.Count - left} on coupons, {left} still to plan - {s.CouponsNeeded()} more coupon{(s.CouponsNeeded() == 1 ? "" : "s")} needed.";
+        if (s.Reference)
+        {
+            var provs = s.Coupons.SelectMany(c => c.Patches).Select(p => p.Provenance?.Summary).Where(x => x is not null).Distinct().ToList();
+            _summary.Text = $"REFERENCE STUDY - {s.Origin}. Nothing in it was cut or measured on this machine: every figure is what its source reported, graded as the source deserves" +
+                            (provs.Count > 0 ? $" ({string.Join("; ", provs)})" : "") + ". It cannot be planned, cut or measured; it can be exported, carried to another rating, or deleted.\n" +
+                            $"{s.Material.Summary} on {s.Laser.Summary}." + (s.Notes.Length > 0 ? $"\n{s.Notes}" : "");
+            _designText.Text = $"{s.Design.Count} reported recipe{(s.Design.Count == 1 ? "" : "s")}; {s.Coupons.SelectMany(c => c.Patches).Count(p => p.Measurement is not null)} with a reported depth.";
+        }
+        else
+        {
+            _summary.Text = $"{s.Material.Summary} on {s.Laser.Summary}\n{s.Coupon.Summary} - every coupon must be exactly this size.\n{l.Summary}. Energy ceiling {s.EnergyCeilingJPerMm2:0} J/mm² per patch." + (s.Notes.Length > 0 ? $"\n{s.Notes}" : "");
+            int todo = s.UnassignedDesign.Count();
+            _designText.Text = $"Design: {s.Design.Count} settings, {s.Design.Count - todo} on coupons, {todo} still to plan - {s.CouponsNeeded()} more coupon{(s.CouponsNeeded() == 1 ? "" : "s")} needed.";
+        }
         foreach (var c in s.Coupons)
         {
-            string line = $"DV{c.Number}  {c.Status}  - {c.Patches.Count} patches" +
-                          (c.EngravedUtc is { } e ? $", cut {e.LocalDateTime:yyyy-MM-dd HH:mm}" : "") +
-                          (c.Focus is { } f ? $", focus: {f.Summary}" + (c.JobZMm is { } z ? $", job Z {z:0.00}" : "") : "") +
-                          (c.Retired ? $" - {c.RetiredReason}" : "");
-            _coupons.Items.Add(new ListBoxItem { Tag = c, Content = new TextBlock { Text = line, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = c.Retired ? Muted : Ink } });
+            string line = c.IsReference
+                ? $"{c.Name}  reference  - {c.Patches.Count} reported recipe{(c.Patches.Count == 1 ? "" : "s")}, {c.Patches.Count(p => p.Measurement is not null)} with a reported depth (not measured here)"
+                : $"DV{c.Number}  {c.Status}  - {c.Patches.Count} patches" +
+                  (c.EngravedUtc is { } e ? $", cut {e.LocalDateTime:yyyy-MM-dd HH:mm}" : "") +
+                  (c.Focus is { } f ? $", focus: {f.Summary}" + (c.JobZMm is { } z ? $", job Z {z:0.00}" : "") : "") +
+                  (c.Retired ? $" - {c.RetiredReason}" : "");
+            _coupons.Items.Add(new ListBoxItem { Tag = c, Content = new TextBlock { Text = line, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = c.Retired || c.IsReference ? Muted : Ink } });
         }
-        _plan.IsEnabled = left > 0 && l.Capacity > 0;
+        _plan.IsEnabled = !s.Reference && s.UnassignedDesign.Any() && l.Capacity > 0;
         if (_coupons.Items.Count > 0) _coupons.SelectedIndex = _coupons.Items.Count - 1;
         else { _preview.Show(s, null); ShowCoupon(); }
     }
@@ -183,7 +215,7 @@ public sealed class AblationWindow : Window
     private void ShowCoupon()
     {
         var c = Coupon;
-        bool live = c is not null && !c.Retired;
+        bool live = c is not null && !c.Retired && !c.IsReference && Study is { Reference: false };
         _cut.IsEnabled = live && c!.EngravedUtc is null;
         _saveJob.IsEnabled = live;
         _measure.IsEnabled = live && c!.EngravedUtc is not null;
@@ -320,6 +352,64 @@ public sealed class AblationWindow : Window
         _db.RemoveCoupon(c.Number, reason.Length == 0 ? "removed" : reason);
         Save();
         ShowStudy();
+    }
+
+    // ---------------------------------------------------------------- seeds
+
+    /// <summary>
+    /// Offers the bundled reference studies, saying plainly where every one of them comes
+    /// from, what grade of evidence it is, and that none of it was cut on this machine. Shown
+    /// once per seed set on an empty database (and from the button any time). Returns true
+    /// when they were added.
+    /// </summary>
+    public async Task<bool> OfferSeedsAsync(bool unasked)
+    {
+        var seeds = Seeds.All();
+        var w = new Window { Title = "Reference studies bundled with DepthView", Width = 720, SizeToContent = SizeToContent.Height, Background = Bg, WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = Icon, CanResize = false };
+        CurrentDialog = w;
+        var panel = new StackPanel { Margin = new Thickness(16), Spacing = 10 };
+        panel.Children.Add(Text(unasked
+            ? "The database is empty. DepthView can add reference studies to start from - but read where they come from first."
+            : "DepthView can add (or refresh) its bundled reference studies. Read where they come from first.", 12, Bright, FontWeight.SemiBold));
+        panel.Children.Add(Text("None of this was cut or measured on your machine, or on any Lumos Ultra. Each study gathers what one source reported - " +
+                                "a vendor's help page, a peer-reviewed paper, a practitioner's blog - on that source's own laser, lens and focus. Every figure is marked " +
+                                "PREDICTED with its source and grade (B peer-reviewed with settings; C a vendor's measured figure; E a recipe with no measurement), " +
+                                "and a reference study can never be planned, cut or measured. They are a starting point for choosing settings when you cannot run the bench " +
+                                "tests yourself, and a comparison for the day you can. Later releases will add studies measured on a known Lumos Ultra, and those will outrank these.", 12, Ink));
+        foreach (var seed in seeds)
+        {
+            var box = new Border { Background = Panel, BorderBrush = B("#333944"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(10, 6) };
+            var st = new StackPanel { Spacing = 2 };
+            st.Children.Add(Text(seed.Study.Name, 12, Bright, FontWeight.SemiBold));
+            st.Children.Add(Text($"From: {seed.From}. Kind: {seed.Kind}. Grade: {seed.Grade}. Contents: {seed.What}.", 11, Ink));
+            var urls = seed.Study.Coupons.SelectMany(c => c.Patches).Select(p => p.Provenance?.Url).Where(u => !string.IsNullOrEmpty(u)).Distinct().ToList();
+            if (urls.Count > 0) st.Children.Add(Text("Source: " + string.Join("  ", urls), 10, Muted));
+            box.Child = st;
+            panel.Children.Add(box);
+        }
+        panel.Children.Add(Text($"The literature review these are drawn from is {MaterialPrior.ResearchDoc} in the DepthView repository, with every grade explained.", 11, Muted));
+        var add = MakeButton("Add the reference studies", "Adds them to the database, marked as reference studies. They can be deleted at any time.");
+        var skip = MakeButton(unasked ? "Not now" : "Cancel", "");
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+        buttons.Children.Add(skip); buttons.Children.Add(add);
+        panel.Children.Add(buttons);
+        w.Content = new ScrollViewer { Content = panel, MaxHeight = 760 };
+        add.Click += (_, _) => w.Close(true);
+        skip.Click += (_, _) => w.Close(false);
+        bool yes = await w.ShowDialog<bool>(this);
+        if (yes)
+        {
+            int n = Seeds.AddAll(_db);
+            Save();
+            FillStudies();
+            _status.Text = $"{n} reference stud{(n == 1 ? "y" : "ies")} added - every figure in them is marked with its source; none was cut here.";
+        }
+        else
+        {
+            _db.SeedsOfferedVersion = Seeds.Version;   // asked and declined: do not ask again for this set
+            Save();
+        }
+        return yes;
     }
 
     // ---------------------------------------------------------------- helpers

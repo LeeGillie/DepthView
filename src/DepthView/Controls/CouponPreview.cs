@@ -69,14 +69,17 @@ public sealed class CouponPreview : Control
     {
         if (_study is null || i < 0) return "";
         var l = _study.Layout;
-        if (i == l.Capacity) return _coupon is null ? "The test number (QR code and digits)." : $"Test number DV{_coupon.Number} - QR code and digits.";
+        if (i == l.Capacity) return _coupon is null ? "The test number (QR code and digits)." : _coupon.IsReference ? "A reference coupon has no test number: nothing on it was cut." : $"Test number DV{_coupon.Number} - QR code and digits.";
         var patch = _coupon?.Patches.FirstOrDefault(p => p.Index == i);
         if (patch is null) return $"{l.Cells[i].Label}: empty on this coupon.";
         var s = patch.Settings;
         double rated = _study.Laser.RatedPowerW;
+        string depth = patch.Measurement?.MeanDepthUm is double d
+            ? patch.Status == PatchStatus.Predicted ? $" Reported {d:0} µm ({patch.Measurement.Method})." : $" Measured {d:0} µm."
+            : patch.Status == PatchStatus.Predicted ? " No depth reported." : "";
         return $"{patch.Label}: {s.ToShortString(_study.Laser.Kind)} - {s.PowerW(rated):0.#} W, {s.DosePerLayerJPerMm2(rated):0.00} J/mm² per layer, " +
-               $"{s.TotalDoseJPerMm2(rated):0.0} J/mm² in all. {patch.Reason}" +
-               (patch.Measurement?.MeanDepthUm is double d ? $" Measured {d:0} µm." : "");
+               $"{s.TotalDoseJPerMm2(rated):0.0} J/mm² in all. {patch.Reason}{depth}" +
+               (patch.Provenance is { } prov ? $" Source: {prov.Summary}." : "");
     }
 
     public override void Render(DrawingContext ctx)
@@ -122,7 +125,7 @@ public sealed class CouponPreview : Control
             }
             var pen = i == _hover ? new Pen(Brushes.White, 2) : new Pen(new SolidColorBrush(Color.Parse("#5A4A20")), 0.8);
             ctx.DrawRectangle(fill, pen, new Rect(x, y, sz, sz));
-            if (isId && _coupon is not null && sz > 14)
+            if (isId && _coupon is { IsReference: false } && sz > 14)
             {
                 // The QR as it will be, scaled: a dot per dark module.
                 var dark = TestNumberMark.Modules(_coupon.Number);
@@ -147,6 +150,14 @@ public sealed class CouponPreview : Control
             double half = CouponJob.CrossMm / 2 * s;
             ctx.DrawLine(mark, new Point(ox + cx * s - half, oy + cy * s), new Point(ox + cx * s + half, oy + cy * s));
             ctx.DrawLine(mark, new Point(ox + cx * s, oy + cy * s - half), new Point(ox + cx * s, oy + cy * s + half));
+        }
+        if (_coupon is { IsReference: true })
+        {
+            // A reference coupon was never cut: say so where the number would be.
+            var ft = new FormattedText($"reference: {_coupon.Name} - not cut here", System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, tf, 11, new SolidColorBrush(Color.Parse("#1A1A1A")));
+            double gridBottom = l.Cells.Count > 0 ? l.Cells.Max(c => c.Y) + l.PatchSizeMm : l.Coupon.BoxHeightMm - l.MarginMm;
+            ctx.DrawText(ft, new Point(ox + (l.MarginMm + CouponJob.CrossMm + 1) * s, oy + gridBottom * s + 1));
+            return;
         }
         foreach (var line in CouponJob.DigitStrokes(_study, _coupon?.Number ?? 0, 0, 0))
             for (int i = 0; i + 1 < line.Count; i++)

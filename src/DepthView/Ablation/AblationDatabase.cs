@@ -29,7 +29,15 @@ public sealed class AblationDatabase
     public List<Study> Studies { get; set; } = [];
     /// <summary>Every focus recorded on this machine, newest last; the latest one matching a study's laser, lens and thickness is offered for reuse.</summary>
     public List<FocusRecord> FocusHistory { get; set; } = [];
+    /// <summary>The bundled seed set last offered (added or declined); 0 = never asked. See <see cref="Seeds.Version"/>.</summary>
+    public int SeedsOfferedVersion { get; set; }
     public DateTimeOffset? SavedUtc { get; set; }
+
+    /// <summary>True when the bundled seeds should be offered: a newer set than the one last offered, and none of it is here yet.</summary>
+    [JsonIgnore] public bool ShouldOfferSeeds => SeedsOfferedVersion < Seeds.Version && !Seeds.All().Any(s => Studies.Any(x => x.Id == s.Study.Id));
+
+    /// <summary>Studies cut (or to be cut) here, as opposed to reference studies and imports.</summary>
+    [JsonIgnore] public IEnumerable<Study> LocalStudies => Studies.Where(s => !s.Reference && s.Origin == "local");
 
     /// <summary>The last focus recorded for this study's laser, lens and coupon thickness, if any.</summary>
     public FocusRecord? LastFocusFor(Study study) => FocusHistory.LastOrDefault(f => f.Matches(study));
@@ -53,6 +61,9 @@ public sealed class AblationDatabase
         WriteIndented = true, PropertyNameCaseInsensitive = true,
         Converters = { new JsonStringEnumConverter() }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
+
+    /// <summary>The options every study file is read and written with (bundled seeds included).</summary>
+    public static JsonSerializerOptions JsonOptions => Json;
 
     public static AblationDatabase Load(string? path = null)
     {
@@ -91,13 +102,16 @@ public sealed class AblationDatabase
         }
         Studies.Clear();
         NextTestNumber = 1;
+        SeedsOfferedVersion = 0;   // the seeds are offered again on an empty database
         Save();
         return backup;
     }
 
+    /// <summary>A coupon by test number: the local studies first (imported studies keep their own numbers; reference coupons have none).</summary>
     public (Study Study, Coupon Coupon)? FindCoupon(int number)
     {
-        foreach (var s in Studies)
+        if (number <= 0) return null;
+        foreach (var s in Studies.OrderBy(s => s.Reference ? 2 : s.Origin == "local" ? 0 : 1))
             foreach (var c in s.Coupons)
                 if (c.Number == number) return (s, c);
         return null;
@@ -110,6 +124,7 @@ public sealed class AblationDatabase
     /// </summary>
     public Coupon? PlanCoupon(Study study)
     {
+        if (study.Reference) return null;   // nothing is ever cut on a reference study
         var layout = study.Layout;
         if (layout.Capacity <= 0) return null;
         var todo = study.UnassignedDesign.Take(layout.Capacity).ToList();

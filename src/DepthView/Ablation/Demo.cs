@@ -40,6 +40,7 @@ public static class Demo
         study.DesignReasons = reasons;
         db.Studies.Add(study);
         var coupon = db.PlanCoupon(study)!;
+        Seeds.AddAll(db);   // the bundled reference studies, as a user who accepted them sees them
         return (db, study, coupon);
     }
 
@@ -82,6 +83,13 @@ public static class Demo
                 couponWithZ = new { zMoves = withZMoves, lines = withZ.Count(c => c == '\n') },
                 heightParse = new { height.HeightZ, height.Distance },
             },
+            seeds = Seeds.All().Select(x => new
+            {
+                x.Study.Name, x.Study.Reference, x.Study.Origin, x.Kind, x.Grade, x.From,
+                coupons = x.Study.Coupons.Select(c => new { c.Number, c.Label, patches = c.Patches.Count, predicted = c.Patches.Count(p => p.Status == PatchStatus.Predicted), sourced = c.Patches.Count(p => p.Provenance is not null), reportedDepths = c.Patches.Count(p => p.Measurement is not null) }),
+                prior = MaterialPrior.For(x.Study.Material, x.Study.Laser.Kind).Summary,
+            }),
+            priors = MaterialSpec.Presets.Select(m => MaterialPrior.For(m, LaserKind.Mopa)).Select(p => new { p.MaterialName, p.EtaLow, p.EtaHigh, p.Grade }).DistinctBy(p => p.MaterialName),
             database = db.Path,
         };
         return JsonSerializer.Serialize(o, new JsonSerializerOptions { WriteIndented = true });

@@ -192,7 +192,27 @@ public sealed record PatchSettings
         && Math.Abs(PulseWidthNs - o.PulseWidthNs) < 1e-9 && Layers == o.Layers;
 }
 
-public enum PatchStatus { Planned, Engraved, Measured }
+/// <summary>Predicted: a figure reported by a source, or converted from another rating - never measured here.</summary>
+public enum PatchStatus { Planned, Engraved, Measured, Predicted }
+
+/// <summary>
+/// Where a figure that was not measured here came from. Every seeded or shared number
+/// carries one, so a reader can always tell a literature value from a reading taken on
+/// this bench. Grades follow docs/research/laser-ablation-baselines.md: A measured on this
+/// machine, B peer-reviewed with settings stated, C a vendor's or practitioner's measured
+/// figure with settings, D partial settings, E a recipe or claim with no measurement.
+/// </summary>
+public sealed record Provenance
+{
+    public string Source { get; init; } = "";
+    public string? Url { get; init; }
+    public string Grade { get; init; } = "E";
+    /// <summary>The machine the figure was made on, as far as the source says.</summary>
+    public string Machine { get; init; } = "";
+    public string Note { get; init; } = "";
+
+    public string Summary => $"{Source} (grade {Grade}{(Machine.Length > 0 ? $", {Machine}" : "")})";
+}
 
 /// <summary>What the measure phase will record for a patch. Shape settled, entry not built (see AblationWindow).</summary>
 public sealed record PatchMeasurement
@@ -220,12 +240,17 @@ public sealed record Patch
     public string Reason { get; init; } = "";
     public PatchStatus Status { get; init; }
     public PatchMeasurement? Measurement { get; init; }
+    /// <summary>Set on every patch whose figures were not measured here: where they came from.</summary>
+    public Provenance? Provenance { get; init; }
 }
 
 /// <summary>A physical coupon with its test number. See the vocabulary at the top of this file.</summary>
 public sealed class Coupon
 {
+    /// <summary>The test number, or 0 for a reference coupon that was never cut here (a source's figures gathered on one sheet).</summary>
     public int Number { get; set; }
+    /// <summary>What to call a reference coupon in place of its number: the source it gathers.</summary>
+    public string Label { get; set; } = "";
     public List<Patch> Patches { get; set; } = [];
     public DateTimeOffset PlannedUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? EngravedUtc { get; set; }
@@ -243,7 +268,10 @@ public sealed class Coupon
     public string? RetiredReason { get; set; }
     public string Notes { get; set; } = "";
 
-    public string Status => Retired ? "retired" : EngravedUtc is null ? "planned" : Patches.Any(p => p.Status == PatchStatus.Measured) ? "measuring" : "engraved";
+    public bool IsReference => Number == 0;
+    public string Name => IsReference ? (Label.Length > 0 ? Label : "reference") : $"DV{Number}";
+
+    public string Status => IsReference ? "reference" : Retired ? "retired" : EngravedUtc is null ? "planned" : Patches.Any(p => p.Status == PatchStatus.Measured) ? "measuring" : "engraved";
 }
 
 /// <summary>One material on one laser, with one coupon size and one list of settings to test.</summary>
@@ -267,6 +295,12 @@ public sealed class Study
     public string Notes { get; set; } = "";
     /// <summary>"local", or where an imported study came from.</summary>
     public string Origin { get; set; } = "local";
+    /// <summary>
+    /// A reference study: figures gathered from sources (the literature, or a seed from another
+    /// bench), never cut here. Read-only - nothing is planned, cut or measured on it - and
+    /// every figure in it carries its provenance.
+    /// </summary>
+    public bool Reference { get; set; }
 
     // Safety: no patch may receive more energy than could remove this share of the coupon's
     // thickness at a removal rate no metal here has shown. Both are study settings so a

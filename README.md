@@ -964,6 +964,26 @@ of a study's design for the other MOPA source with every setting matched by watt
 pulse energy at the same frequency - which is a prediction to verify, never a measurement,
 and is labelled as such on every patch.
 
+**Reference studies: a start for those who cannot run the bench.** An empty database offers
+the reference studies bundled with DepthView, and **Reference studies...** adds them any
+time - but only after showing, for each one, where it comes from, what kind of evidence it
+is and its grade, because none of it was cut or measured on any Lumos Ultra. Each gathers
+what one source reported on that source's own laser, lens and focus: Trotec's two 20 W
+deep-engraving recipes on stainless with the depth they reached (grade C, a vendor's
+measured figures); the best 316L recipe of a peer-reviewed 108 W study, with its removal
+efficiency (grade B, the recipe's speed and frequency reconstructed from the paper's stated
+dose); and two practitioner coin recipes for brass with no depth measured at all (grade E).
+Every patch in them is marked *predicted*, carries its source and grade, and a reference
+study can never be planned, cut or measured - it is a starting point for choosing settings
+and, later, a comparison against your own coupons. The new-study dialog also says what the
+literature would predict for a design, with the same grades: stainless has a removal
+efficiency of roughly 0.7-2.7 µm per J/mm² from other machines; brass, copper and aluminium
+have no measured value at all, only a placeholder scaled from stainless; titanium and UV have
+nothing. The review these come from is
+[docs/research/laser-ablation-baselines.md](docs/research/laser-ablation-baselines.md), with
+every grade explained. Later releases will bundle studies measured on a known Lumos Ultra,
+which outrank the literature; the same mechanism carries them.
+
 Not built yet: entering the depth readings. The record's shape is settled (readings in
 micrometres relative to the untouched gap beside each patch, the method, notes); the window
 waits for the gauge and its interface, so it is shaped by real numbers.
@@ -1052,11 +1072,15 @@ DepthView --ablation-ui --screenshot ablation.png     # the window, on the demo 
 DepthView --ablation-ui --new-study --screenshot s.png   # ... with the new-study dialog
 DepthView --ablation-ui --focus --screenshot f.png       # ... with the focus window
 DepthView --ablation-ui --cut --screenshot c.png         # ... with the cut window
+DepthView --ablation-ui --seeds --screenshot r.png       # ... with the reference-studies offer
+DepthView --ablation-ui --reference --screenshot q.png   # ... with a reference study selected
 ```
 
 The demo's JSON also carries a focus ramp built around a made-up Z (13 bars, ±1.5 mm in
 0.25 mm steps) and the same coupon job with that Z in it, so the check can confirm that Z
-moves appear only where they were asked for and stay inside the band.
+moves appear only where they were asked for and stay inside the band, and the bundled
+reference studies with their provenance, so the check can confirm that every seeded figure is
+marked predicted and sourced and that no reference coupon carries a test number.
 
 There's a headless render mode too, so previews can be scripted across a folder of
 candidates or a sweep of materials, light angles and slice counts:
@@ -1202,7 +1226,9 @@ src/DepthView/
                           watts), PatchLayout, StudyDesign and PowerConversion, CouponJob
                           (the G-code and its audit), TestNumberMark (QR), Focus (the focus
                           record, the machine's height reply, the focus ramp and its Z audit),
-                          AblationDatabase (test numbers, focus history, import/export), Demo
+                          AblationDatabase (test numbers, focus history, import/export),
+                          Seeds (the bundled reference studies and the literature priors per
+                          material, every figure with its source and grade), Demo
 external/MOPAChromaAtlas/ git submodule: the laser libraries shared with MOPAChroma Atlas
                           (LumosUltra.Client, .Jobs, .Camera, .Desktop) - only those projects
                           are referenced

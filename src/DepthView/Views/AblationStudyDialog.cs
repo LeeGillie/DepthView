@@ -252,6 +252,7 @@ public sealed class AblationStudyDialog : Window
             $"About {time.TotalMinutes:0} min of cutting per full coupon.",
             $"Energy ceiling {ceiling:0} J/mm² per patch ({s.DepthBudgetFraction * 100:0}% of {s.Coupon.ThicknessMm:0.#} mm at {s.AssumedMaxRemovalUmPerJPerMm2:0} µm per J/mm²); the hottest setting delivers {maxDose:0.#} J/mm².",
             $"QR modules {TestNumberMark.ModuleMm(1, s.PatchSizeMm):0.00} mm{(TestNumberMark.ModuleMm(1, s.PatchSizeMm) < 0.3 ? " - a phone will struggle; a USB microscope reads it, and the digits are engraved too" : "")}.",
+            PriorLine(s),
         });
         var warn = new List<string>();
         if (hot.Count > 0) warn.Add($"{hot.Count} setting{(hot.Count == 1 ? "" : "s")} over the ceiling (hottest {hot[0].JPerMm2:0} J/mm²): fewer layers, less power or a slower dose - the study will not cut them.");
@@ -261,6 +262,23 @@ public sealed class AblationStudyDialog : Window
         _warn.Text = string.Join("\n", warn);
         _warn.Foreground = hot.Count > 0 ? Red : Amber;
         _create.IsEnabled = layout.Capacity > 0 && s.Design.Count > 0 && hot.Count == 0;
+    }
+
+    /// <summary>
+    /// What the literature would predict for this design - shown as what it is. The removal
+    /// efficiency per material comes from docs/research/laser-ablation-baselines.md with its
+    /// grade; for most metals it is a placeholder, and the line says so.
+    /// </summary>
+    private static string PriorLine(Study s)
+    {
+        var prior = MaterialPrior.For(s.Material, s.Laser.Kind);
+        if (s.Design.Count == 0 || prior.EtaLow is not { } lo || prior.EtaHigh is not { } hi)
+            return $"Literature: {prior.Summary}. The layers above are a guess until a coupon is measured.";
+        var doses = s.Design.Select(d => d.TotalDoseJPerMm2(s.Laser.RatedPowerW)).Where(double.IsFinite).OrderBy(x => x).ToList();
+        if (doses.Count == 0) return $"Literature: {prior.Summary}.";
+        double median = doses[doses.Count / 2], dMin = doses[0], dMax = doses[^1];
+        return $"Literature (grade {prior.Grade}, {prior.Basis}): at η {lo:0.##}–{hi:0.##} µm per J/mm² the median setting would reach about {median * lo:0}–{median * hi:0} µm " +
+               $"(the lightest {dMin * lo:0}–{dMin * hi:0}, the heaviest {dMax * lo:0}–{dMax * hi:0}); the aim is 150–300 µm. A prediction from other machines, not a measurement.";
     }
 
     // ------------------------------------------------------------------ helpers

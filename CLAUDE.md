@@ -781,14 +781,35 @@ that are load-bearing:
   reads 100.02 J/mm² for a planned 100: the hatch, layer count and power all check out.
 - `--ablation-demo [--json] [--out job.gc]` (temporary database, SIMULATED in the study's
   name) is what `tests/check_ablation.py` and CI run (its `focus` section builds the ramp and
-  a coupon job with a made-up Z, so the Z checks run without a laser); `--ablation-ui
-  [--new-study | --focus | --cut] --screenshot` opens the window on it, with one of its
-  dialogs over it (`Program.StartupAblationView`), which is how the layouts are looked at.
+  a coupon job with a made-up Z, so the Z checks run without a laser, and the seeds with
+  their provenance); `--ablation-ui [--new-study | --focus | --cut | --seeds | --reference]
+  --screenshot` opens the window on it, with one of its dialogs over it or a reference study
+  selected (`Program.StartupAblationView`), which is how the layouts are looked at.
   The person's own database is `%APPDATA%\DepthView\ablation\ablation.json`, jobs beside it,
   each named by its test number (`focus ramp ...` for ramps).
 - **The measure phase is a stub**: `PatchMeasurement` is the record (readings in µm relative
   to the gap, method, notes); the Measure button explains that the entry window waits for the
   gauge. Do not build it from guessed numbers (the "What is owed" rule below).
+- **Seeding is priors, never measurements** (`Ablation/Seeds.cs`, built 2026-10-15 at Lee's
+  request so users without his bench equipment have a start; his own measured studies come
+  later as further seeds). A seed is a `Study` with `Reference = true` (read-only: `PlanCoupon`
+  returns null, the window disables Plan/Cut/Measure/Remove/Save job; Export, Carry and Delete
+  still work), `Origin` "literature (bundled with DepthView)", coupons with `Number = 0` and a
+  `Label` (no test number is ever spent on a reference), and every patch `PatchStatus.Predicted`
+  with a `Provenance` (source, url, grade, machine, note) - the grades are the research doc's
+  (A measured here, B peer-reviewed with settings, C vendor-measured with settings, D partial,
+  E recipe with no measurement). Reported depths go in `PatchMeasurement` with Method "reported
+  by the source, not measured here". The three literature seeds are built in code with fixed
+  Guids (Trotec 20 W stainless, JMMP 2020 316L with reconstructed settings, ComMarker brass
+  recipes with no depth); `*.study.json` embedded resources (none yet) are the path for Lee's
+  measured studies. `MaterialPrior.For(material, kind)` is the per-material η range with grade
+  (stainless 0.7–2.7 µm per J/mm² B/C; brass/copper/aluminium E placeholders; titanium and UV
+  NONE), shown as a line in the new-study projection. **The offer** (`AblationWindow.
+  OfferSeedsAsync`) lists every seed's source, kind, grade and URL before anything is added -
+  Lee: "make it clear to the user where the pre seed data comes from when offering the choice";
+  shown once per `Seeds.Version` on an empty database (`SeedsOfferedVersion`, reset by Reset)
+  and from the "Reference studies..." button; never on the demo/screenshot path. Imported
+  studies keep their own numbers, so `FindCoupon` searches local studies first.
 
 ---
 

@@ -90,9 +90,27 @@ def main():
             fail(f"coupon job with a focus height: {fo['couponWithZ']}")
         if fo["heightParse"] != {"HeightZ": z, "Distance": 123.4}:
             fail(f"height reply parse {fo['heightParse']}")
+        # The bundled reference studies: every one read-only, every patch predicted and sourced,
+        # no coupon carrying a test number, and the origin saying where it came from.
+        seeds = d["seeds"]
+        if len(seeds) < 3:
+            fail(f"only {len(seeds)} seeds")
+        for s in seeds:
+            if not s["Reference"] or "literature" not in s["Origin"] and "bundled" not in s["Origin"]:
+                fail(f"seed not a reference study: {s['Name']} / {s['Origin']}")
+            if not s["coupons"]:
+                fail(f"seed without coupons: {s['Name']}")
+            for c in s["coupons"]:
+                if c["Number"] != 0 or not c["Label"]:
+                    fail(f"reference coupon with a test number or no label: {s['Name']} {c}")
+                if c["patches"] == 0 or c["predicted"] != c["patches"] or c["sourced"] != c["patches"]:
+                    fail(f"seed patches not all predicted and sourced: {s['Name']} {c}")
+        pri = {p["MaterialName"]: p for p in d["priors"]}
+        if pri["Stainless steel"]["EtaLow"] is None or pri["Brass"]["Grade"] != "E" or pri["Titanium"]["EtaLow"] is not None:
+            fail(f"priors do not say what the literature says: {pri}")
     print(f"Ablation demo: {d['design']} settings on {d['layout']['Capacity']} squares, audit {a['maxJPerMm2']} J/mm2 "
           f"against {hottest} planned (ceiling {d['ceilingJPerMm2']}), {d['gcode']['lines']} lines of G-code, no Z moves; "
-          f"focus ramp {ramp['bars']} bars Z {ramp['zMin']}..{ramp['zMax']}.")
+          f"focus ramp {ramp['bars']} bars Z {ramp['zMin']}..{ramp['zMax']}; {len(seeds)} reference seeds, all predicted and sourced.")
 
 
 if __name__ == "__main__":

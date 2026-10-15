@@ -73,7 +73,12 @@ Next up, roughly in order:
   branch.** 2026-10-15: focus is now the first step of cutting any coupon (the guided focus
   window: machine focus, its Z read from the laser or typed, the focus ramp, the record kept
   per laser/lens/thickness and reusable when nothing changed; Z in jobs is opt-in and audited),
-  and the windows fit the screen. Bench next: cut the first focus ramp on scrap - it is also
+  and the windows fit the screen. Later on 2026-10-15 (not yet released): reference studies -
+  bundled literature priors (Trotec stainless, JMMP 316L, ComMarker brass recipes), every figure
+  predicted and sourced with its grade, offered on an empty database with the sources shown
+  first, read-only; the per-material η priors in the new-study projection; `*.study.json`
+  embedded resources as the path for Lee's own measured studies in later releases, which then
+  outrank the literature. Bench next: cut the first focus ramp on scrap - it is also
   the test of whether `/camera/measure_distance`'s height is the `G0Z` number - then the first
   brass coupon, and verify the QR mark and the camera placement.
 - **Next: the ablation simulation** (§7.6/7.7), which needs the bench work first (§7.1 spot

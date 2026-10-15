@@ -133,6 +133,8 @@ public partial class MainWindow : Window
                     _ => null,
                 };
                 if (_ablationDialog is not null) _ = _ablationDialog.ShowDialog(_ablation);
+                if (Program.StartupAblationView == "seeds") { _ = _ablation.OfferSeedsAsync(unasked: true); _ablationDialog = _ablation.CurrentDialog; }
+                if (Program.StartupAblationView == "reference") _ablation.SelectLastStudy();
                 if (Program.ScreenshotPath is not null) ScheduleScreenshot();
                 return;
             }

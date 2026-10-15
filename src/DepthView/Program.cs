@@ -402,11 +402,12 @@ internal static partial class Program
                                 first coupon planned, its job built and audited against the
                                 study's energy ceiling. --out keeps the job; --json prints the
                                 figures (layout, settings, audit) for checks. Nothing is sent.
-          DepthView --ablation-ui [--new-study | --focus | --cut] [--screenshot <png>]
+          DepthView --ablation-ui [--new-study | --focus | --cut | --seeds | --reference] [--screenshot <png>]
                                 open the Ablation study window on the demo database; with
-                                --new-study, --focus or --cut also the new-study dialog, the
-                                focus window or the cut (send) window over it, which the
-                                screenshot then shows
+                                --new-study, --focus, --cut or --seeds also the new-study
+                                dialog, the focus window, the cut (send) window or the offer
+                                of the bundled reference studies over it, which the
+                                screenshot then shows; --reference selects a reference study
 
         Exit codes: 0 all clean, 1 at least one file flagged (an imposter, or a picture that is mostly
         colour rather than a depth map), 2 a file failed to load.
@@ -588,7 +589,7 @@ internal static partial class Program
         StartupAbout = args.Any(a => a is "--about");
         StartupWhatsNew = args.Any(a => a is "--whats-new-ui");
         StartupAblation = args.Any(a => a is "--ablation-ui");
-        StartupAblationView = !StartupAblation ? null : args.Any(a => a is "--new-study") ? "study" : args.Any(a => a is "--focus") ? "focus" : args.Any(a => a is "--cut") ? "cut" : null;
+        StartupAblationView = !StartupAblation ? null : args.Any(a => a is "--new-study") ? "study" : args.Any(a => a is "--focus") ? "focus" : args.Any(a => a is "--cut") ? "cut" : args.Any(a => a is "--seeds") ? "seeds" : args.Any(a => a is "--reference") ? "reference" : null;
         StartupLicence = args.Any(a => a is "--licence" or "--license");
         if (StartupLicence) StartupAbout = true;
 

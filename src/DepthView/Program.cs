@@ -72,6 +72,8 @@ internal static partial class Program
     public static bool StartupAblation;
     /// <summary>With --ablation-ui: also open one of its dialogs over the window ("study", "focus" or "cut"), which the screenshot then shows.</summary>
     public static string? StartupAblationView;
+    /// <summary>--advice-ui: open the settings-advice window on the demo database, for screenshots and a look.</summary>
+    public static bool StartupAdvice;
 
     /// <summary>Open the About box straight away. Exists so its screenshot is reproducible too.</summary>
     public static bool StartupAbout;
@@ -408,6 +410,17 @@ internal static partial class Program
                                 dialog, the focus window, the cut (send) window or the offer
                                 of the bundled reference studies over it, which the
                                 screenshot then shows; --reference selects a reference study
+          DepthView --suggest-settings [--material <id>] [--laser <id>] [--target-mm <mm>] [--passes <n>]
+                                [--lens <text>] [--db <file> | --demo-db] [--json]
+                                settings for a job from the ablation study's evidence (the
+                                Tune window's "Settings from the study" button): a MakeIt
+                                recipe, the predicted depth as a band with its grade, the
+                                descent per layer, and every note and warning. Nothing is
+                                extrapolated beyond what was tested; without depth evidence
+                                for the material it says "uncalibrated". --json prints
+                                depthview.settings-advice/1.
+          DepthView --advice-ui [--screenshot <png>]
+                                open the settings-advice window on the demo database
 
         Exit codes: 0 all clean, 1 at least one file flagged (an imposter, or a picture that is mostly
         colour rather than a depth map), 2 a file failed to load.
@@ -468,6 +481,8 @@ internal static partial class Program
 
         int abidx = Array.FindIndex(args, a => a is "--ablation-demo");
         if (abidx >= 0) return RunAblationDemo(args.Skip(abidx + 1).ToArray());
+        int ssidx = Array.FindIndex(args, a => a is "--suggest-settings");
+        if (ssidx >= 0) return RunSuggestSettings(args.Skip(ssidx + 1).ToArray());
 
         int ridx = Array.FindIndex(args, a => a is "--render");
         if (ridx >= 0) return RunRender(args.Skip(ridx + 1).ToArray());
@@ -590,6 +605,7 @@ internal static partial class Program
         StartupWhatsNew = args.Any(a => a is "--whats-new-ui");
         StartupAblation = args.Any(a => a is "--ablation-ui");
         StartupAblationView = !StartupAblation ? null : args.Any(a => a is "--new-study") ? "study" : args.Any(a => a is "--focus") ? "focus" : args.Any(a => a is "--cut") ? "cut" : args.Any(a => a is "--seeds") ? "seeds" : args.Any(a => a is "--reference") ? "reference" : null;
+        StartupAdvice = args.Any(a => a is "--advice-ui");
         StartupLicence = args.Any(a => a is "--licence" or "--license");
         if (StartupLicence) StartupAbout = true;
 
@@ -2055,6 +2071,68 @@ internal static partial class Program
             Console.WriteLine($"{r.GetProperty("layout").GetProperty("Capacity").GetInt32()} settings per coupon, {r.GetProperty("design").GetInt32()} settings in the design, {r.GetProperty("couponsNeeded").GetInt32()} coupons needed.");
             Console.WriteLine($"Coupon {r.GetProperty("planned").GetProperty("idText").GetString()}: {r.GetProperty("planned").GetProperty("patches").GetInt32()} patches, about {r.GetProperty("minutes").GetDouble():0} min.");
             Console.WriteLine(r.GetProperty("audit").GetProperty("Message").GetString());
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// --suggest-settings: the Tune window's "Settings from the study" button, headless. Reads
+    /// the person's ablation database (or the demo one with --demo-db, or a file with --db) and
+    /// prints the advice as text or JSON (depthview.settings-advice/1). Never a bare number: the
+    /// grade, the band and every note travel with it.
+    /// </summary>
+    private static int RunSuggestSettings(string[] rest)
+    {
+        AttachParentConsole();
+        bool json = rest.Contains("--json");
+        string Arg(string name, string fallback) { int i = Array.IndexOf(rest, name); return i >= 0 && i + 1 < rest.Length ? rest[i + 1] : fallback; }
+        string materialId = Arg("--material", "brass-h62"), laserId = Arg("--laser", "lumos-ultra-mopa-100w"), lens = Arg("--lens", "");
+        if (!double.TryParse(Arg("--target-mm", "1.0"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double target) || target <= 0)
+        { Console.Error.WriteLine("--target-mm needs a positive depth in millimetres."); return 2; }
+        if (!int.TryParse(Arg("--passes", "256"), out int passes) || passes < 1) { Console.Error.WriteLine("--passes needs a whole number of passes."); return 2; }
+        var material = Ablation.MaterialSpec.Presets.FirstOrDefault(m => m.Id == materialId);
+        var laser = Ablation.LaserSpec.Presets.FirstOrDefault(l => l.Id == laserId);
+        if (material is null) { Console.Error.WriteLine($"Unknown material '{materialId}'. One of: {string.Join(", ", Ablation.MaterialSpec.Presets.Select(m => m.Id))}"); return 2; }
+        if (laser is null) { Console.Error.WriteLine($"Unknown laser '{laserId}'. One of: {string.Join(", ", Ablation.LaserSpec.Presets.Select(l => l.Id))}"); return 2; }
+        Ablation.AblationDatabase db;
+        try
+        {
+            if (rest.Contains("--demo-db")) { var (demo, _, _) = Ablation.Demo.Build(); db = demo; }
+            else db = Ablation.AblationDatabase.Load(Arg("--db", "") is { Length: > 0 } p ? p : null);
+        }
+        catch (Exception ex) { Console.Error.WriteLine($"Could not open the ablation database: {ex.Message}"); return 2; }
+        var a = Ablation.SettingsAdvisor.Advise(db, material, laser, target, passes, lens.Length > 0 ? lens : null);
+        if (json)
+        {
+            var o = new
+            {
+                schema = "depthview.settings-advice/1", program = $"DepthView {BuildInfo.Version}",
+                material = material.Summary, laser = new { laser.Id, laser.Name, laser.RatedPowerW, kind = laser.Kind.ToString(), laser.Lens },
+                a.TargetDepthMm, a.Passes, neededPerPassUm = Math.Round(a.NeededPerPassUm, 2),
+                recipe = a.Recipe is null ? null : new
+                {
+                    a.Recipe.PowerPercent, powerW = Math.Round(a.Recipe.PowerW(laser.RatedPowerW), 2), a.Recipe.SpeedMmPerS, a.Recipe.LineDensityPerCm,
+                    linePitchMm = Math.Round(a.Recipe.LinePitchMm, 4), a.Recipe.FrequencyKHz, a.Recipe.PulseWidthNs, layers = a.Passes,
+                    dosePerPassJPerMm2 = Math.Round(a.Recipe.DosePerLayerJPerMm2(laser.RatedPowerW), 3),
+                },
+                predicted = a.PredictedPerPassUm is null ? null : new
+                {
+                    perPassUm = Math.Round(a.PredictedPerPassUm.Value, 2), perPassLowUm = Math.Round(a.PredictedPerPassLowUm!.Value, 2), perPassHighUm = Math.Round(a.PredictedPerPassHighUm!.Value, 2),
+                    totalMm = Math.Round(a.PredictedTotalMm!.Value, 3), totalLowMm = Math.Round(a.PredictedTotalLowMm!.Value, 3), totalHighMm = Math.Round(a.PredictedTotalHighMm!.Value, 3),
+                    a.PassesToTarget, zAdvanceMm = a.ZAdvanceMm,
+                },
+                rayleighMm = a.RayleighMm is { } z ? Math.Round(z, 3) : (double?)null,
+                a.Grade, gradeText = a.GradeText, a.Verdict, a.Notes, a.Warnings,
+                evidence = a.Used.Select(e => new { e.Source, e.Grade, e.Machine, settings = e.Settings.ToShortString(e.Laser.Kind), e.DepthUm, e.DepthLowUm, e.DepthHighUm, e.Layers, eta = Math.Round(e.Eta, 4), e.MeasuredHere }),
+            };
+            Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(o, new System.Text.Json.JsonSerializerOptions { WriteIndented = true, DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull }));
+        }
+        else
+        {
+            Console.WriteLine(a.Verdict);
+            Console.WriteLine(a.Recipe is null ? "No recipe." : Views.SettingsAdviceWindow.RecipeText(a));
+            foreach (var w in a.Warnings) Console.WriteLine("WARNING: " + w);
+            foreach (var n in a.Notes) Console.WriteLine(n);
         }
         return 0;
     }

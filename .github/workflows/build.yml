@@ -187,6 +187,10 @@ jobs:
               --screenshot ablation-$view-${{ matrix.os }}.png
             test -s "ablation-$view-${{ matrix.os }}.png"
           done
+          xvfb-run -a --server-args="-screen 0 1600x1100x24" \
+            "${{ steps.exe.outputs.path }}" --advice-ui --delay 1200 \
+            --screenshot ablation-advice-${{ matrix.os }}.png
+          test -s "ablation-advice-${{ matrix.os }}.png"
 
       - name: Open the About box (Linux)
         if: runner.os == 'Linux'

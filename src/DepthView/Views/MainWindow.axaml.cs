@@ -46,6 +46,7 @@ public partial class MainWindow : Window
     /// <summary>Only set on the --ablation-ui screenshot path (the demo database).</summary>
     private AblationWindow? _ablation;
     private Window? _ablationDialog;
+    private SettingsAdviceWindow? _advice;
 
     /// <summary>Only set on the --about screenshot path; the About button uses a dialog.</summary>
     private AboutWindow? _about;
@@ -117,6 +118,14 @@ public partial class MainWindow : Window
             if (Program.StartupWhatsNew)
             {
                 OpenReleaseNotes();
+                if (Program.ScreenshotPath is not null) ScheduleScreenshot();
+                return;
+            }
+            if (Program.StartupAdvice)
+            {
+                var (db, _, _) = Ablation.Demo.Build();
+                _advice = new SettingsAdviceWindow(db, "stainless", Ablation.LaserKind.Mopa, "Lumos Ultra red lens (MOPA)", 1.1, 256) { Icon = Icon };
+                _advice.Show(this);
                 if (Program.ScreenshotPath is not null) ScheduleScreenshot();
                 return;
             }
@@ -205,6 +214,7 @@ public partial class MainWindow : Window
                 Histogram.ClearHover();
                 Window target =
                     Program.StartupAbout && _about is not null ? _about :
+                    Program.StartupAdvice && _advice is not null ? _advice :
                     Program.StartupAblationView is not null && _ablationDialog is not null ? _ablationDialog :
                     Program.StartupAblation && _ablation is not null ? _ablation :
                     Program.StartupWhatsNew && _notes is not null ? _notes :

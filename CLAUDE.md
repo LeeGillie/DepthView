@@ -810,6 +810,24 @@ that are load-bearing:
   shown once per `Seeds.Version` on an empty database (`SeedsOfferedVersion`, reset by Reset)
   and from the "Reference studies..." button; never on the demo/screenshot path. Imported
   studies keep their own numbers, so `FindCoupon` searches local studies first.
+- **Settings from the evidence** (`Ablation/DepthModel.cs`: `Evidence`, `SettingsAdvice`,
+  `SettingsAdvisor`; `Views/SettingsAdviceWindow`; the Tune window's JOB section button;
+  `--suggest-settings ... [--json]` → `depthview.settings-advice/1`; `--advice-ui` for the
+  screenshot). Built 2026-10-15 at Lee's request ("engraving settings from simulation data"),
+  to TODO §7.6/7.9's rules, which are the design: `Evidence.Gather` turns every patch with a
+  depth (Measured here → grade A; Predicted with a reported depth → its Provenance grade) into
+  an η observation; `Advise` keeps the material + laser-kind pool, uses the **best grade only**
+  (the rest are listed as "not used" - grades never blend), finds the tested setting whose
+  removal per pass is nearest the needed `target/passes`, interpolates **speed only** between
+  two tested settings of the same pulse width, frequency and source (dose ∝ 1/v), and outside
+  the tested range offers the lightest/heaviest tested setting as tested with `PassesToTarget`
+  - never a scaled number. Settings from another rating go through `PowerConversion` by watts
+  and the note says so; another lens is noted; `ZAdvanceMm` = predicted removal per pass;
+  `Rayleigh` is π w₀²/λ from the spot (an estimate, labelled). With no depth evidence
+  (brass/copper/aluminium today, any UV) it returns grade E, "Uncalibrated", a reference
+  recipe as a start (reference studies only - a local planned patch is not evidence) and no
+  prediction. The 5.3 J/mm² blackening warning is 316L's (grade B). A measured coupon on
+  this bench makes the material grade A automatically; nothing else needs to change.
 
 ---
 

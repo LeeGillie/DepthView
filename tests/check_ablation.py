@@ -108,9 +108,37 @@ def main():
         pri = {p["MaterialName"]: p for p in d["priors"]}
         if pri["Stainless steel"]["EtaLow"] is None or pri["Brass"]["Grade"] != "E" or pri["Titanium"]["EtaLow"] is not None:
             fail(f"priors do not say what the literature says: {pri}")
+    # The settings advisor on the demo database: stainless gets a banded, graded prediction from
+    # the literature with nothing extrapolated; brass gets a starting recipe and no depth; UV and
+    # aluminium get "uncalibrated" and no recipe. Never a bare number.
+    def advise(*args):
+        p = subprocess.run([exe, "--suggest-settings", "--demo-db", "--json"] + list(args), capture_output=True, text=True, timeout=120)
+        if p.returncode != 0:
+            fail(f"--suggest-settings {' '.join(args)}: exit {p.returncode}: {p.stderr.strip()}")
+        try:
+            return json.loads(p.stdout)
+        except json.JSONDecodeError as e:
+            fail(f"--suggest-settings output is not JSON ({e}): {p.stdout[:200]!r}")
+    ss = advise("--material", "stainless-304", "--target-mm", "1.1", "--passes", "256")
+    if ss["schema"] != "depthview.settings-advice/1" or ss["Grade"] not in ("B", "C") or not ss.get("recipe") or not ss.get("predicted"):
+        fail(f"stainless advice: {ss.get('Grade')} / recipe {bool(ss.get('recipe'))} / predicted {bool(ss.get('predicted'))}")
+    if ss["recipe"]["PowerPercent"] > 100 or ss["predicted"]["zAdvanceMm"] <= 0 or not ss["evidence"]:
+        fail(f"stainless recipe out of bounds: {ss['recipe']} {ss['predicted']}")
+    if not any("not" in n and "bench" in n for n in ss["Notes"]):
+        fail("stainless advice does not say it rests on other machines")
+    br = advise("--material", "brass-h62", "--target-mm", "1.1", "--passes", "256")
+    if br["Grade"] != "E" or br.get("predicted") is not None or not br.get("recipe") or "Uncalibrated" not in br["Verdict"]:
+        fail(f"brass advice should be an uncalibrated starting recipe: {br['Verdict']} / {br.get('predicted')}")
+    al = advise("--material", "aluminium-6061")
+    if al.get("recipe") is not None or al.get("predicted") is not None or "Uncalibrated" not in al["Verdict"]:
+        fail(f"aluminium advice should be refused: {al['Verdict']}")
+    uv = advise("--laser", "lumos-ultra-uv", "--material", "stainless-304")
+    if uv.get("recipe") is not None or uv.get("predicted") is not None or "UV" not in uv["Verdict"]:
+        fail(f"UV advice should be refused: {uv['Verdict']}")
     print(f"Ablation demo: {d['design']} settings on {d['layout']['Capacity']} squares, audit {a['maxJPerMm2']} J/mm2 "
           f"against {hottest} planned (ceiling {d['ceilingJPerMm2']}), {d['gcode']['lines']} lines of G-code, no Z moves; "
-          f"focus ramp {ramp['bars']} bars Z {ramp['zMin']}..{ramp['zMax']}; {len(seeds)} reference seeds, all predicted and sourced.")
+          f"focus ramp {ramp['bars']} bars Z {ramp['zMin']}..{ramp['zMax']}; {len(seeds)} reference seeds, all predicted and sourced; "
+          f"advice: stainless grade {ss['Grade']} {ss['predicted']['totalMm']} mm predicted, brass uncalibrated, aluminium and UV refused.")
 
 
 if __name__ == "__main__":

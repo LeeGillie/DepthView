@@ -78,7 +78,9 @@ Next up, roughly in order:
   predicted and sourced with its grade, offered on an empty database with the sources shown
   first, read-only; the per-material η priors in the new-study projection; `*.study.json`
   embedded resources as the path for Lee's own measured studies in later releases, which then
-  outrank the literature. Bench next: cut the first focus ramp on scrap - it is also
+  outrank the literature. Also 2026-10-15 (not yet released): "Settings from the study..." in
+  the Tune window's JOB section and `--suggest-settings` - the §7.6 advisor half, from tested
+  settings only, graded and banded (§7.6 has the detail). Bench next: cut the first focus ramp on scrap - it is also
   the test of whether `/camera/measure_distance`'s height is the `G0Z` number - then the first
   brass coupon, and verify the QR mark and the camera placement.
 - **Next: the ablation simulation** (§7.6/7.7), which needs the bench work first (§7.1 spot
@@ -728,6 +730,17 @@ meaningless on a dithered input.
 ### 7.6 Depth model and settings-driven live preview  *(blocked on 7.1 and 7.2)*
 
 **This is the one that was called the holy grail, and it is deliberately sixth.**
+
+**Built 2026-10-15, the advisor half, to the rules below (`Ablation/DepthModel.cs`, the Tune
+window's "Settings from the study..." button, `--suggest-settings`):** a target depth and pass
+count in, a MakeIt recipe out from tested settings only - the nearest tested setting, or a
+speed between two tested settings of the same pulse width and frequency, never a scaled
+number - with the depth as a band, the grade of the weakest evidence used, lower grades named
+as not used, settings from another rating carried by watts and said to be, the descent per
+layer as the predicted removal per pass, and "uncalibrated" wherever the evidence has no depth
+(brass, copper, aluminium, all UV today). Still to build: the live preview driven by it (the
+relief reshaping as settings move), the defocus decay (needs the focus ladder), and the
+measured η itself - which is the bench, not code.
 
 **What it is.** While the 3D relief preview is showing, the user adjusts **the same settings
 they will type into MakeIt or LightBurn**, and the surface updates in real time to what the

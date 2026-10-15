@@ -778,6 +778,24 @@ public partial class TuneWindow : Window
         }
     }
 
+    /// <summary>
+    /// Settings for this job from the ablation study's evidence (TODO §7.6/7.9): the window
+    /// takes the finishing material, the laser kind and lens from the JOB section, and the
+    /// blank's target depth at the pass count below, and says what the evidence supports.
+    /// </summary>
+    private async void OnSettingsAdvice(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        try
+        {
+            var db = Ablation.AblationDatabase.Load();
+            string? material = CurrentFinish()?.Material;
+            Ablation.LaserKind? kind = LaserBox.SelectedIndex switch { 1 => Ablation.LaserKind.Uv, 2 or 3 => Ablation.LaserKind.Mopa, _ => null };
+            var w = new SettingsAdviceWindow(db, material, kind, LensBox.Text, Blank.Current.TargetDepthMm, (int)(PassBox.Value ?? 256)) { Icon = Icon };
+            await w.ShowDialog(this);
+        }
+        catch (Exception ex) { StatusText.Text = "Could not open the settings advice: " + ex.Message; }
+    }
+
     /// <summary>The job report: built at full resolution, written beside the map, opened in the browser.</summary>
     private async void OnJobReport(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

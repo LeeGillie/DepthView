@@ -984,6 +984,26 @@ nothing. The review these come from is
 every grade explained. Later releases will bundle studies measured on a known Lumos Ultra,
 which outrank the literature; the same mechanism carries them.
 
+**Settings from the study.** The Tune window's JOB section has **Settings from the study...**:
+for the finishing material, the laser and lens named there, the blank's target depth and the
+pass count, it answers with a MakeIt recipe - power, speed, line density, frequency, pulse
+width, layers and the descent per layer - and says what the recipe rests on. The rules are
+the ones TODO §7.6 and §7.9 set down. Every number carries its provenance and a grade (A
+measured on this bench; B peer-reviewed with settings stated; C a vendor's measured figure;
+E a recipe with no measurement), and the predicted depth is a band, never a bare number.
+Nothing is extrapolated: the recipe is a setting that was tested, or a speed set between two
+tested settings of the same pulse width and frequency, and outside the tested range the
+lightest or heaviest tested setting is offered as it was, with the pass count that would
+reach the target at it. Grades never blend: the best grade available is used and the rest
+named as not used. A setting tested on another rating is carried by watts and said to be;
+another lens is noted. The descent per layer is the predicted removal per pass, so focus
+follows the floor, and the lens's Rayleigh range (estimated from its spot, not measured)
+says whether that matters at this depth. Where the evidence has no depth at all - brass,
+copper and aluminium today, and every UV source - the answer is "uncalibrated": a reported
+recipe may be offered as a starting point, but no depth is predicted, and the one way out is
+named: cut a coupon. Once your own coupons are measured they are grade A and everything else
+is set aside. `DepthView --suggest-settings` does the same headlessly, with `--json`.
+
 Not built yet: entering the depth readings. The record's shape is settled (readings in
 micrometres relative to the untouched gap beside each patch, the method, notes); the window
 waits for the gauge and its interface, so it is shaped by real numbers.
@@ -1074,7 +1094,14 @@ DepthView --ablation-ui --focus --screenshot f.png       # ... with the focus wi
 DepthView --ablation-ui --cut --screenshot c.png         # ... with the cut window
 DepthView --ablation-ui --seeds --screenshot r.png       # ... with the reference-studies offer
 DepthView --ablation-ui --reference --screenshot q.png   # ... with a reference study selected
+DepthView --suggest-settings --material stainless-304 --laser lumos-ultra-mopa-100w --target-mm 1.1 --passes 256 --json
+DepthView --advice-ui --screenshot adv.png               # the settings-advice window on the demo database
 ```
+
+`--suggest-settings` reads your own ablation database (`--db <file>` for another; `--demo-db`
+for the bundled demo with the reference studies) and prints `depthview.settings-advice/1`:
+the recipe, the predicted depth band, the grade, the evidence used, and every note and
+warning. `--material` and `--laser` take the preset ids the message lists when one is wrong.
 
 The demo's JSON also carries a focus ramp built around a made-up Z (13 bars, ±1.5 mm in
 0.25 mm steps) and the same coupon job with that Z in it, so the check can confirm that Z
@@ -1228,7 +1255,11 @@ src/DepthView/
                           record, the machine's height reply, the focus ramp and its Z audit),
                           AblationDatabase (test numbers, focus history, import/export),
                           Seeds (the bundled reference studies and the literature priors per
-                          material, every figure with its source and grade), Demo
+                          material, every figure with its source and grade), DepthModel
+                          (Evidence gathered from the database; SettingsAdvisor - settings
+                          for a job from tested settings only, graded, banded), Demo
+  Views/SettingsAdviceWindow
+                          "Settings from the study": the recipe, its band, grade and notes
 external/MOPAChromaAtlas/ git submodule: the laser libraries shared with MOPAChroma Atlas
                           (LumosUltra.Client, .Jobs, .Camera, .Desktop) - only those projects
                           are referenced

@@ -134,6 +134,7 @@
     <Project Path="src/DepthView/DepthView.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <File Path="tests/check_ablation.py" />
     <File Path="tests/check_fit.py" />
     <File Path="tests/check_json.py" />
     <File Path="tests/check_lbcontrol.ps1" />

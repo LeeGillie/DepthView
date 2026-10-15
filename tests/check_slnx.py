@@ -27,8 +27,18 @@ ROOT_FOLDER = "/Solution Items/"
 
 
 def committed():
-    out = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
-    return {f for f in out.splitlines() if f}
+    # --stage shows the mode: 160000 is a submodule gitlink (a folder, not a file),
+    # which the solution lists as projects under external/ rather than as a file.
+    out = subprocess.run(["git", "ls-files", "--stage"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+    files = set()
+    for line in out.splitlines():
+        if not line:
+            continue
+        meta, path = line.split("\t", 1)
+        if meta.split()[0] == "160000":
+            continue
+        files.add(path)
+    return files
 
 
 def parse(text):

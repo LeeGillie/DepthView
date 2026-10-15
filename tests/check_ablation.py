@@ -1,0 +1,82 @@
+"""Checks the ablation study's headless path: the demo study's coupon job, built and audited.
+
+    python tests/check_ablation.py <path-to-DepthView-exe>
+
+Runs `--ablation-demo --json --out job.gc` through pipes (no shell), as CI does, and holds the
+answer to what the demo is known to produce: a 4 x 4 in sheet holds 195 settings squares of
+5 mm plus the number; the demo design is 34 settings; the hottest patch is under the study's
+energy ceiling; the independent audit of the written G-code agrees with the planned dose to
+within a few percent (it reads the job back, so this is the layer count, hatch and power all
+checked at once); and the job is a MakeIt-shaped file with no Z moves.
+"""
+import json
+import os
+import subprocess
+import sys
+import tempfile
+
+
+def fail(msg):
+    print("FAIL:", msg)
+    sys.exit(1)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(2)
+    exe = sys.argv[1]
+    with tempfile.TemporaryDirectory() as tmp:
+        gc = os.path.join(tmp, "demo.gc")
+        r = subprocess.run([exe, "--ablation-demo", "--json", "--out", gc], capture_output=True, text=True, timeout=300)
+        if r.returncode != 0:
+            fail(f"exit {r.returncode}: {r.stderr.strip()}")
+        try:
+            d = json.loads(r.stdout)
+        except json.JSONDecodeError as e:
+            fail(f"stdout is not JSON ({e}): {r.stdout[:200]!r}")
+        if d.get("schema") != "depthview.ablation-demo/1":
+            fail(f"schema {d.get('schema')!r}")
+        lay = d["layout"]
+        if (lay["Rows"], lay["Columns"], lay["Capacity"], lay["squares"]) != (14, 14, 195, 196):
+            fail(f"layout {lay}")
+        if d["design"] != 34 or d["couponsNeeded"] != 1:
+            fail(f"design {d['design']} / coupons {d['couponsNeeded']}")
+        if d["planned"]["idText"] != "DV1" or d["planned"]["patches"] != 34:
+            fail(f"planned {d['planned']}")
+        if d["hottestPatchJPerMm2"] > d["ceilingJPerMm2"]:
+            fail("hottest patch over the ceiling")
+        a = d["audit"]
+        if not a["Ok"]:
+            fail(f"audit refused: {a['Message']}")
+        hottest = d["hottestPatchJPerMm2"]
+        if abs(a["maxJPerMm2"] - hottest) > 0.05 * hottest:
+            fail(f"audit reads {a['maxJPerMm2']} J/mm2 against a planned {hottest}")
+        if not os.path.exists(gc):
+            fail("no job file written")
+        with open(gc, encoding="utf-8") as f:
+            lines = f.read().split("\n")
+        if not lines[0].startswith(";wecreat"):
+            fail(f"job does not start like a MakeIt job: {lines[0]!r}")
+        body = [ln for ln in lines if ln]
+        if body[-1] != "M6":
+            fail(f"job does not end with M6: {body[-1]!r}")
+        if any("Z" in ln for ln in body if ln.startswith("G")):
+            fail("the job moves Z; it must not (focus is the machine's)")
+        if "M38F45" not in body or "M39P250" not in body:
+            fail("frequency / pulse width words missing")
+        powered = [ln for ln in body if ln.startswith("G1") and "S" in ln and not ln.endswith("S0")]
+        if not powered:
+            fail("no powered moves")
+        for ln in powered:
+            s = int(ln[ln.rindex("S") + 1:])
+            if s < 0 or s > 1000:
+                fail(f"power word out of range: {ln}")
+        if d["gcode"]["lines"] != len(lines) - 1:
+            fail(f"line count {len(lines) - 1} != reported {d['gcode']['lines']}")
+    print(f"Ablation demo: {d['design']} settings on {d['layout']['Capacity']} squares, audit {a['maxJPerMm2']} J/mm2 "
+          f"against {hottest} planned (ceiling {d['ceilingJPerMm2']}), {d['gcode']['lines']} lines of G-code, no Z moves.")
+
+
+if __name__ == "__main__":
+    main()

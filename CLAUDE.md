@@ -692,6 +692,81 @@ Lee wanted a clean line drawn before the ablation simulator; this is it.
   ACKNOWLEDGEMENTS.md. No link to his teaching until he names one.
 - `--calibrate` defaults to 6400 px (Lee, 2026-10-08), so the 25 um comb cell has 2 px bars.
 
+## The shared laser libraries and the ablation study (built 2026-10-14/15, not yet released)
+
+**The laser code is shared with MOPAChroma Atlas, as source, from one commit.** The Atlas
+repository is a git submodule at `external/MOPAChromaAtlas`; DepthView references only its
+standalone `LumosUltra.*` projects - `Client` (the Lumos Ultra's HTTP/FTP API, see its
+PROVENANCE.md), `Jobs` (`MakeItJob` writes a job file with the confirmed preamble, postamble
+and stroke encoding; `JobAudit` reads a job back and adds up the energy per mm²; `MopaSettings`,
+`Physics`, `SourceProfile`, `StrokeFont`), `Camera` (`BedCamera`, `Homography`, `PointD`,
+`RgbImage`, the nine-cross `CalibrationTarget`) and `Desktop` (`PhotoView`, the host-neutral
+`CameraCalibrationWindow`, `LumosSettings`). Nothing of the colour atlas itself. Consequences:
+
+- `git clone --recurse-submodules`, or `git submodule update --init`; CI checks out
+  submodules. **A DepthView commit that moves the submodule pointer needs that Atlas commit on
+  GitHub first**, or every clone and CI run fails. The Atlas commits for this work (1b25bdb and
+  9a1c67c) are on the Atlas repo's `capture-import` branch, not `main` - Lee decides how they
+  reach GitHub. The submodule's working copy here has a second remote, `local`, pointing at
+  `D:\DevHome\MOPAChroma Atlas`, so an Atlas change is: commit there, `git fetch local` and
+  check out the commit in `external/MOPAChromaAtlas`, then commit the pointer here.
+- Change the libraries in the Atlas repo, never in `external/` (a submodule is a checkout).
+  The Atlas solution builds and tests them (179 tests); keep that green.
+- A namespace called `LumosUltra.Avalonia` shadowed `Avalonia.*` inside it, which is why the
+  UI library is `LumosUltra.Desktop`.
+- **`LumosSettings` is one file for every program** (`%APPDATA%\LumosUltra\settings.json`): the
+  laser's address, how its camera's pictures are turned, and the camera calibration. Calibrate
+  in Atlas or DepthView and the other knows where a job lands. Atlas carries its older
+  `capture-settings.json` calibration across once.
+- The Atlas `Directory.Build.props` (net10.0, the same Avalonia and ImageSharp versions, the
+  same five ImageSharp advisory suppressions) governs the submodule's projects, not DepthView.
+  NuGet packages on nuget.org are the plan once the APIs settle; the submodule then goes.
+
+**The ablation study** (`Ablation/`, `Views/AblationWindow`, `AblationStudyDialog`,
+`AblationSendWindow`, `Controls/CouponPreview`) is TODO §7.7b's cutting side. The vocabulary at
+the top of `Ablation/Model.cs` is used everywhere: study, coupon, patch, design. Decisions
+that are load-bearing:
+
+- **Power is stored as a rating in watts**, every derived figure uses watts, and the 60/100 W
+  carry-over (`PowerConversion`) matches settings by watts: same pulse energy at the same
+  frequency, a prediction until cut (assumes a linear power scale, test T1). Converted patches
+  say so in their reason.
+- **Test numbers only go up.** `AblationDatabase.NextTestNumber`; a removed coupon is retired
+  with its reason, never renumbered, and its design entries return to the pool because
+  `Study.UnassignedDesign` ignores retired coupons. Reset keeps the old file beside the new one
+  and is for test runs only - it hands out numbers already engraved on metal.
+- **The number is engraved as a QR code (`DV<n>`, QRCoder, ECC Q, one module of quiet zone
+  inside the square) in the last usable square plus digits in the margin** (StrokeFont has D and
+  V for this). The ID mark is a dark-marking setting, not depth; the default is a starting point.
+- **Every coupon of a study is one size** (`CouponSpec`); `PatchLayout` centres a grid of
+  squares a gap apart inside a margin, keeps only squares wholly inside a round blank, and
+  reserves the bottom-right-most usable square for the number. The gap is the measure phase's
+  local zero (a reading on untouched metal beside each patch cancels the coupon's bow), so it
+  is never under what a gauge tip needs.
+- **Dose, not fluence, is the design axis**: `PatchSettings.DosePerLayerJPerMm2 = P/(v·h)`, the
+  quantity the depth model `d = η·P/(v·h)` works in. `StudyDesign.Build` is a factorial of
+  powers × speeds × pulse widths at one frequency and line density, replicated, shuffled with
+  a fixed seed so coupon heating is not a trend; `SuggestLayers` aims a patch at 150-300 µm.
+- **All patches are cut at one focus; the job moves nothing in Z.** `G0Z` is absolute to the
+  height the machine set when it focused (40.96 in the captured relief job), which a job
+  cannot know; `MakeItJob.MoveZ` exists but is not used. Z advance is a result (§7.9).
+- **Safety is a ceiling the job is read back against.** `Study.EnergyCeilingJPerMm2 =
+  budget × thickness / assumed max removal` (defaults 50 % and 10 µm per J/mm², 150 J/mm² on
+  3 mm); `CouponJob.TooHot` refuses before building, `CouponJob.Audit` (= `JobAudit.Check`)
+  refuses after, and both windows refuse to send on a failure. Atlas's 40 J/mm² colour limit
+  is deliberately not reused: this study wants removal.
+- `CouponJob.Gcode` hatches each patch with `MakeItJob.Hatch` at the layer's angle (the
+  setting's hatch step per layer, MakeIt's Auto Planning turns 27°), with an unpowered lead
+  in the gap; the ID squares and crosses are `Fill`s at the ID setting. The independent audit
+  reads 100.02 J/mm² for a planned 100: the hatch, layer count and power all check out.
+- `--ablation-demo [--json] [--out job.gc]` (temporary database, SIMULATED in the study's
+  name) is what `tests/check_ablation.py` and CI run; `--ablation-ui --screenshot` opens the
+  window on it. The person's own database is `%APPDATA%\DepthView\ablation\ablation.json`,
+  jobs beside it, each named by its test number.
+- **The measure phase is a stub**: `PatchMeasurement` is the record (readings in µm relative
+  to the gap, method, notes); the Measure button explains that the entry window waits for the
+  gauge. Do not build it from guessed numbers (the "What is owed" rule below).
+
 ---
 
 ## What is owed

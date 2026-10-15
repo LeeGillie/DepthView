@@ -43,6 +43,9 @@ public partial class MainWindow : Window
     private bool _lineDrag;
     private double _lu0, _lv0;
 
+    /// <summary>Only set on the --ablation-ui screenshot path (the demo database).</summary>
+    private AblationWindow? _ablation;
+
     /// <summary>Only set on the --about screenshot path; the About button uses a dialog.</summary>
     private AboutWindow? _about;
 
@@ -72,6 +75,7 @@ public partial class MainWindow : Window
         TuneButton.Click += (_, _) => OpenTune();
         ClearButton.Click += (_, _) => ClearAll();
         AboutButton.Click += (_, _) => new AboutWindow().ShowDialog(this);
+        AblationButton.Click += (_, _) => new AblationWindow { Icon = Icon }.Show(this);
         WireUpdates();
 
         PreviewMode.SelectionChanged += (_, _) => UpdatePreview();
@@ -112,6 +116,14 @@ public partial class MainWindow : Window
             if (Program.StartupWhatsNew)
             {
                 OpenReleaseNotes();
+                if (Program.ScreenshotPath is not null) ScheduleScreenshot();
+                return;
+            }
+            if (Program.StartupAblation)
+            {
+                var (db, _, _) = Ablation.Demo.Build();
+                _ablation = new AblationWindow(db) { Icon = Icon };
+                _ablation.Show(this);
                 if (Program.ScreenshotPath is not null) ScheduleScreenshot();
                 return;
             }
@@ -182,6 +194,7 @@ public partial class MainWindow : Window
                 Histogram.ClearHover();
                 Window target =
                     Program.StartupAbout && _about is not null ? _about :
+                    Program.StartupAblation && _ablation is not null ? _ablation :
                     Program.StartupWhatsNew && _notes is not null ? _notes :
                     Program.StartupFinish is not null && _tune?.Finishing is { } finishing ? finishing :
                     Program.StartupWizard && _tune?.Wizard is { } wizard ? wizard :

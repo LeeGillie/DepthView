@@ -68,6 +68,9 @@ internal static partial class Program
     public static int? StartupWizardStep;
     public static WizardTarget? StartupWizardTarget;
 
+    /// <summary>Open the Ablation study window on the demo database, for screenshots and a look.</summary>
+    public static bool StartupAblation;
+
     /// <summary>Open the About box straight away. Exists so its screenshot is reproducible too.</summary>
     public static bool StartupAbout;
     public static bool StartupWhatsNew;
@@ -390,6 +393,16 @@ internal static partial class Program
           gives the removal efficiency the depth model runs on. No labels are engraved:
           anything engraved counts as removed mass.
 
+        Ablation study (the window: Ablation study button; plan coupons by material and settings,
+        cut them on the Lumos Ultra, record the depths)
+          DepthView --ablation-demo [--out <file.gc>] [--json]
+                                a worked example in a temporary database: the demo study's
+                                first coupon planned, its job built and audited against the
+                                study's energy ceiling. --out keeps the job; --json prints the
+                                figures (layout, settings, audit) for checks. Nothing is sent.
+          DepthView --ablation-ui [--screenshot <png>]
+                                open the Ablation study window on the demo database
+
         Exit codes: 0 all clean, 1 at least one file flagged (an imposter, or a picture that is mostly
         colour rather than a depth map), 2 a file failed to load.
         """;
@@ -446,6 +459,9 @@ internal static partial class Program
 
         int jridx = Array.FindIndex(args, a => a is "--job-report" or "--report-html");
         if (jridx >= 0) return RunJobReport(args.Skip(jridx + 1).ToArray());
+
+        int abidx = Array.FindIndex(args, a => a is "--ablation-demo");
+        if (abidx >= 0) return RunAblationDemo(args.Skip(abidx + 1).ToArray());
 
         int ridx = Array.FindIndex(args, a => a is "--render");
         if (ridx >= 0) return RunRender(args.Skip(ridx + 1).ToArray());
@@ -566,6 +582,7 @@ internal static partial class Program
         }
         StartupAbout = args.Any(a => a is "--about");
         StartupWhatsNew = args.Any(a => a is "--whats-new-ui");
+        StartupAblation = args.Any(a => a is "--ablation-ui");
         StartupLicence = args.Any(a => a is "--licence" or "--license");
         if (StartupLicence) StartupAbout = true;
 
@@ -1997,6 +2014,42 @@ internal static partial class Program
             return null;
         }
         catch (Exception ex) { return $"Could not read the profile {rest[k + 1]}: {ex.Message}"; }
+    }
+
+    /// <summary>
+    /// --ablation-demo: the demo study's first coupon, built and audited, as JSON and optionally
+    /// as the job file. Headless; nothing touches the person's own database or any laser.
+    /// </summary>
+    private static int RunAblationDemo(string[] args)
+    {
+        AttachParentConsole();
+        bool json = args.Contains("--json");
+        int oi = Array.IndexOf(args, "--out");
+        string? outPath = oi >= 0 && oi + 1 < args.Length ? args[oi + 1] : null;
+        string report;
+        string gcode;
+        try { report = Ablation.Demo.Report(out gcode); }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Ablation demo failed: {ex.Message}");
+            return 2;
+        }
+        if (outPath is not null)
+        {
+            File.WriteAllText(outPath, gcode);
+            if (!json) Console.WriteLine($"Job written to {outPath}");
+        }
+        if (json) Console.WriteLine(report);
+        else
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(report);
+            var r = doc.RootElement;
+            Console.WriteLine($"{r.GetProperty("study").GetString()}: {r.GetProperty("coupon").GetString()}");
+            Console.WriteLine($"{r.GetProperty("layout").GetProperty("Capacity").GetInt32()} settings per coupon, {r.GetProperty("design").GetInt32()} settings in the design, {r.GetProperty("couponsNeeded").GetInt32()} coupons needed.");
+            Console.WriteLine($"Coupon {r.GetProperty("planned").GetProperty("idText").GetString()}: {r.GetProperty("planned").GetProperty("patches").GetInt32()} patches, about {r.GetProperty("minutes").GetDouble():0} min.");
+            Console.WriteLine(r.GetProperty("audit").GetProperty("Message").GetString());
+        }
+        return 0;
     }
 
     /// <summary>

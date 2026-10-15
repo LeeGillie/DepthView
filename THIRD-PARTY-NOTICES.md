@@ -114,6 +114,35 @@ D-Bus protocol support used by Avalonia on Linux.
 
 ---
 
+## QRCoder 1.6.0 — MIT
+
+<https://github.com/codebude/QRCoder> · Raffael Herrmann
+
+Generates the QR code that carries a test coupon's number in the ablation study. Only the
+module matrix is used; DepthView draws the squares itself.
+
+---
+
+## FluentFTP 52.1.0 — MIT
+
+<https://github.com/robinrodricks/FluentFTP> · Copyright (c) 2015 Robin Rodricks and FluentFTP
+Contributors
+
+Used by LumosUltra.Client (below) to place a job file on the laser the way MakeIt does.
+
+---
+
+## LumosUltra.Client, .Jobs, .Camera and .Desktop — MIT
+
+<https://github.com/LeeGillie/MOPAChromaAtlas> · Copyright (c) 2026 Lee Gillie
+
+The laser libraries shared with MOPAChroma Atlas, built from that repository as a git
+submodule (`external/MOPAChromaAtlas`). Unofficial, community-reverse-engineered access to a
+WeCreat Lumos Ultra's local network API, not affiliated with or endorsed by WeCreat; its
+PROVENANCE.md says exactly which claim traces to which source.
+
+---
+
 ## .NET runtime — MIT
 
 <https://github.com/dotnet/runtime> · Copyright (c) .NET Foundation and Contributors

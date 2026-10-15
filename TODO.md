@@ -59,6 +59,17 @@ Next up, roughly in order:
   the two medium ones need a crafted TIFF or ICC profile. To do: ask Six Labors about a licence
   for an open-source project, then move to 4.x (key as a CI secret too) and drop the suppressions.
   The other road is DepthView's own readers for the remaining formats.
+- **2026-10-14/15, not released - the ablation study's cutting side (§7.7b, the Ablation study
+  button)**: studies by material/alloy and laser (settings stored against watts), coupons of one
+  exact size with a projection of how many the design needs, test numbers (never reused;
+  removed = retired) engraved as a QR code plus digits, the coupon job with its own energy
+  ceiling audit, cutting from the laser camera's picture, import/export, and the 60/100 W
+  carry-over by watts. The measure phase is a stub until the Mitutoyo 543-790B digital
+  indicator is in hand (gauge on the Genmitsu 3030, 65 mm puck in the spindle clamp). Also:
+  DepthView moved to net10.0, and the laser code it shares with MOPAChroma Atlas is now the
+  LumosUltra.* libraries in the Atlas repo, taken as a git submodule (CLAUDE.md). **Lee tests
+  everything before any push or release; the Atlas commits are on its `capture-import`
+  branch.** Bench next: cut the first brass coupon, verify the QR mark and the camera placement.
 - **Next: the ablation simulation** (§7.6/7.7), which needs the bench work first (§7.1 spot
   coupon, §7.2 mass loss) - start the coupons. §7.9 rides on it.
 - **G-code capture watcher** (planned `GcodeCapture.cs`, `CaptureArchive.cs` - not yet
@@ -834,6 +845,19 @@ through entering results. Pocket size follows the scale, not the research's 5 ×
 
 Build the data schema now. Build the entry UI after the first T0 and T3 coupons are cut, so it
 is shaped by real numbers.
+
+**Built 2026-10-14 (the cutting side; `Ablation/`, `Views/Ablation*`, CLAUDE.md).** A study is
+one material and alloy on one laser (settings stored against the rating in watts), one coupon
+size, one design; coupons carry test numbers as a QR code and digits; the job is audited against
+an energy ceiling from the coupon's thickness; cutting places the coupon on the laser camera's
+picture through the shared LumosUltra libraries. Patches on a grid with gaps, not the 15 mm zones
+above: the depth gauge on the CNC (Mitutoyo 543-790B, chosen 2026-10-14) reads each patch against
+the untouched gap beside it, so one coupon holds a whole design; the mass-loss coupon stays the
+absolute cross-check for the gauge's ball-tip bias. Still to build: the measure phase (entry of
+readings, by hand first, then from the gauge's data port or a CNC touch-probe route), the fit of
+eta from the readings, and the Z semantics for a per-layer descent (`G0Z` is absolute to a height
+only the machine knows; see MakeItJob). T0 (focus ramp) and T1 (power linearity) are not generated
+yet.
 
 - **Done when:** DepthView can emit T0–T7 coupons with settings sheets, and a result entered
   against one replaces its prior in the baseline table with provenance attached.

@@ -82,6 +82,9 @@
               </MenuFlyout>
             </Button.Flyout>
           </Button>
+          <Button x:Name="AblationButton" Content="Ablation study" Padding="10,5" FontSize="11"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="Measure how much metal your laser removes: plan test coupons by material and settings, cut them on the Lumos Ultra, and record the depths. The data the depth simulator will be fitted to." />
           <Button x:Name="AboutButton" Content="About" Padding="10,5" FontSize="11"
                   VerticalAlignment="Center"
                   ToolTip.Tip="Version number, the platforms DepthView runs on, everyone who made it, the licence terms, and the update settings." />

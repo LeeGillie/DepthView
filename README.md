@@ -908,6 +908,49 @@ with 61,898 distinct levels reached the machine as 239 distinct power levels, sa
 has been checked against MakeIt's own settings for a colour test and for a relief job, and
 every report says how far it has been confirmed.
 
+### Ablation study: measuring what your laser removes
+
+The **Ablation study** button opens the part of DepthView that measures, rather than
+describes, how much metal a setting removes - the numbers the depth simulator will one day be
+fitted to, from your machine and your material rather than from a published table. It is new
+and the cutting side is built; the measuring side waits for the depth gauge.
+
+A *study* is one material (and alloy - 60/40 and 70/30 brass do not remove alike, so say
+which, or say "unknown") on one laser, recorded by its **rating in watts** because 50 % of a
+60 W source is 30 W and of a 100 W source 50 W. You choose the *coupon* every sheet or blank
+will be - a rectangle of sheet or a round blank, with its thickness - and the settings to
+test: power levels, speeds, pulse widths, frequency, line density, how many layers each patch
+is cut with, and how many times each setting is replicated. DepthView lays the patches out on
+the coupon (on a round blank, only the squares wholly inside it), reserves the last square for
+the coupon's **test number** as a QR code with the digits engraved beside the grid, and tells
+you before anything is cut how many identical coupons the design needs. Every coupon of a
+study must be exactly that size: the layout, the camera placement and the measuring route all
+assume it.
+
+Coupons are planned one at a time - each takes the next settings from the design and gets
+the next number, which is never reused - and cut from the **Cut this coupon** window: it
+checks the laser and the door, shows the coupon on the laser camera's picture so you can drag
+it onto the blank (the camera is calibrated once, with the same nine-cross target MOPAChroma
+Atlas uses; the calibration is shared between the two programs), reads the finished job back
+and refuses it if any square millimetre would receive more than the study's **energy
+ceiling** (set from the coupon's thickness and a deliberately generous removal rate), then
+sends, arms and follows it. Every job sent is kept in the jobs folder under its test number.
+All patches are cut at the one focus the machine was set to - the job moves nothing in Z - so
+the study measures removal at a known defocus, and the Z advance comes out of the results
+(TODO 7.9) rather than going in as a guess.
+
+A coupon that failed is *removed*: its number is retired and its settings go back to the pool
+for the next coupon. **Reset database** starts over for a test run (the old file is kept beside
+the new one). **Export** writes a study as a file to share; **Import** brings one in, keeping
+its own numbers and marked with where it came from. **Carry to another rating** makes a copy
+of a study's design for the other MOPA source with every setting matched by watts - the same
+pulse energy at the same frequency - which is a prediction to verify, never a measurement,
+and is labelled as such on every patch.
+
+Not built yet: entering the depth readings. The record's shape is settled (readings in
+micrometres relative to the untouched gap beside each patch, the method, notes); the window
+waits for the gauge and its interface, so it is shaped by real numbers.
+
 ---
 
 ## Command line
@@ -983,6 +1026,14 @@ settings actually reach, the steepest wall the machine will hold, and the finest
 detail its spot can resolve. The field is left uncut on purpose: the original surface
 is the datum you measure depths against.
 
+The ablation study has a headless check of its own, which CI runs: the demo study's first
+coupon planned, its job built, written and audited, with the figures as JSON:
+
+```
+DepthView --ablation-demo --json --out demo.gc
+DepthView --ablation-ui --screenshot ablation.png     # the window, on the demo database
+```
+
 There's a headless render mode too, so previews can be scripted across a folder of
 candidates or a sweep of materials, light angles and slice counts:
 
@@ -1036,7 +1087,17 @@ precision cannot be guaranteed.
 
 ## Building
 
-Requires the .NET 10 SDK or newer. Open `DepthView.slnx` in Visual Studio 2026, or:
+Requires the .NET 10 SDK or newer. Clone with its submodule - the laser libraries DepthView
+shares with [MOPAChroma Atlas](https://github.com/LeeGillie/MOPAChromaAtlas) live in that
+repository and are built from it:
+
+```
+git clone --recurse-submodules https://github.com/LeeGillie/DepthView.git
+# or, in a clone you already have:
+git submodule update --init
+```
+
+Then open `DepthView.slnx` in Visual Studio 2026, or:
 
 ```
 dotnet build src/DepthView/DepthView.csproj -c Release
@@ -1085,8 +1146,14 @@ src/DepthView/
   Views/ReliefWindow      lit 3D relief preview
   Views/TuneWindow        side-by-side tuning: level points, rim, slicing, save and verify
   Views/AboutWindow       version, supported platforms, scrolling credits, licence
+  Views/AblationWindow    the ablation study: studies, coupons, the coupon drawn to scale
+  Views/AblationStudyDialog
+                          a new study, with the projection of how many identical coupons
+  Views/AblationSendWindow
+                          cutting a coupon: camera placement, audit, send, arm, follow
   Views/Credits.cs        the credit roll contents, as data rather than markup
   Controls/               HistogramControl - hover readout, wheel zoom, comb strip
+                          CouponPreview - a study's coupon to scale, patches tinted by dose
                           LevelStripControl - the draggable black and white points
                           LineProfilePlot - depth along a line, file against staircase
   Imaging/                PngDecoder, PnmDecoder, PfmDecoder, TiffSniffer, ImageLoader
@@ -1104,6 +1171,13 @@ src/DepthView/
                           TerraceMap (where the layers will show as steps),
                           CalibrationPattern, TinyFont
   Rendering/              ReliefRenderer (software height-field shading), MaterialPreset
+  Ablation/               the ablation study: Model (study, coupon, patch, settings by
+                          watts), PatchLayout, StudyDesign and PowerConversion, CouponJob
+                          (the G-code and its audit), TestNumberMark (QR), AblationDatabase
+                          (test numbers, import/export), Demo
+external/MOPAChromaAtlas/ git submodule: the laser libraries shared with MOPAChroma Atlas
+                          (LumosUltra.Client, .Jobs, .Camera, .Desktop) - only those projects
+                          are referenced
   Assets/                 icon files consumed by the build
 packaging/
   make_bundle.py          packs a published binary into the zip users download
@@ -1134,6 +1208,7 @@ tests/
   check_report.py         asserts the report says exactly what it should
   check_json.py           runs the JSON interface the way a host program would and holds
                           it to the same answers
+  check_ablation.py       the ablation demo's coupon job: layout, design, audit, G-code shape
   check_fit.py            asserts fitting a design inside a rim gets the geometry right and
                           copies every original pixel unchanged
   fixtures/               the generated images

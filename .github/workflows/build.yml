@@ -89,6 +89,12 @@ jobs:
         shell: bash
         run: python tests/check_json.py "${{ steps.exe.outputs.path }}"
 
+      # The ablation study's headless path: the demo study's coupon job built, written and
+      # audited against the study's energy ceiling, and held to what it is known to produce.
+      - name: Ablation study demo
+        shell: bash
+        run: python tests/check_ablation.py "${{ steps.exe.outputs.path }}"
+
       - name: Render a relief headlessly
         shell: bash
         run: |
@@ -167,6 +173,14 @@ jobs:
           "${{ steps.exe.outputs.path }}" samples/01-genuine-16bit.png \
             --screenshot "gui-${{ matrix.os }}.png"
           test -s "gui-${{ matrix.os }}.png"
+
+      - name: Open the Ablation study window (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a --server-args="-screen 0 1600x1100x24" \
+            "${{ steps.exe.outputs.path }}" --ablation-ui --delay 900 \
+            --screenshot ablation-${{ matrix.os }}.png
+          test -s "ablation-${{ matrix.os }}.png"
 
       - name: Open the About box (Linux)
         if: runner.os == 'Linux'
@@ -252,6 +266,7 @@ jobs:
             samples-ci.txt
             gui-*.png
             about-*.png
+            ablation-*.png
             tune-*.png
             minsize-*.png
             tests/fixtures/depthview-report.txt

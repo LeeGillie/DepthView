@@ -747,9 +747,29 @@ that are load-bearing:
   quantity the depth model `d = η·P/(v·h)` works in. `StudyDesign.Build` is a factorial of
   powers × speeds × pulse widths at one frequency and line density, replicated, shuffled with
   a fixed seed so coupon heating is not a trend; `SuggestLayers` aims a patch at 150-300 µm.
-- **All patches are cut at one focus; the job moves nothing in Z.** `G0Z` is absolute to the
-  height the machine set when it focused (40.96 in the captured relief job), which a job
-  cannot know; `MakeItJob.MoveZ` exists but is not used. Z advance is a result (§7.9).
+- **Focus is the first step of cutting any coupon** (`Ablation/Focus.cs`,
+  `Views/AblationFocusWindow`): the send window will not send without a `FocusRecord`, which
+  the user either reuses ("Nothing has changed - use it", offered only when
+  `AblationDatabase.LastFocusFor(study)` finds one for the same laser id, lens and coupon
+  thickness) or makes afresh. The guided window: focus the machine as for any job; read its Z
+  (`GET /camera/measure_distance?x=&y=` through `LumosUltraClient.GetRawAsync`, parsed by
+  `MachineHeight` - reported by weburn as `{"distance":..,"height-z":..}`, NOT yet confirmed
+  on the Ultra) or type what MakeIt shows; optionally cut a **focus ramp** (`FocusRamp.Gcode`:
+  numbered bars at `G0Z base±offset`, one single line and a 2 mm square each, digits at the
+  base Z) and pick the sharpest bar. `ZVerified` is set only when a ramp was cut and the user
+  ticked that the bars differed: that is the proof that the Z number drives the head.
+- **Z in coupon jobs is opt-in and audited.** `CouponJob.Gcode(..., focusZMm)` emits a `G0Z`
+  at the start only when given a Z (the send window's "Put the focus height in the job"
+  box, ticked by default only for a verified focus), and `G0Z base+offset` around patches
+  whose `PatchSettings.FocusOffsetMm` is non-zero (which throw without a Z). `G0Z` is
+  absolute to the height the machine set when it focused (40.96 in the captured relief job).
+  `FocusRamp.ZMoves/ZAudit` list every Z in a job and refuse any outside base ± 2 mm; a job
+  with Z moves when none were asked for is refused too. Each coupon records `Focus` and
+  `JobZMm`. Z advance is a result (§7.9).
+- **Windows fit the screen** (`Views/WindowFit.FitToScreen`, called by the ablation windows):
+  the ablation windows ask for ~1300×860 and a ScrollViewer in a window taller than the screen
+  never scrolls. Also: the ScrollViewer wrapping a column is what gets `Grid.SetColumn`, not
+  its content (the first new-study dialog had the projection drawn over the form for that).
 - **Safety is a ceiling the job is read back against.** `Study.EnergyCeilingJPerMm2 =
   budget × thickness / assumed max removal` (defaults 50 % and 10 µm per J/mm², 150 J/mm² on
   3 mm); `CouponJob.TooHot` refuses before building, `CouponJob.Audit` (= `JobAudit.Check`)
@@ -760,9 +780,12 @@ that are load-bearing:
   in the gap; the ID squares and crosses are `Fill`s at the ID setting. The independent audit
   reads 100.02 J/mm² for a planned 100: the hatch, layer count and power all check out.
 - `--ablation-demo [--json] [--out job.gc]` (temporary database, SIMULATED in the study's
-  name) is what `tests/check_ablation.py` and CI run; `--ablation-ui --screenshot` opens the
-  window on it. The person's own database is `%APPDATA%\DepthView\ablation\ablation.json`,
-  jobs beside it, each named by its test number.
+  name) is what `tests/check_ablation.py` and CI run (its `focus` section builds the ramp and
+  a coupon job with a made-up Z, so the Z checks run without a laser); `--ablation-ui
+  [--new-study | --focus | --cut] --screenshot` opens the window on it, with one of its
+  dialogs over it (`Program.StartupAblationView`), which is how the layouts are looked at.
+  The person's own database is `%APPDATA%\DepthView\ablation\ablation.json`, jobs beside it,
+  each named by its test number (`focus ramp ...` for ramps).
 - **The measure phase is a stub**: `PatchMeasurement` is the record (readings in µm relative
   to the gap, method, notes); the Measure button explains that the entry window waits for the
   gauge. Do not build it from guessed numbers (the "What is owed" rule below).

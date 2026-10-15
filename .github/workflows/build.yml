@@ -181,6 +181,12 @@ jobs:
             "${{ steps.exe.outputs.path }}" --ablation-ui --delay 900 \
             --screenshot ablation-${{ matrix.os }}.png
           test -s "ablation-${{ matrix.os }}.png"
+          for view in new-study focus cut; do
+            xvfb-run -a --server-args="-screen 0 1600x1100x24" \
+              "${{ steps.exe.outputs.path }}" --ablation-ui --$view --delay 1200 \
+              --screenshot ablation-$view-${{ matrix.os }}.png
+            test -s "ablation-$view-${{ matrix.os }}.png"
+          done
 
       - name: Open the About box (Linux)
         if: runner.os == 'Linux'

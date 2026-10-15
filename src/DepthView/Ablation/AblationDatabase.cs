@@ -27,7 +27,19 @@ public sealed class AblationDatabase
     [JsonPropertyName("$schema")] public string SchemaName { get; set; } = Schema;
     public int NextTestNumber { get; set; } = 1;
     public List<Study> Studies { get; set; } = [];
+    /// <summary>Every focus recorded on this machine, newest last; the latest one matching a study's laser, lens and thickness is offered for reuse.</summary>
+    public List<FocusRecord> FocusHistory { get; set; } = [];
     public DateTimeOffset? SavedUtc { get; set; }
+
+    /// <summary>The last focus recorded for this study's laser, lens and coupon thickness, if any.</summary>
+    public FocusRecord? LastFocusFor(Study study) => FocusHistory.LastOrDefault(f => f.Matches(study));
+
+    /// <summary>Keeps a new focus; the history is trimmed to the last fifty.</summary>
+    public void RecordFocus(FocusRecord focus)
+    {
+        FocusHistory.Add(focus);
+        if (FocusHistory.Count > 50) FocusHistory.RemoveRange(0, FocusHistory.Count - 50);
+    }
 
     [JsonIgnore] public string Path { get; private set; } = DefaultPath;
 
@@ -143,14 +155,17 @@ public sealed class AblationDatabase
     }
 
     /// <summary>Keeps the exact job sent, so a coupon can always be traced to its G-code. Returns the path, or null if it could not be written.</summary>
-    public static string? KeepJob(Study study, Coupon coupon, string gcode)
+    public static string? KeepJob(Study study, Coupon coupon, string gcode) => KeepJob($"DV{coupon.Number}", study, gcode);
+
+    /// <summary>Keeps any job sent for a study under a name of its own ("focus ramp", say).</summary>
+    public static string? KeepJob(string what, Study study, string gcode)
     {
         try
         {
             Directory.CreateDirectory(JobsFolder);
             var safe = string.Concat(study.Name.Select(ch => System.IO.Path.GetInvalidFileNameChars().Contains(ch) ? '-' : ch)).Trim();
             if (safe.Length == 0) safe = "study";
-            var path = System.IO.Path.Combine(JobsFolder, $"DV{coupon.Number} {safe} {DateTime.Now:yyyyMMdd-HHmmss}.gc");
+            var path = System.IO.Path.Combine(JobsFolder, $"{what} {safe} {DateTime.Now:yyyyMMdd-HHmmss}.gc");
             File.WriteAllText(path, gcode);
             return path;
         }

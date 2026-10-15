@@ -99,6 +99,7 @@ public sealed class AblationWindow : Window
         Grid.SetRow(_status, 1); Grid.SetColumnSpan(_status, 2);
         grid.Children.Add(_status);
         Content = grid;
+        this.FitToScreen();
 
         _preview.HoverText = t => _hover.Text = t;
         _studies.SelectionChanged += (_, _) => ShowStudy();
@@ -159,6 +160,7 @@ public sealed class AblationWindow : Window
         {
             string line = $"DV{c.Number}  {c.Status}  - {c.Patches.Count} patches" +
                           (c.EngravedUtc is { } e ? $", cut {e.LocalDateTime:yyyy-MM-dd HH:mm}" : "") +
+                          (c.Focus is { } f ? $", focus: {f.Summary}" + (c.JobZMm is { } z ? $", job Z {z:0.00}" : "") : "") +
                           (c.Retired ? $" - {c.RetiredReason}" : "");
             _coupons.Items.Add(new ListBoxItem { Tag = c, Content = new TextBlock { Text = line, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = c.Retired ? Muted : Ink } });
         }
@@ -284,7 +286,9 @@ public sealed class AblationWindow : Window
         if (Study is not { } s || Coupon is not { } c) return;
         var hot = CouponJob.TooHot(s, c.Patches);
         if (hot.Count > 0) { await MessageAsync("Job", $"{hot.Count} patch(es) over the ceiling of {s.EnergyCeilingJPerMm2:0} J/mm²; the job is not written."); return; }
-        var gcode = CouponJob.Gcode(s, c, c.BedCentreX ?? 105, c.BedCentreY ?? 105);
+        string gcode;
+        try { gcode = CouponJob.Gcode(s, c, c.BedCentreX ?? 105, c.BedCentreY ?? 105, focusZMm: c.JobZMm); }
+        catch (InvalidOperationException ex) { await MessageAsync("Job", $"{ex.Message} Cut it from here (the focus step records the height) rather than saving it."); return; }
         var audit = CouponJob.Audit(s, gcode);
         if (!audit.Ok) { await MessageAsync("Job", audit.Message); return; }
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions

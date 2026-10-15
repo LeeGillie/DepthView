@@ -935,9 +935,21 @@ Atlas uses; the calibration is shared between the two programs), reads the finis
 and refuses it if any square millimetre would receive more than the study's **energy
 ceiling** (set from the coupon's thickness and a deliberately generous removal rate), then
 sends, arms and follows it. Every job sent is kept in the jobs folder under its test number.
-All patches are cut at the one focus the machine was set to - the job moves nothing in Z - so
-the study measures removal at a known defocus, and the Z advance comes out of the results
-(TODO 7.9) rather than going in as a guess.
+
+**Focus comes first.** Removal depends on focus more than on any setting, so the cut window
+will not send a coupon until a focus is recorded for it. **Focus now...** walks through it:
+focus the machine on the blank as for any job; read the machine's Z (its camera's height
+measurement) or type what MakeIt shows; and, the first time for each lens and thickness, cut a
+**focus ramp** on a scrap - a row of numbered bars, each at a different Z around the
+machine's focus, one single line and one small square per bar. The bar whose line is
+narrowest and square brightest is the focus; its offset is recorded. The ramp is also the
+proof that the Z number drives the head the way the jobs assume: only a focus verified by a
+ramp puts a `G0Z` into coupon jobs by default, and a job's Z moves are listed in the audit and
+refused outside the agreed band. The focus is kept per laser, lens and coupon thickness, so
+the next coupon offers **Nothing has changed - use it** instead; the lens, the bed height and
+the thickness must all be as they were. Each coupon records the focus it was cut at, so the
+study measures removal at a known focus, and the Z advance comes out of the results (TODO
+7.9) rather than going in as a guess.
 
 A coupon that failed is *removed*: its number is retired and its settings go back to the pool
 for the next coupon. **Reset database** starts over for a test run (the old file is kept beside
@@ -1032,7 +1044,14 @@ coupon planned, its job built, written and audited, with the figures as JSON:
 ```
 DepthView --ablation-demo --json --out demo.gc
 DepthView --ablation-ui --screenshot ablation.png     # the window, on the demo database
+DepthView --ablation-ui --new-study --screenshot s.png   # ... with the new-study dialog
+DepthView --ablation-ui --focus --screenshot f.png       # ... with the focus window
+DepthView --ablation-ui --cut --screenshot c.png         # ... with the cut window
 ```
+
+The demo's JSON also carries a focus ramp built around a made-up Z (13 bars, ±1.5 mm in
+0.25 mm steps) and the same coupon job with that Z in it, so the check can confirm that Z
+moves appear only where they were asked for and stay inside the band.
 
 There's a headless render mode too, so previews can be scripted across a folder of
 candidates or a sweep of materials, light angles and slice counts:
@@ -1150,7 +1169,10 @@ src/DepthView/
   Views/AblationStudyDialog
                           a new study, with the projection of how many identical coupons
   Views/AblationSendWindow
-                          cutting a coupon: camera placement, audit, send, arm, follow
+                          cutting a coupon: focus first, camera placement, audit, send, arm, follow
+  Views/AblationFocusWindow
+                          the guided focus: machine focus, its Z, the focus ramp, the record
+  Views/WindowFit.cs      keeps a window inside the screen it opens on
   Views/Credits.cs        the credit roll contents, as data rather than markup
   Controls/               HistogramControl - hover readout, wheel zoom, comb strip
                           CouponPreview - a study's coupon to scale, patches tinted by dose
@@ -1173,8 +1195,9 @@ src/DepthView/
   Rendering/              ReliefRenderer (software height-field shading), MaterialPreset
   Ablation/               the ablation study: Model (study, coupon, patch, settings by
                           watts), PatchLayout, StudyDesign and PowerConversion, CouponJob
-                          (the G-code and its audit), TestNumberMark (QR), AblationDatabase
-                          (test numbers, import/export), Demo
+                          (the G-code and its audit), TestNumberMark (QR), Focus (the focus
+                          record, the machine's height reply, the focus ramp and its Z audit),
+                          AblationDatabase (test numbers, focus history, import/export), Demo
 external/MOPAChromaAtlas/ git submodule: the laser libraries shared with MOPAChroma Atlas
                           (LumosUltra.Client, .Jobs, .Camera, .Desktop) - only those projects
                           are referenced

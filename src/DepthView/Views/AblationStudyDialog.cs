@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using DepthView.Ablation;
@@ -137,13 +138,15 @@ public sealed class AblationStudyDialog : Window
         buttons.Children.Add(cancel); buttons.Children.Add(_create);
 
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("560,*"), RowDefinitions = new RowDefinitions("*,Auto") };
-        var scroll = new ScrollViewer { Content = left, Background = Panel };
+        var scroll = new ScrollViewer { Content = left, Background = Panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         grid.Children.Add(scroll);
-        Grid.SetColumn(right, 1);
-        grid.Children.Add(new ScrollViewer { Content = right });
+        var rightScroll = new ScrollViewer { Content = right, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        Grid.SetColumn(rightScroll, 1);
+        grid.Children.Add(rightScroll);
         Grid.SetRow(buttons, 1); Grid.SetColumnSpan(buttons, 2);
         grid.Children.Add(buttons);
         Content = grid;
+        this.FitToScreen();
 
         foreach (var n in new[] { _density, _rated, _spot, _width, _height, _diameter, _thick, _corner, _patch, _gap, _margin, _freq, _density2, _layers, _hatch, _replicates, _idPower, _idSpeed, _idDensity, _idFreq, _idPulse, _budget, _rate })
             n.ValueChanged += (_, _) => Refresh();

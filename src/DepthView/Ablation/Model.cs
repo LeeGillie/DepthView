@@ -234,6 +234,10 @@ public sealed class Coupon
     public double? BedCentreY { get; set; }
     /// <summary>The job file as sent, kept beside the database so a coupon can always be traced to its G-code.</summary>
     public string? JobFile { get; set; }
+    /// <summary>The focus the machine was at when the coupon was cut - the first step of cutting any coupon.</summary>
+    public FocusRecord? Focus { get; set; }
+    /// <summary>The Z the job itself put the head at (a <c>G0Z</c> at its start), or null when the job left Z to the machine.</summary>
+    public double? JobZMm { get; set; }
     /// <summary>Set when the coupon was removed: its number is never reused and its settings went back to the pool.</summary>
     public bool Retired { get; set; }
     public string? RetiredReason { get; set; }

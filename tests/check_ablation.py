@@ -74,8 +74,25 @@ def main():
                 fail(f"power word out of range: {ln}")
         if d["gcode"]["lines"] != len(lines) - 1:
             fail(f"line count {len(lines) - 1} != reported {d['gcode']['lines']}")
+        # The focus ramp and a job carrying a focus height: Z only where it was asked for.
+        fo = d["focus"]
+        z = fo["demoZ"]
+        ramp = fo["ramp"]
+        if ramp["bars"] != 13 or len(ramp["zMoves"]) != 13:
+            fail(f"ramp bars {ramp['bars']} / Z moves {len(ramp['zMoves'])}")
+        if abs(ramp["zMin"] - (z - 1.5)) > 1e-6 or abs(ramp["zMax"] - (z + 1.5)) > 1e-6:
+            fail(f"ramp Z band {ramp['zMin']}..{ramp['zMax']} around {z}")
+        if ramp["zMoves"] != sorted(ramp["zMoves"]) or z not in ramp["zMoves"]:
+            fail(f"ramp Z order {ramp['zMoves']}")
+        if not ramp["audit"]["Ok"]:
+            fail("ramp refused by the audit")
+        if fo["couponWithZ"]["zMoves"] != [z] or fo["couponWithZ"]["lines"] != d["gcode"]["lines"] + 1:
+            fail(f"coupon job with a focus height: {fo['couponWithZ']}")
+        if fo["heightParse"] != {"HeightZ": z, "Distance": 123.4}:
+            fail(f"height reply parse {fo['heightParse']}")
     print(f"Ablation demo: {d['design']} settings on {d['layout']['Capacity']} squares, audit {a['maxJPerMm2']} J/mm2 "
-          f"against {hottest} planned (ceiling {d['ceilingJPerMm2']}), {d['gcode']['lines']} lines of G-code, no Z moves.")
+          f"against {hottest} planned (ceiling {d['ceilingJPerMm2']}), {d['gcode']['lines']} lines of G-code, no Z moves; "
+          f"focus ramp {ramp['bars']} bars Z {ramp['zMin']}..{ramp['zMax']}.")
 
 
 if __name__ == "__main__":

@@ -11,9 +11,11 @@ namespace DepthView.Ablation;
 /// be registered later. Written with the shared <see cref="MakeItJob"/>, so the preamble,
 /// postamble and stroke encoding are the ones confirmed on the machine.
 ///
-/// All patches are cut at the one focus the machine was set to: no Z moves (see MakeItJob's
-/// notes on why a job cannot know the focus height). A layer's raster turns by the setting's
-/// hatch step each layer, as MakeIt's Auto Planning does.
+/// All patches are cut at the focus recorded for the coupon (<see cref="FocusRecord"/>). The
+/// job moves nothing in Z unless the focus height is known and verified, in which case it
+/// puts the head there first (as a MakeIt relief job does) and patches with a focus offset
+/// step from it. A layer's raster turns by the setting's hatch step each layer, as MakeIt's
+/// Auto Planning does.
 ///
 /// Every job goes through <see cref="Audit"/> before it is sent, and nothing above the
 /// study's energy ceiling leaves the program, whatever produced it.
@@ -23,11 +25,15 @@ public static class CouponJob
     /// <summary>Width of the engraved digits' strokes, mm.</summary>
     public const double DigitStrokeMm = 0.15;
 
-    public static string Gcode(Study study, Coupon coupon, double centreX, double centreY, bool cornerMarks = true)
+    /// <param name="focusZMm">The focus height to put the head at (an absolute <c>G0Z</c>, the machine's own
+    /// coordinates), or null to leave Z where the machine is. Required when any patch carries a focus offset.</param>
+    public static string Gcode(Study study, Coupon coupon, double centreX, double centreY, bool cornerMarks = true, double? focusZMm = null)
     {
         var l = study.Layout;
         double ox = centreX - l.Coupon.BoxWidthMm / 2, oy = centreY - l.Coupon.BoxHeightMm / 2;
         var job = new MakeItJob();
+        if (focusZMm is { } z0) job.MoveZ(Math.Round(z0, 3));
+        double currentZ = focusZMm ?? double.NaN;
 
         // Settings patches, in the coupon's order (already randomised by the design).
         double lead = Math.Clamp((l.GapMm - 0.4) / 2, 0, 0.5);
@@ -38,6 +44,13 @@ public static class CouponJob
             var s = patch.Settings;
             double pitch = s.LinePitchMm;
             if (!(pitch > 0)) continue;
+            if (s.FocusOffsetMm != 0)
+            {
+                if (focusZMm is null) throw new InvalidOperationException($"Patch {patch.Label} asks for a focus offset of {s.FocusOffsetMm:+0.##;-0.##} mm, which needs the focus height in the job.");
+                double want = Math.Round(focusZMm.Value + s.FocusOffsetMm, 3);
+                if (want != currentZ) { job.MoveZ(want); currentZ = want; }
+            }
+            else if (focusZMm is { } back && currentZ != back) { job.MoveZ(Math.Round(back, 3)); currentZ = back; }
             job.Pulse(s.FrequencyKHz, study.Laser.Kind == LaserKind.Mopa ? s.PulseWidthNs : 0).Feed(s.SpeedMmPerS);
             int power = MakeItJob.PowerS(s.PowerPercent);
             double x0 = ox + cell.X, y0 = oy + cell.Y, x1 = x0 + l.PatchSizeMm, y1 = y0 + l.PatchSizeMm;
@@ -47,6 +60,7 @@ public static class CouponJob
                 job.Hatch(x0, y0, x1, y1, pitch, angle, power, lead);
             }
         }
+        if (focusZMm is { } zEnd && currentZ != zEnd) job.MoveZ(Math.Round(zEnd, 3));
 
         // The test number: QR in the ID square, digits in the margin below the grid, crosses.
         if (l.IdCell is { } id)
@@ -75,6 +89,9 @@ public static class CouponJob
 
     /// <summary>Arm length of the corner crosses, mm.</summary>
     public const double CrossMm = 1.5;
+
+    /// <summary>True when some patch carries a focus offset, so the job cannot be built without the focus height.</summary>
+    public static bool NeedsFocusZ(Coupon coupon) => coupon.Patches.Any(p => p.Settings.FocusOffsetMm != 0);
 
     /// <summary>The digits "DV 123" under the grid, in machine mm, or nothing when the margin has no room for them.</summary>
     public static List<List<(double X, double Y)>> DigitStrokes(Study study, int number, double ox, double oy)

@@ -45,6 +45,7 @@ public partial class MainWindow : Window
 
     /// <summary>Only set on the --ablation-ui screenshot path (the demo database).</summary>
     private AblationWindow? _ablation;
+    private Window? _ablationDialog;
 
     /// <summary>Only set on the --about screenshot path; the About button uses a dialog.</summary>
     private AboutWindow? _about;
@@ -121,9 +122,17 @@ public partial class MainWindow : Window
             }
             if (Program.StartupAblation)
             {
-                var (db, _, _) = Ablation.Demo.Build();
+                var (db, demoStudy, demoCoupon) = Ablation.Demo.Build();
                 _ablation = new AblationWindow(db) { Icon = Icon };
                 _ablation.Show(this);
+                _ablationDialog = Program.StartupAblationView switch
+                {
+                    "study" => new AblationStudyDialog(demoStudy) { Icon = Icon },
+                    "focus" => new AblationFocusWindow(demoStudy, LumosUltra.Client.LumosUltraClient.DefaultUsbBaseAddress, 105, 105, null) { Icon = Icon },
+                    "cut" => new AblationSendWindow(demoStudy, demoCoupon, db) { Icon = Icon },
+                    _ => null,
+                };
+                if (_ablationDialog is not null) _ = _ablationDialog.ShowDialog(_ablation);
                 if (Program.ScreenshotPath is not null) ScheduleScreenshot();
                 return;
             }
@@ -194,6 +203,7 @@ public partial class MainWindow : Window
                 Histogram.ClearHover();
                 Window target =
                     Program.StartupAbout && _about is not null ? _about :
+                    Program.StartupAblationView is not null && _ablationDialog is not null ? _ablationDialog :
                     Program.StartupAblation && _ablation is not null ? _ablation :
                     Program.StartupWhatsNew && _notes is not null ? _notes :
                     Program.StartupFinish is not null && _tune?.Finishing is { } finishing ? finishing :

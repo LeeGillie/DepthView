@@ -60,7 +60,10 @@ public sealed class AblationSendWindow : Window
     private readonly CheckBox _confirm = new() { Content = "The blank is on the bed, the door is closed and I am ready" };
     private readonly TextBlock _step1 = Text("", 12, Ink), _step2 = Text("", 12, Ink), _step3 = Text("", 12, Ink), _step4 = Text("", 12, Ink),
         _placeText = Text("", 11, Muted), _status = Text("", 12, Bright), _auditText = Text("", 11, Muted);
-    private readonly Button _check, _photoBtn, _calibrate, _centre, _send, _startHere, _stop, _saveJob, _close;
+    private readonly Button _check, _photoBtn, _calibrate, _centre, _send, _startHere, _stop, _saveJob, _close, _useFocus, _focusNow;
+    private readonly TextBlock _focusText = Text("", 12, Ink);
+    private readonly CheckBox _setZ = new() { Content = "Put the focus height in the job (G0Z)" };
+    private FocusRecord? _focus;
 
     public AblationSendWindow(Study study, Coupon coupon, AblationDatabase db)
     {
@@ -80,19 +83,28 @@ public sealed class AblationSendWindow : Window
         _stop = MakeButton("Stop job", "Cancel the running job. The machine's own stop button also works.");
         _saveJob = MakeButton("Save the job file...", "Write the audited G-code to a file without sending it, for a look or for sending another way.");
         _close = MakeButton("Close", "Close this window.");
+        _useFocus = MakeButton("Nothing has changed - use it", "Reuse the last focus recorded for this laser, lens and thickness. Only if the lens, the bed height and the coupon thickness are all as they were.");
+        _focusNow = MakeButton("Focus now...", "Focus the machine on the blank, read its Z, and (the first time) cut a focus ramp to find and verify the sharpest height.");
         _startHere.IsEnabled = false; _stop.IsVisible = false;
 
         var left = new StackPanel { Spacing = 8, Margin = new Thickness(14) };
         left.Children.Add(Head($"Coupon DV{coupon.Number}"));
         left.Children.Add(Text($"{study.Material.Summary} - {study.Coupon.Summary}\n{coupon.Patches.Count} patches, about {CouponJob.Estimate(study, coupon).TotalMinutes:0} min.", 12, Ink));
-        left.Children.Add(Text("Focus the machine on the blank as for any job first: every patch is cut at that focus, and the job moves nothing in Z.", 11, Muted));
 
         left.Children.Add(Head("1. The laser"));
         left.Children.Add(Row("Address", _address, "The laser's address: 192.168.42.1:8080 over USB, or its Wi-Fi address."));
         left.Children.Add(_check);
         left.Children.Add(_step1);
 
-        left.Children.Add(Head("2. Where it goes"));
+        left.Children.Add(Head("2. Focus"));
+        left.Children.Add(Text("Every patch is cut at one focus, so an accurate focus comes before anything else. It is recorded with the coupon.", 11, Muted));
+        left.Children.Add(_focusText);
+        var fr = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        fr.Children.Add(_useFocus); fr.Children.Add(_focusNow);
+        left.Children.Add(fr);
+        left.Children.Add(_setZ);
+
+        left.Children.Add(Head("3. Where it goes"));
         left.Children.Add(_placeText);
         var pos = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         pos.Children.Add(Text("Centre X", 11, Muted)); pos.Children.Add(_centreX);
@@ -105,13 +117,13 @@ public sealed class AblationSendWindow : Window
         left.Children.Add(_marks);
         left.Children.Add(_blind);
 
-        left.Children.Add(Head("3. Send"));
+        left.Children.Add(Head("4. Send"));
         left.Children.Add(Text($"Energy ceiling {study.EnergyCeilingJPerMm2:0} J/mm²: the job is read back and refused if any square millimetre would get more.", 11, Muted));
         left.Children.Add(_send);
         left.Children.Add(_auditText);
         left.Children.Add(_step2);
 
-        left.Children.Add(Head("4. Start and follow"));
+        left.Children.Add(Head("5. Start and follow"));
         left.Children.Add(_step3);
         left.Children.Add(_confirm);
         var run = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
@@ -126,13 +138,14 @@ public sealed class AblationSendWindow : Window
         bottom.Children.Add(bb);
         bottom.Children.Add(_status);
 
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("420,*"), RowDefinitions = new RowDefinitions("*,Auto") };
-        grid.Children.Add(new ScrollViewer { Content = left, Background = Panel });
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("450,*"), RowDefinitions = new RowDefinitions("*,Auto") };
+        grid.Children.Add(new ScrollViewer { Content = left, Background = Panel, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
         Grid.SetColumn(_photo, 1);
         grid.Children.Add(_photo);
         Grid.SetRow(bottom, 1); Grid.SetColumnSpan(bottom, 2);
         grid.Children.Add(bottom);
         Content = grid;
+        this.FitToScreen();
 
         _photo.EmptyText = "The laser camera's picture appears here, with the coupon drawn where it will be engraved.";
         _photo.DrawOverlay = DrawJob;
@@ -155,20 +168,78 @@ public sealed class AblationSendWindow : Window
         _stop.Click += async (_, _) => await StopAsync();
         _saveJob.Click += async (_, _) => await SaveJobAsync();
         _close.Click += (_, _) => Close(_phase == Phase.Finished);
+        _useFocus.Click += (_, _) => { if (_db.LastFocusFor(_study) is { } f) SetFocus(f, reused: true); };
+        _focusNow.Click += async (_, _) => await FocusNowAsync();
+        _setZ.IsCheckedChanged += (_, _) => { if (_phase == Phase.Ready) _auditText.Text = ""; };
         Closed += (_, _) => _cts.Cancel();
 
         SetCentre(coupon.BedCentreX ?? MakeItJob.HomeX, coupon.BedCentreY ?? MakeItJob.HomeY);
+        ShowFocusState();
         ShowPlacementState();
     }
 
-    private LumosUltraClient Client()
+    // ---------------------------------------------------------------- 2. focus
+
+    private void ShowFocusState()
+    {
+        if (_focus is { } f)
+        {
+            _focusText.Text = $"✓ Focus for this coupon: {f.Summary} ({f.Age(DateTimeOffset.UtcNow)}).";
+            _focusText.Foreground = Ok;
+        }
+        else if (_db.LastFocusFor(_study) is { } last)
+        {
+            _focusText.Text = $"Last focus for {_study.Laser.Lens}, {_study.Coupon.ThicknessMm:0.##} mm coupons, {last.Age(DateTimeOffset.UtcNow)}: {last.Summary}. " +
+                              "If the lens, the bed and the thickness are all as they were, use it; otherwise focus again.";
+            _focusText.Foreground = Ink;
+        }
+        else
+        {
+            _focusText.Text = $"No focus recorded yet for {_study.Laser.Lens} on {_study.Coupon.ThicknessMm:0.##} mm coupons: focus now.";
+            _focusText.Foreground = Busy;
+        }
+        _useFocus.IsEnabled = _phase == Phase.Ready && _focus is null && _db.LastFocusFor(_study) is not null;
+        _focusNow.IsEnabled = _phase == Phase.Ready;
+        bool hasZ = _focus?.FocusZMm is not null;
+        _setZ.IsVisible = hasZ;
+        if (hasZ)
+            _setZ.Content = _focus!.ZVerified
+                ? $"Put the focus height in the job (G0Z {_focus.FocusZMm:0.00}, verified by the ramp)"
+                : $"Put the focus height in the job (G0Z {_focus.FocusZMm:0.00} - NOT verified by a ramp: only if you know this number drives the head)";
+        UpdateSendState();
+    }
+
+    private void SetFocus(FocusRecord f, bool reused)
+    {
+        _focus = f;
+        _setZ.IsChecked = f.ZVerified;
+        ShowFocusState();
+        _status.Text = reused ? "Using the last focus." : "Focus recorded.";
+    }
+
+    private async Task FocusNowAsync()
+    {
+        if (_phase != Phase.Ready) return;
+        var f = await AblationFocusWindow.ShowAsync(this, _study, Address(), _cx, _cy, _db.LastFocusFor(_study));
+        if (f is null) return;
+        _db.RecordFocus(f);
+        try { _db.Save(); } catch { }
+        SetFocus(f, reused: false);
+    }
+
+    /// <summary>The Z the job should carry, when the user chose to and it is known.</summary>
+    private double? JobZ => _setZ.IsVisible && _setZ.IsChecked == true ? _focus?.FocusZMm : null;
+
+    private string Address()
     {
         var address = (_address.Text ?? "").Trim();
         if (address.Length == 0) address = LumosUltraClient.DefaultUsbBaseAddress;
         if (!address.StartsWith("http", StringComparison.OrdinalIgnoreCase)) address = "http://" + address;
         if (address != _settings.Address) { _settings.Address = address; _settings.Save(); }
-        return new LumosUltraClient(address);
+        return address;
     }
+
+    private LumosUltraClient Client() => new(Address());
 
     private static void Show(TextBlock t, IBrush brush, string glyph, string text) { t.Text = $"{glyph} {text}"; t.Foreground = brush; }
 
@@ -316,8 +387,11 @@ public sealed class AblationSendWindow : Window
     private void UpdateSendState()
     {
         if (_phase != Phase.Ready) return;
-        _send.IsEnabled = _placementSeen || _blind.IsChecked == true;
-        _status.Text = _send.IsEnabled ? "" : "Not sent yet: first see where it will engrave (take a picture), or tick that you have checked the position yourself.";
+        bool placed = _placementSeen || _blind.IsChecked == true;
+        _send.IsEnabled = _focus is not null && placed;
+        _status.Text = _send.IsEnabled ? ""
+            : _focus is null ? "Not sent yet: focus first (step 2)."
+            : "Not sent yet: first see where it will engrave (take a picture), or tick that you have checked the position yourself.";
     }
 
     private async Task PhotoAsync()
@@ -351,7 +425,12 @@ public sealed class AblationSendWindow : Window
 
     // ---------------------------------------------------------------- 3. audit and send
 
-    private string BuildJob() => CouponJob.Gcode(_study, _coupon, _cx, _cy, _marks.IsChecked == true);
+    /// <summary>The coupon job, or null (with the reason shown) when it cannot be built - a patch wanting a focus offset without a known Z.</summary>
+    private string? BuildJob()
+    {
+        try { return CouponJob.Gcode(_study, _coupon, _cx, _cy, _marks.IsChecked == true, JobZ); }
+        catch (InvalidOperationException ex) { Show(_step2, Bad, "✕", $"Not sent: {ex.Message}"); return null; }
+    }
 
     private JobAudit.Result? AuditJob(string gcode)
     {
@@ -361,8 +440,15 @@ public sealed class AblationSendWindow : Window
             Show(_step2, Bad, "✕", $"Not sent: {hot.Count} patch(es) over the ceiling of {_study.EnergyCeilingJPerMm2:0} J/mm² (hottest {hot[0].Label} at {hot[0].JPerMm2:0}). Plan the study with fewer layers or less power.");
             return null;
         }
+        if (JobZ is { } z && FocusRamp.ZAudit(gcode, z - FocusRamp.MaxRangeMm, z + FocusRamp.MaxRangeMm) is { } zbad)
+        {
+            Show(_step2, Bad, "✕", zbad);
+            return null;
+        }
         var audit = CouponJob.Audit(_study, gcode);
-        _auditText.Text = audit.Message;
+        var zs = FocusRamp.ZMoves(gcode);
+        if (JobZ is null && zs.Count > 0) { Show(_step2, Bad, "✕", "Not sent: the job moves Z although no focus height was asked for."); return null; }
+        _auditText.Text = audit.Message + (zs.Count == 0 ? " No Z moves: the machine stays at its focus." : $" Z moves: {string.Join(", ", zs.Select(v => v.ToString("0.00")))} mm.");
         if (!audit.Ok) { Show(_step2, Bad, "✕", audit.Message); return null; }
         return audit;
     }
@@ -370,10 +456,10 @@ public sealed class AblationSendWindow : Window
     private async Task SendAsync()
     {
         if (_phase != Phase.Ready) return;
-        if (!_placementSeen && _blind.IsChecked != true) { UpdateSendState(); return; }
+        if (_focus is null || (!_placementSeen && _blind.IsChecked != true)) { UpdateSendState(); return; }
         _send.IsEnabled = false;
         if (!await CheckAsync()) { _send.IsEnabled = true; return; }
-        string gcode = BuildJob();
+        if (BuildJob() is not { } gcode) { _send.IsEnabled = true; return; }
         if (AuditJob(gcode) is null) return;   // never re-enabled: this job must not be sent
         _gcode = gcode;
         string? kept = AblationDatabase.KeepJob(_study, _coupon, gcode);
@@ -391,6 +477,9 @@ public sealed class AblationSendWindow : Window
         }
         _phase = Phase.Armed;
         _marks.IsEnabled = _centreX.IsEnabled = _centreY.IsEnabled = _centre.IsEnabled = _check.IsEnabled = false;
+        _useFocus.IsEnabled = _focusNow.IsEnabled = _setZ.IsEnabled = false;
+        _coupon.Focus = _focus;
+        _coupon.JobZMm = JobZ;
         _photo.Redraw();
         Show(_step2, Ok, "✓", $"Sent and armed, centred at X {_cx:0.0}, Y {_cy:0.0} mm." + (kept is null ? "" : $" Kept as {System.IO.Path.GetFileName(kept)}."));
         Show(_step3, Busy, "▶", "Press Start on the machine, or tick the confirmation and start from here. Nothing fires until you do.");
@@ -403,7 +492,7 @@ public sealed class AblationSendWindow : Window
 
     private async Task SaveJobAsync()
     {
-        string gcode = BuildJob();
+        if (BuildJob() is not { } gcode) return;
         var audit = AuditJob(gcode);
         if (audit is null) return;
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions

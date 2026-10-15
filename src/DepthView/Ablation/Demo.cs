@@ -50,6 +50,15 @@ public static class Demo
         gcode = CouponJob.Gcode(study, coupon, 105, 105);
         var audit = CouponJob.Audit(study, gcode);
         var layout = study.Layout;
+
+        // The focus ramp and a coupon job carrying a (made-up) focus height, checked the same way.
+        const double demoZ = 40.96;
+        string ramp = FocusRamp.Gcode(study, demoZ, 1.5, 0.25, 105, 105, 50, 1000);
+        var rampAudit = CouponJob.Audit(study, ramp);
+        var rampZ = FocusRamp.ZMoves(ramp);
+        string withZ = CouponJob.Gcode(study, coupon, 105, 105, focusZMm: demoZ);
+        var withZMoves = FocusRamp.ZMoves(withZ);
+        var height = MachineHeight.Parse("{\"distance\":123.4,\"height-z\":40.96}");
         var o = new
         {
             schema = "depthview.ablation-demo/1",
@@ -66,6 +75,13 @@ public static class Demo
             audit = new { audit.Ok, maxJPerMm2 = Math.Round(audit.MaxJPerMm2, 2), audit.TotalJoules, audit.Message },
             gcode = new { lines = gcode.Count(c => c == '\n'), bytes = Encoding.UTF8.GetByteCount(gcode) },
             minutes = Math.Round(CouponJob.Estimate(study, coupon).TotalMinutes, 1),
+            focus = new
+            {
+                demoZ,
+                ramp = new { bars = FocusRamp.Offsets(1.5, 0.25).Length, zMoves = rampZ, zMin = rampZ.Min(), zMax = rampZ.Max(), audit = new { rampAudit.Ok, maxJPerMm2 = Math.Round(rampAudit.MaxJPerMm2, 2) }, lines = ramp.Count(c => c == '\n') },
+                couponWithZ = new { zMoves = withZMoves, lines = withZ.Count(c => c == '\n') },
+                heightParse = new { height.HeightZ, height.Distance },
+            },
             database = db.Path,
         };
         return JsonSerializer.Serialize(o, new JsonSerializerOptions { WriteIndented = true });

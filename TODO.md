@@ -59,8 +59,9 @@ Next up, roughly in order:
   the two medium ones need a crafted TIFF or ICC profile. To do: ask Six Labors about a licence
   for an open-source project, then move to 4.x (key as a CI secret too) and drop the suppressions.
   The other road is DepthView's own readers for the remaining formats.
-- **2026-10-14/15, not released - the ablation study's cutting side (§7.7b, the Ablation study
-  button)**: studies by material/alloy and laser (settings stored against watts), coupons of one
+- **2026-10-14/15, released in 1.12.0 as a preview ("framed in, not yet functional" - the
+  release notes, the README and the window itself all say so) - the ablation study's cutting
+  side (§7.7b, the Ablation study button)**: studies by material/alloy and laser (settings stored against watts), coupons of one
   exact size with a projection of how many the design needs, test numbers (never reused;
   removed = retired) engraved as a QR code plus digits, the coupon job with its own energy
   ceiling audit, cutting from the laser camera's picture, import/export, and the 60/100 W

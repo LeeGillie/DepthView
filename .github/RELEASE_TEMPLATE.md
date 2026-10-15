@@ -2,49 +2,46 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.11.0 — the whole job, kept
+## What's new in 1.12.0 — the ablation study, framed in
 
-**Save the settings with the map.** **Save settings** at the foot of the Tune window writes a
-small `.dvp` file beside the map, and opening that map again brings it back tuned as you left
-it. **Load settings...** starts a different map from a saved job: the blank, laser, pass count,
-rim, output, finishing recipe and notes all arrive, while the black and white points and any
-flat-area changes - which belong to one picture - are suggested afresh for the new map. The map
-itself is never touched.
+> **Please read this first: the Ablation study is framed in, not yet functional.** The new
+> **Ablation study** button opens a complete-looking section - studies, coupons, test numbers,
+> the cut window, the focus window - and none of it has yet cut a single coupon. Nothing in it
+> has been run against a laser. It is released now so the shape of it can be seen and talked
+> about, and so this version draws a line before the bench work starts. Treat every window
+> behind that button as a preview: do not plan a material study on it, and do not send a job
+> from it expecting it to be right. The rest of DepthView is unaffected.
 
-**The job report.** **Job report ...** writes one page about the whole job and opens it in your
-browser, to print or save as PDF: the map and its verdict, the blank and laser, every tuning
-setting, before-and-after pictures and lit reliefs, where the layers will show, what the job
-will cut, the depth across the middle, the finishing recipe with its safety notes, and your
-notes. A new **JOB** section in the Tune window records the laser, the lens and notes for it.
+**What the ablation study is for.** DepthView's tuning and depth checks rest on what a laser
+removes per pass at given settings - a number nobody publishes for a given alloy, source and
+lens. The ablation study is the part of DepthView that will measure it: a study is one material
+and alloy on one laser (settings are recorded against the source's rating in watts, because
+50 % of a 60 W source is not 50 % of a 100 W one), on coupons of one exact size - a sheet or a
+coin blank of a given thickness. The study projects how many identical coupons a design needs
+before anything is committed; each coupon carries its test number as a QR code and digits, so
+the later measuring step knows which settings made which patch; numbers are never reused, and a
+failed coupon is retired rather than renumbered. Studies export to a file to share and import
+from one, and a study can be carried from the 60 W to the 100 W MOPA source (or back) with
+every setting matched by watts - a prediction to verify, labelled as such.
 
-**Stainless steel and titanium** in the finishing preview. On stainless: Presto Black SSB, the
-verified room-temperature black, finished with oil - or heat tint, straw to purple to blue. On
-titanium, which cannot be blackened: anodizing colours by voltage, purple, blue, gold and green,
-with the highs rubbed back to grey metal. Each carries its advice and safety notes.
+**Focus first.** Cutting a coupon begins with a guided focus - focus the machine as for any
+job, read its height, and the first time for each lens and thickness cut a small focus ramp on
+scrap to find and verify the sharpest height - and the focus is recorded with every coupon.
+Not yet exercised on a machine: the height reading in particular is unconfirmed, which is why
+nothing puts a Z move into a job unless you have seen a ramp prove it.
 
-**Two more checks.**
+**Not built yet:** entering the depth readings. The measure window waits for the depth gauge.
 
-- **Isolated spikes** - single pixels that stand clear of all their neighbours, one pass firing
-  where nothing was intended: a pit drilled below a smooth surface, or a needle left standing.
-  In the analysis, and in the Tune window's **Mark** box.
-- **Dithered pictures** - a map exported as dots carries tone as how densely the dots are
-  packed, and every dot would cut as a pit or a pin. DepthView now says so as the verdict, names
-  the kind of dither, and stops quoting level figures that would only describe the dots.
-
-**Also:** the calibration coupon is now 6400 px by default, so its finest comb cell is drawn
-cleanly, and the About box thanks Victor Wolansky, whose published coin work shaped several of
-DepthView's checks.
-
-For other programs: `--spikes --json` is new (`depthview.spikes/1`), `depthview.report/1`
-gains `content.spikes` and `content.dither`, `--tune` takes `--params` and `--save-params` and
-reports them as `params`, the profile is `depthview.params/1`, and `--job-report` writes the
-page headlessly. Nothing existing changed. See
-[docs/INTEGRATION.md](https://github.com/LeeGillie/DepthView/blob/main/docs/INTEGRATION.md).
+**Under the bonnet:** the code that talks to the Lumos Ultra - the job writer, the energy
+audit, the bed camera and its calibration - is now shared with MOPAChroma Atlas as a set of
+libraries, so both programs send jobs and place them on the camera's picture the same way,
+and a camera calibration made in one serves the other. DepthView now builds on .NET 10; the
+zips still carry the runtime inside them, so nothing changes for installing or updating.
 
 ## Updating
 
-**From 1.4.0 to 1.10.0:** the green bar will offer this release — click **Update now**.
-When 1.11.0 starts, it offers these notes.
+**From 1.4.0 to 1.11.0:** the green bar will offer this release — click **Update now**.
+When 1.12.0 starts, it offers these notes.
 
 **From 1.3.0 or earlier:** those versions cannot update themselves. Download this release by
 hand once; from then on, updates come to you.

@@ -910,6 +910,11 @@ every report says how far it has been confirmed.
 
 ### Ablation study: measuring what your laser removes
 
+> **Framed in, not yet functional (1.12.0).** Everything in this section is built and can be
+> opened, and none of it has yet cut a coupon: nothing behind the Ablation study button has
+> been run against a laser. It ships now so its shape can be seen and discussed. Treat it as a
+> preview until a release says otherwise, and do not plan a material study on it yet.
+
 The **Ablation study** button opens the part of DepthView that measures, rather than
 describes, how much metal a setting removes - the numbers the depth simulator will one day be
 fitted to, from your machine and your material rather than from a published table. It is new

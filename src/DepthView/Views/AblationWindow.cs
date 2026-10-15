@@ -70,6 +70,17 @@ public sealed class AblationWindow : Window
 
         var right = new DockPanel { Margin = new Thickness(12) };
         var top = new StackPanel { Spacing = 6 };
+        var preview = new Border
+        {
+            Background = B("#2A2410"), BorderBrush = B("#E3A640"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(10, 6), Margin = new Thickness(0, 0, 0, 4),
+            Child = new TextBlock
+            {
+                Text = "Preview: the ablation study is framed in, not yet functional. Nothing here has been run against a laser yet - the first coupons and the measuring step are still to come. Look around, but do not plan a material study on it yet.",
+                FontSize = 12, Foreground = B("#F0D28A"), TextWrapping = TextWrapping.Wrap,
+            },
+        };
+        ToolTip.SetTip(preview, "This notice goes away once the study has cut and measured its first coupons.");
+        top.Children.Add(preview);
         top.Children.Add(Head("Study"));
         top.Children.Add(_summary);
         top.Children.Add(_designText);

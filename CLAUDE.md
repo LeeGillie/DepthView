@@ -692,7 +692,7 @@ Lee wanted a clean line drawn before the ablation simulator; this is it.
   ACKNOWLEDGEMENTS.md. No link to his teaching until he names one.
 - `--calibrate` defaults to 6400 px (Lee, 2026-10-08), so the 25 um comb cell has 2 px bars.
 
-## The shared laser libraries and the ablation study (built 2026-10-14/15, not yet released)
+## The shared laser libraries and the ablation study (built 2026-10-14/15; released in 1.12.0 as a preview, "framed in, not yet functional" - nothing in it has run against a laser)
 
 **The laser code is shared with MOPAChroma Atlas, as source, from one commit.** The Atlas
 repository is a git submodule at `external/MOPAChromaAtlas`; DepthView references only its

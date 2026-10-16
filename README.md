@@ -910,10 +910,11 @@ every report says how far it has been confirmed.
 
 ### Ablation study: measuring what your laser removes
 
-> **Framed in, not yet functional (1.12.0).** Everything in this section is built and can be
-> opened, and none of it has yet cut a coupon: nothing behind the Ablation study button has
-> been run against a laser. It ships now so its shape can be seen and discussed. Treat it as a
-> preview until a release says otherwise, and do not plan a material study on it yet.
+> **Still a preview (1.13.0).** Everything in this section is built and can be opened. 1.12.0
+> had not cut a coupon; in 1.13.0 the cutting side has run on a Lumos Ultra - a focus verified
+> by ramps and the first two brass coupons, DV1 and DV2 - and what went wrong on the way is
+> fixed. The measuring side still waits for the depth gauge, so no removal figure has come out
+> of it yet. Treat it as a preview until a release says it measures.
 
 The **Ablation study** button opens the part of DepthView that measures, rather than
 describes, how much metal a setting removes - the numbers the depth simulator will one day be
@@ -946,8 +947,14 @@ will not send a coupon until a focus is recorded for it. **Focus now...** walks 
 focus the machine on the blank as for any job; read the machine's Z (its camera's height
 measurement) or type what MakeIt shows; and, the first time for each lens and thickness, cut a
 **focus ramp** on a scrap - a row of numbered bars, each at a different Z around the
-machine's focus, one single line and one small square per bar. The bar whose line is
-narrowest and square brightest is the focus; its offset is recorded. The ramp is also the
+machine's focus, one single line and one small square per bar. The focus is the middle of
+the run of bars whose lines are crisp, narrow and dark, with worse bars on both sides (on
+brass the squares at focus are the *darkest*, not the brightest); if the best bars are at an
+end, the focus is beyond the ramp and the next ramp moves that way. The full procedure, with
+photos of real ramps, where the starting Z really comes from (the `G0Z` in a MakeIt relief
+job - not the focus-assist number, and not the laser camera's height, which reads zeros on
+the Ultra) and why this beats focusing by eye or by the machine's own focus, is in
+**[docs/PRECISION-FOCUS.md](docs/PRECISION-FOCUS.md)**. Its offset is recorded. The ramp is also the
 proof that the Z number drives the head the way the jobs assume: only a focus verified by a
 ramp puts a `G0Z` into coupon jobs by default, and a job's Z moves are listed in the audit and
 refused outside the agreed band. The focus is kept per laser, lens and coupon thickness, so
@@ -1279,10 +1286,12 @@ artwork/
 docs/
   INTEGRATION.md          how another program calls DepthView and reads its JSON
   TUNING-GUIDE.md         tuning worked through real coins, for MakeIt and LightBurn
+  PRECISION-FOCUS.md      finding the true focus Z with a focus ramp (ablation study)
   make-screenshots.ps1    regenerates every image the README uses
   make-profiles.py        draws the tuning guide's cross-section charts
   make-pdfs.py            the release's PDFs of this guide and the tuning guide
   images/                 the generated screenshots and relief renders
+  images/focus/           bench photos for PRECISION-FOCUS.md (real, not generated)
 samples/
   make_samples.py         generates the eight sample encodings from one height field
   01..08-*.png            the samples themselves - committed, unlike the fixtures

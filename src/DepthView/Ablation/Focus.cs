@@ -111,8 +111,11 @@ public sealed record MachineHeight(double? HeightZ, double? Distance, string Raw
 
 /// <summary>
 /// The focus ramp: a row of bars, each cut at a different Z offset around the machine's
-/// focus, numbered 1..n in the metal. The bar whose single line is narrowest and whose
-/// square is brightest is at focus; its offset is recorded. Bars run from -range to +range
+/// focus, numbered 1..n in the metal. The focus is the middle of the run of bars whose
+/// single lines are crisp, narrow and dark, with worse bars on both sides (on brass the
+/// squares at focus are the darkest, not the brightest - the first bench session,
+/// 2026-10-15, misread two ramps that way); its offset is recorded. See
+/// docs/PRECISION-FOCUS.md. Bars run from -range to +range
 /// in steps, so the middle bar is the machine's own focus.
 /// </summary>
 public static class FocusRamp

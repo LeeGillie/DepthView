@@ -2,46 +2,50 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.12.0 — the ablation study, framed in
+## What's new in 1.13.0 — the ablation study meets the laser
 
-> **Please read this first: the Ablation study is framed in, not yet functional.** The new
-> **Ablation study** button opens a complete-looking section - studies, coupons, test numbers,
-> the cut window, the focus window - and none of it has yet cut a single coupon. Nothing in it
-> has been run against a laser. It is released now so the shape of it can be seen and talked
-> about, and so this version draws a line before the bench work starts. Treat every window
-> behind that button as a preview: do not plan a material study on it, and do not send a job
-> from it expecting it to be right. The rest of DepthView is unaffected.
+> **Still a preview, one step further on.** 1.12.0's Ablation study had never touched a laser.
+> In 1.13.0 its cutting side has: on a WeCreat Lumos Ultra (100 W MOPA) it found a verified
+> focus and cut the first two brass study coupons, and everything that went wrong on the way
+> is fixed here. The measuring side still waits for the depth gauge, so no removal figure has
+> come out of it yet - do not plan a material study on it until a release says it measures.
 
-**What the ablation study is for.** DepthView's tuning and depth checks rest on what a laser
-removes per pass at given settings - a number nobody publishes for a given alloy, source and
-lens. The ablation study is the part of DepthView that will measure it: a study is one material
-and alloy on one laser (settings are recorded against the source's rating in watts, because
-50 % of a 60 W source is not 50 % of a 100 W one), on coupons of one exact size - a sheet or a
-coin blank of a given thickness. The study projects how many identical coupons a design needs
-before anything is committed; each coupon carries its test number as a QR code and digits, so
-the later measuring step knows which settings made which patch; numbers are never reused, and a
-failed coupon is retired rather than renumbered. Studies export to a file to share and import
-from one, and a study can be carried from the 60 W to the 100 W MOPA source (or back) with
-every setting matched by watts - a prediction to verify, labelled as such.
+**Precision focus - a new guide.** `docs/PRECISION-FOCUS.md` (with photos of real ramps) is
+how to find the true focus height of your laser as a number the jobs use: cut a *focus ramp*
+of numbered bars at different heights, read which run of bars is crisp, and record the middle
+of it. It explains where the starting height really comes from (the `G0Z` in a MakeIt relief
+job - not the focus-assist number), how to read a ramp (on brass the bars at focus are the
+*darkest*), why it may take two or three scrap coins the first time, and why, once found, that
+height holds for that lens and blank thickness. It also compares the method, honestly, with
+focusing by eye or by the machine's own focus. On our machine the ramp put best focus about
+2 mm away from where MakeIt focuses for depth jobs - not yet confirmed by measurement.
 
-**Focus first.** Cutting a coupon begins with a guided focus - focus the machine as for any
-job, read its height, and the first time for each lens and thickness cut a small focus ramp on
-scrap to find and verify the sharpest height - and the focus is recorded with every coupon.
-Not yet exercised on a machine: the height reading in particular is unconfirmed, which is why
-nothing puts a Z move into a job unless you have seen a ramp prove it.
+**Fixed from the first bench session:**
 
-**Not built yet:** entering the depth readings. The measure window waits for the depth gauge.
+- The focus window accepts the machine's real height, which can be negative; a laser camera
+  reply of all zeros is reported as "no measurement" instead of a height of 0.
+- Stopping an armed focus ramp no longer reports it as cut, and lets you send again.
+- The ramp's confirmation names the bed position it will cut at, as well as the heights -
+  ramps go where the cut window's position says, not where the red pointer is.
+- On a coin blank the test number ("DV 1") stays inside the blank's rim; it used to run off
+  the edge.
+- A patch planned right at the study's energy ceiling is no longer refused for the audit's own
+  counting error; the audit now shows the ceiling, its limit and the reading.
+- The focus window's advice on reading a ramp is corrected.
 
-**Under the bonnet:** the code that talks to the Lumos Ultra - the job writer, the energy
-audit, the bed camera and its calibration - is now shared with MOPAChroma Atlas as a set of
-libraries, so both programs send jobs and place them on the camera's picture the same way,
-and a camera calibration made in one serves the other. DepthView now builds on .NET 10; the
-zips still carry the runtime inside them, so nothing changes for installing or updating.
+**Reference studies and settings from the evidence** (new since 1.12.0, still preview). An
+empty ablation database offers studies gathered from published sources - vendor recipes,
+a peer-reviewed stainless study, practitioner brass recipes - showing for each where it comes
+from and how much weight it deserves before anything is added. The Tune window's **Settings
+from the study...** (and `--suggest-settings`) then proposes MakeIt settings for a target depth
+from the best evidence available, with its source and grade on every number and no guessing
+beyond what was tested; for brass, copper and aluminium it says plainly that nothing measured
+exists yet.
 
 ## Updating
 
-**From 1.4.0 to 1.11.0:** the green bar will offer this release — click **Update now**.
-When 1.12.0 starts, it offers these notes.
+**From 1.4.0 to 1.12.0:** the green bar will offer this release — click **Update now**.
+When 1.13.0 starts, it offers these notes.
 
 **From 1.3.0 or earlier:** those versions cannot update themselves. Download this release by
 hand once; from then on, updates come to you.

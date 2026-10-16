@@ -3,6 +3,57 @@
 Everything discussed and consciously set aside, with enough context to pick it up cold.
 Ordered by my estimate of value per unit of work, not by size.
 
+### Resume here first - ablation bench, paused 2026-10-15 after 1.13.0 (waiting for the Mitutoyo)
+
+The cutting side has now run on the Lumos Ultra (Benchy). State when set aside:
+
+- **Focus found and recorded** for Brass H62 coin, 100 W MOPA, red lens, 2 mm blank: machine
+  **Z 43.54**, verified by ramp 4 (Z 41.54-45.54, 0.5 mm steps, 50 %/1000 mm/s: crisp lines
+  bars 3-6). MakeIt's own depth-job `G0Z` after focus assist was **45.54** - a 2.0 mm
+  difference, unconfirmed. Full write-up: `docs/PRECISION-FOCUS.md` (with photos).
+- **DV1 (20 patches) and DV2 (14 patches) cut** at G0Z 43.54, centre X 103.0 / Y 105.0, both
+  fully inside the field; the coins were barely warm; QR codes scan. The whole design (34
+  settings) is on coupons. Job files kept in `%APPDATA%\DepthView\ablation\` on Benchy.
+- Next when the gauge arrives, in order:
+  1. **Measure DV1 and DV2** - build the measure window from real readings (the record's shape
+     is in CLAUDE.md). Take each zero in the *middle* of the 1.5 mm gap: the hotter patches
+     have a 0.2-0.4 mm orange oxide halo at their edges.
+  2. **Confirm the 2 mm**: two identical patches on scrap at Z 43.54 and 45.54, measure depth.
+  3. **Fine ramp** (± 0.50, step 0.10) around 43.3-43.5. The recorded 43.54 is bar 5; the
+     strict centre of bars 3-6 is 43.29.
+- Built this session and **released in 1.13.0** (after Lee's bench testing; with the reference
+  studies and settings advisor of earlier the same day):
+  negative machine Z accepted (Z can be negative; only empty means unknown); an all-zeros
+  camera reply reported as "no measurement"; Stop on an armed ramp no longer reads as "ramp
+  cut"; the ramp's clearance tick names the X/Y; coin digits ("DV n") kept inside the rim
+  circle; the coupon audit allows the counting error JobAudit documents (+sqrt(2) x line pitch,
+  max +10 %; DV1's D4 read 100.0 against a 100 ceiling and was refused before); the focus
+  window's reading advice corrected (darkest, not brightest); `docs/PRECISION-FOCUS.md`.
+- Repo tidy 2026-10-15: the root's one-off scratch files, `zupdtest/` and the driver log folder
+  were deleted; forum drafts and the purchase screenshot moved to `D:\DevHome\VS2026\DepthView-private`;
+  `.gitignore` now ignores one `/scratch/` folder instead of naming each file. Put one-offs there.
+  `run-checks.cmd`/`shot-steps.cmd`/`try-project.ps1` were deleted, not tracked: they pointed at
+  `bin\Debug\net8.0` and had been dead since the net10.0 move; CI's build.yml is the check.
+- New follow-ups from the bench (each small):
+  - **Read the starting Z from MakeIt's last job** (`%APPDATA%\Wecreat MakeIt!\gcode\gcode.gc`,
+    first `G0Z`) - offer it in the focus window; `/camera/measure_distance` returns
+    `{"distance":0.0,"height-z":0.0}` on the Ultra and takes a long time. Demote that button.
+  - **Sanity-check a typed Z** against MakeIt's last `G0Z` (warn beyond ~3 mm): a ramp built
+    around -2.70 nearly ran 48 mm from the real height.
+  - **Ramp advice in the window**: if the chosen bar is first or last, refuse to verify and say
+    "move the ramp"; suggest the next ramp's base Z.
+  - **Ramp default power/speed** 50 %/1000 is right; warn above ~60 % (80 %/200 saturated).
+  - **Rimmed blanks**: `CouponSpec` should carry field diameter and field height separately from
+    the rim (ours: 40 mm, rim 2.27 mm, field ~2.13 mm, field 37.38 mm across); the layout
+    circle should use the field.
+  - **Camera calibration** not done yet on Benchy - do it once (jig out of the way or covered,
+    scrap at working height), then the cut window shows placement.
+  - **Coupon temperature / cool-down**: not needed for 2 mm brass at these doses (coin barely
+    warm); keep as an option (record the temperature after the cut, pause by heat input).
+  - Which way is up: confirm whether higher machine Z moves the head away from the bed.
+  - The Lumos's fan ran on after DV1; the job ends exactly as MakeIt's do. Watch whether it
+    stops by itself.
+
 ### Resume here (updated 2026-10-08, 1.11.0)
 
 1.4.0 brought true-scale relief, one program-wide blank, zip installers and the in-place

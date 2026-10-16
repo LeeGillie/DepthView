@@ -105,6 +105,7 @@ public static class CouponJob
         if (l.Coupon.Shape == CouponShape.Coin) room = Math.Min(room, l.MarginMm + l.GapMm);
         double height = Math.Min(l.LabelHeightMm, room - 0.4);
         if (height < 1.0) return [];
+        if (l.Coupon.Shape == CouponShape.Coin) return CoinDigits(l, text, bottom, height, ox, oy);
         // Start clear of the bottom-left cross, which sits in the same margin.
         double left = l.Cells.Min(c => c.X) + (l.MarginMm >= CrossMm + 0.4 ? CrossMm + 0.8 : 0);
         double width = StrokeFont.Width(text, height);
@@ -112,6 +113,35 @@ public static class CouponJob
         if (width > right - left) height *= (right - left) / width;
         if (height < 1.0) return [];
         return StrokeFont.Polylines(text, ox + left, oy + bottom + 0.3 + height, height);
+    }
+
+    /// <summary>
+    /// On a round blank the box under the grid is mostly off the metal (the first coin
+    /// layout drew "DV 1" past the edge). Keep the digits inside the same circle the patches
+    /// keep inside (diameter less the margin, which also keeps them off a raised rim), clear of
+    /// the bottom-left cross, centred in the room left; shrink them to fit, or leave them
+    /// off (the QR code still carries the number) when under 1 mm.
+    /// </summary>
+    private static List<List<(double X, double Y)>> CoinDigits(PatchLayout l, string text, double bottom, double height, double ox, double oy)
+    {
+        double r = l.Coupon.DiameterMm / 2 - l.MarginMm;
+        double cx = l.Coupon.BoxWidthMm / 2, cy = l.Coupon.BoxHeightMm / 2;
+        double top = bottom + 0.3;
+        bool crosses = l.MarginMm >= CrossMm + 0.4;
+        double crossClear = cx - l.PatchSizeMm + CrossMm / 2 + 0.4;          // right end of the bottom-left cross, plus a gap
+        for (int k = 0; k < 10 && height >= 1.0; k++)
+        {
+            double below = top + height - cy;                                  // the text's lower edge, below the centre
+            if (below >= r) return [];
+            double half = Math.Sqrt(r * r - below * below);
+            double lo = cx - half, hi = cx + half;
+            if (crosses) lo = Math.Max(lo, crossClear);
+            double width = StrokeFont.Width(text, height);
+            if (width <= hi - lo)
+                return StrokeFont.Polylines(text, ox + lo + (hi - lo - width) / 2, oy + top + height, height);
+            height *= Math.Max(0.5, (hi - lo) / width) * 0.98;
+        }
+        return [];
     }
 
     /// <summary>Three crosses in the margin, at the top-left, top-right and bottom-left of the grid (never bottom-right, so a picture's way up is unambiguous).</summary>
@@ -149,8 +179,30 @@ public static class CouponJob
     /// per square millimetre read from the G-code itself, so every layer counts whatever the
     /// design said. Fails closed on anything it cannot read.
     /// </summary>
-    public static JobAudit.Result Audit(Study study, string gcode) =>
-        JobAudit.Check(gcode, study.Laser.RatedPowerW, study.EnergyCeilingJPerMm2);
+    public static JobAudit.Result Audit(Study study, string gcode)
+    {
+        // The audit counts lines into 1 mm squares and can read up to one line's worth high
+        // (JobAudit's own note; Atlas keeps its audit limit above its planner's for this). A
+        // raster at an angle crosses a square along at most its diagonal, so one extra line is
+        // at most sqrt(2) x pitch of the square's 1/pitch lines. Without this allowance a patch
+        // planned exactly at the ceiling is refused on counting error alone (DV1, 2026-10-15).
+        double limit = study.EnergyCeilingJPerMm2 * AuditAllowance(study);
+        var r = JobAudit.Check(gcode, study.Laser.RatedPowerW, limit);
+        if (!double.IsFinite(r.MaxJPerMm2)) return r;
+        string msg = r.Ok
+            ? $"Heat check passed: at most {r.MaxJPerMm2:0.0} J/mm² anywhere (ceiling {study.EnergyCeilingJPerMm2:0.#}, audit limit {limit:0.0} with its line-counting allowance)."
+            : $"Not sent: the job would put {r.MaxJPerMm2:0.0} J/mm² into the metal around X {r.AtXMm:0} Y {r.AtYMm:0} mm, over the audit limit of {limit:0.0} J/mm² " +
+              $"(ceiling {study.EnergyCeilingJPerMm2:0.#} plus its line-counting allowance). That much heat cuts into or through the blank.";
+        return r with { Message = msg };
+    }
+
+    /// <summary>1 + sqrt(2) x the widest line pitch the coupon jobs use, mm per 1 mm square; never more than +10 %.</summary>
+    public static double AuditAllowance(Study study)
+    {
+        double pitch = study.Design.Select(s => s.LinePitchMm).Append(study.IdMark.LinePitchMm)
+            .Where(p => double.IsFinite(p) && p > 0).DefaultIfEmpty(0.02).Max();
+        return 1 + Math.Min(0.10, Math.Sqrt(2) * pitch);
+    }
 
     /// <summary>Patches whose planned total dose is over the ceiling, hottest first - caught before a job is even built.</summary>
     public static IReadOnlyList<(string Label, double JPerMm2)> TooHot(Study study, IEnumerable<Patch> patches) =>

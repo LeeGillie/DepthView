@@ -34,10 +34,12 @@ public sealed class AblationFocusWindow : Window
     private readonly double _cx, _cy;
     private readonly CancellationTokenSource _cts = new();
     private bool _rampSent, _rampDone;
+    private volatile bool _stopped;   // Stop was pressed: an armed job reports Busy, so its clearing must not be read as "cut"
     private string? _rampFile;
 
     private readonly TextBox _method = new() { Text = "machine autofocus" };
-    private readonly NumericUpDown _z = new() { Minimum = 0, Maximum = 300, Increment = 0.01m, FormatString = "0.00", ShowButtonSpinner = false, Width = 110 };
+    // The machine's Z is in its own absolute coordinates and can be negative (MakeIt's focus reports a negative Z on the Lumos Ultra), so the box must take negatives.
+    private readonly NumericUpDown _z = new() { Minimum = -300, Maximum = 300, Increment = 0.01m, FormatString = "0.00", ShowButtonSpinner = false, Width = 110 };
     private readonly NumericUpDown _range = new() { Minimum = 0.1m, Maximum = (decimal)FocusRamp.MaxRangeMm, Increment = 0.1m, Value = 1.5m, FormatString = "0.00", ShowButtonSpinner = false, Width = 90 };
     private readonly NumericUpDown _step = new() { Minimum = (decimal)FocusRamp.MinStepMm, Maximum = 1, Increment = 0.05m, Value = 0.25m, FormatString = "0.00", ShowButtonSpinner = false, Width = 90 };
     private readonly NumericUpDown _power = new() { Minimum = 1, Maximum = 100, Increment = 5, Value = 50, FormatString = "0", ShowButtonSpinner = false, Width = 70 };
@@ -91,7 +93,8 @@ public sealed class AblationFocusWindow : Window
 
         p.Children.Add(Head("3. Verify with a ramp (the first time for each lens and thickness)"));
         p.Children.Add(Text("A row of numbered bars, each cut at a different Z around the machine's focus: one single line and one small square per bar, with the bar's number below it. " +
-                            "The bar whose line is narrowest and whose square is brightest is at focus. Cut it on a scrap of the same thickness, placed where the coupon goes. " +
+                            "Read the lines, not the colours: at focus the line is narrow, dark and crisp; away from it, on both sides, it widens and pales or thins and fades. The focus is the middle of the run of crisp bars - if the best bars are at an end of the ramp, the focus is beyond it: move the ramp and cut again (docs/PRECISION-FOCUS.md). " +
+                            "On brass the squares at focus come out darkest, not brightest. Cut it on a scrap of the same thickness, placed where the coupon goes, and compare bars on one face only. " +
                             "If no bar looks different from the others, the Z number is not what the jobs assume - do not put Z in the jobs.", 11, Muted));
         var r = new WrapPanel();
         r.Children.Add(Small("± range mm", _range)); r.Children.Add(Small("step mm", _step)); r.Children.Add(Small("power %", _power)); r.Children.Add(Small("speed mm/s", _speed));
@@ -140,8 +143,8 @@ public sealed class AblationFocusWindow : Window
     public static async Task<FocusRecord?> ShowAsync(Window owner, Study study, string address, double cx, double cy, FocusRecord? previous)
         => await new AblationFocusWindow(study, address, cx, cy, previous) { Icon = owner.Icon }.ShowDialog<FocusRecord?>(owner);
 
-    /// <summary>The machine Z as entered; empty or zero means "not known".</summary>
-    private double? Z => _z.Value is { } v && v > 0 ? (double)v : null;
+    /// <summary>The machine Z as entered; empty means "not known". Negative values are normal (machine coordinates).</summary>
+    private double? Z => _z.Value is { } v ? (double)v : null;
     private double Range => _range.Value is { } v ? (double)v : 1.5;
     private double Step => _step.Value is { } v ? (double)v : 0.25;
 
@@ -154,7 +157,7 @@ public sealed class AblationFocusWindow : Window
         {
             double lo = z - Range, hi = z + Range;
             _rampPlan.Text = $"{offsets.Length} bars, {FocusRamp.WidthMm(offsets.Length):0} × {FocusRamp.HeightMm:0} mm, centred at X {_cx:0.0}, Y {_cy:0.0}: Z from {lo:0.00} to {hi:0.00} mm, bar {offsets.Length / 2 + 1} at the machine's own focus.";
-            _clear.Content = $"The head can move freely between Z {lo:0.00} and {hi:0.00} mm: nothing on the bed is taller than the scrap, and the Z above is the machine's real height";
+            _clear.Content = $"The scrap sits at X {_cx:0.0}, Y {_cy:0.0} (set in the cut window), and the head can move freely between Z {lo:0.00} and {hi:0.00} mm: nothing on the bed is taller than the scrap, and the Z above is the machine's real height";
             _clear.IsEnabled = true;
         }
         else
@@ -164,6 +167,9 @@ public sealed class AblationFocusWindow : Window
             _clear.IsEnabled = false; _clear.IsChecked = false;
         }
         _sendRamp.IsEnabled = !_rampSent && Z is not null;
+        ToolTip.SetTip(_sendRamp, _rampSent ? "The ramp has been sent."
+            : Z is null ? "Enter the machine's Z in section 2 first (what MakeIt reports after its focus; negative is normal)."
+            : "Build the ramp job, check it, send it and arm it. Press Start on the machine to cut it.");
         RefreshPick();
     }
 
@@ -208,7 +214,11 @@ public sealed class AblationFocusWindow : Window
             string raw = await client.GetRawAsync(q, _cts.Token);
             _lastReply = raw.Length > 400 ? raw[..400] : raw;
             var h = MachineHeight.Parse(raw);
-            if (h.BestZ is { } z)
+            if (h.BestZ is 0 && (h.Distance ?? 0) == 0)
+                // {"distance":0.0,"height-z":0.0} is what the laser returns when it has not measured - not a height of 0.
+                _readText.Text = $"The laser answered {_lastReply.Trim()} - all zeros, which means no measurement, not a height. " +
+                                 "Type the Z MakeIt reports after its focus (negative is normal) and press Tab.";
+            else if (h.BestZ is { } z)
             {
                 _z.Value = (decimal)Math.Round(z, 3);
                 _readText.Text = $"The laser answered {_lastReply.Trim()} - taken as Z {z:0.00} mm. Before trusting it, compare it with the G0Z at the start of a MakeIt relief job made at this same focus; the ramp will show whether it drives the head.";
@@ -254,6 +264,7 @@ public sealed class AblationFocusWindow : Window
 
     private async Task StopAsync()
     {
+        _stopped = true;
         try { using var client = Client(); await client.CancelJobAsync(_cts.Token); _status.Text = "Stop sent."; }
         catch (Exception ex) { _status.Text = $"Could not send stop: {ex.Message}. Use the stop button on the machine."; }
     }
@@ -271,11 +282,23 @@ public sealed class AblationFocusWindow : Window
             catch (Exception ex) { if (++errors == 5) _status.Text = $"Lost touch with the laser ({ex.Message}). Still trying…"; continue; }
             if (!running && status == JobStatus.Busy) { running = true; started = DateTime.Now; Show(_rampText, Busy, "…", "Cutting the ramp…"); }
             else if (running && status == JobStatus.Busy) { notBusy = 0; Show(_rampText, Busy, "…", $"Cutting the ramp… {Durations.Clock(DateTime.Now - started)}"); }
+            else if (_stopped && status != JobStatus.Busy)
+            {
+                // Stopped before (or while) cutting: nothing usable was cut. Unlock so the ramp can be moved and sent again.
+                _stopped = false; _rampSent = false;
+                _stop.IsVisible = false;
+                _z.IsEnabled = _range.IsEnabled = _step.IsEnabled = _read.IsEnabled = true;
+                Show(_rampText, Bad, "■", running
+                    ? "Stopped. The job was cleared before it finished - do not judge focus from a partial ramp. Check the position and send again."
+                    : "Stopped before it was started - nothing was cut. Check the position and send again.");
+                RefreshPlan();
+                return;
+            }
             else if (running && ++notBusy >= 2)
             {
                 _rampDone = true;
                 _stop.IsVisible = false;
-                Show(_rampText, Ok, "✓", "Ramp cut. Look at it under magnification: which bar's single line is narrowest and square brightest? Enter its number, and tick whether the bars differed at all.");
+                Show(_rampText, Ok, "✓", "Ramp cut. Look at it under magnification: find the run of bars whose single lines are crisp, narrow and dark, with worse bars on both sides, and enter the bar in its middle. If the best bars are at an end, do not record: move the ramp that way and cut again. Tick whether the bars differed at all.");
                 var offsets = FocusRamp.Offsets(Range, Step);
                 _bar.Value = offsets.Length / 2 + 1;
                 RefreshPick();

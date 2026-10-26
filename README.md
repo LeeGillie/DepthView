@@ -1020,7 +1020,12 @@ efficiency (grade B, the recipe's speed and frequency reconstructed from the pap
 dose); and two practitioner coin recipes for brass with no depth measured at all (grade E).
 Every patch in them is marked *predicted*, carries its source and grade, and a reference
 study can never be planned, cut or measured - it is a starting point for choosing settings
-and, later, a comparison against your own coupons. The new-study dialog also says what the
+and, later, a comparison against your own coupons. A database that already holds your own
+study was never offered them, so the settings advice says so when it matters - "Uncalibrated
+here: the bundled reference studies are not in this database, and they hold reported depth
+figures for stainless steel ... (grade C-derived/B-derived)" - and puts an **Add the
+reference studies...** button under the verdict; the same offer, the same provenance shown
+first, and the advice recomputes once they are in. The new-study dialog also says what the
 literature would predict for a design, with the same grades: stainless has a removal
 efficiency of roughly 0.7-2.7 µm per J/mm² from other machines; brass, copper and aluminium
 have no measured value at all, only a placeholder scaled from stainless; titanium and UV have
@@ -1177,6 +1182,7 @@ DepthView --suggest-settings --material stainless-304 --laser lumos-ultra-mopa-1
 DepthView --suggest-settings --material brass-h62 --for lightburn   # the sheet for LightBurn Grayscale, as text
 DepthView --advice-ui --screenshot adv.png               # the settings-advice window on the demo database
 DepthView --advice-ui --material brass --screenshot adv-brass.png   # ... showing the labelled default descent
+DepthView --advice-ui --empty-db --screenshot adv-empty.png  # ... on an empty database: the missing-reference-studies verdict
 ```
 
 `--suggest-settings` reads your own ablation database (`--db <file>` for another; `--demo-db`

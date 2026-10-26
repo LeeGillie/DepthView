@@ -123,7 +123,12 @@ public partial class MainWindow : Window
             }
             if (Program.StartupAdvice)
             {
-                var (db, _, _) = Ablation.Demo.Build();
+                // --empty-db shows the window over an empty database instead of the demo's, so
+                // the "reference studies not added" state can be captured.
+                Ablation.AblationDatabase db;
+                if (Program.StartupAdviceEmptyDb)
+                    db = Ablation.AblationDatabase.Load(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "depthview-advice-empty-" + Guid.NewGuid().ToString("N")[..8] + ".json"));
+                else (db, _, _) = Ablation.Demo.Build();
                 // --material <name> picks the material shown (stainless by default), so the
                 // screenshot can show either a predicted descent or the labelled default.
                 var cm = Materials.MaterialCatalog.Find(Blank.Current.MaterialId);

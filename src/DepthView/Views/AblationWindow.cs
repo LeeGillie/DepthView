@@ -364,51 +364,13 @@ public sealed class AblationWindow : Window
     /// </summary>
     public async Task<bool> OfferSeedsAsync(bool unasked)
     {
-        var seeds = Seeds.All();
-        var w = new Window { Title = "Reference studies bundled with DepthView", Width = 720, SizeToContent = SizeToContent.Height, Background = Bg, WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = Icon, CanResize = false };
-        CurrentDialog = w;
-        var panel = new StackPanel { Margin = new Thickness(16), Spacing = 10 };
-        panel.Children.Add(Text(unasked
-            ? "The database is empty. DepthView can add reference studies to start from - but read where they come from first."
-            : "DepthView can add (or refresh) its bundled reference studies. Read where they come from first.", 12, Bright, FontWeight.SemiBold));
-        panel.Children.Add(Text("None of this was cut or measured on your machine, or on any Lumos Ultra. Each study gathers what one source reported - " +
-                                "a vendor's help page, a peer-reviewed paper, a practitioner's blog - on that source's own laser, lens and focus. Every figure is marked " +
-                                "PREDICTED with its source and grade (B peer-reviewed with settings; C a vendor's measured figure; E a recipe with no measurement), " +
-                                "and a reference study can never be planned, cut or measured. They are a starting point for choosing settings when you cannot run the bench " +
-                                "tests yourself, and a comparison for the day you can. Later releases will add studies measured on a known Lumos Ultra, and those will outrank these.", 12, Ink));
-        foreach (var seed in seeds)
-        {
-            var box = new Border { Background = Panel, BorderBrush = B("#333944"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(10, 6) };
-            var st = new StackPanel { Spacing = 2 };
-            st.Children.Add(Text(seed.Study.Name, 12, Bright, FontWeight.SemiBold));
-            st.Children.Add(Text($"From: {seed.From}. Kind: {seed.Kind}. Grade: {seed.Grade}. Contents: {seed.What}.", 11, Ink));
-            var urls = seed.Study.Coupons.SelectMany(c => c.Patches).Select(p => p.Provenance?.Url).Where(u => !string.IsNullOrEmpty(u)).Distinct().ToList();
-            if (urls.Count > 0) st.Children.Add(Text("Source: " + string.Join("  ", urls), 10, Muted));
-            box.Child = st;
-            panel.Children.Add(box);
-        }
-        panel.Children.Add(Text($"The literature review these are drawn from is {MaterialPrior.ResearchDoc} in the DepthView repository, with every grade explained.", 11, Muted));
-        var add = MakeButton("Add the reference studies", "Adds them to the database, marked as reference studies. They can be deleted at any time.");
-        var skip = MakeButton(unasked ? "Not now" : "Cancel", "");
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        buttons.Children.Add(skip); buttons.Children.Add(add);
-        panel.Children.Add(buttons);
-        w.Content = new ScrollViewer { Content = panel, MaxHeight = 760 };
-        add.Click += (_, _) => w.Close(true);
-        skip.Click += (_, _) => w.Close(false);
-        bool yes = await w.ShowDialog<bool>(this);
-        if (yes)
-        {
-            int n = Seeds.AddAll(_db);
-            Save();
-            FillStudies();
-            _status.Text = $"{n} reference stud{(n == 1 ? "y" : "ies")} added - every figure in them is marked with its source; none was cut here.";
-        }
-        else
-        {
-            _db.SeedsOfferedVersion = Seeds.Version;   // asked and declined: do not ask again for this set
-            Save();
-        }
+        bool yes = await SeedsOfferDialog.ShowAsync(this, _db, unasked,
+            onAdded: n =>
+            {
+                FillStudies();
+                _status.Text = $"{n} reference stud{(n == 1 ? "y" : "ies")} added - every figure in them is marked with its source; none was cut here.";
+            },
+            track: w => CurrentDialog = w);
         return yes;
     }
 

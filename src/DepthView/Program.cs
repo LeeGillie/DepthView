@@ -76,6 +76,8 @@ internal static partial class Program
     public static string? StartupAblationView;
     /// <summary>--advice-ui: open the settings-advice window on the demo database, for screenshots and a look.</summary>
     public static bool StartupAdvice;
+    /// <summary>--empty-db with --advice-ui: the window over an empty database (in a temp file), to show the state before the reference studies are added.</summary>
+    public static bool StartupAdviceEmptyDb;
 
     /// <summary>Open the About box straight away. Exists so its screenshot is reproducible too.</summary>
     public static bool StartupAbout;
@@ -673,6 +675,7 @@ internal static partial class Program
         StartupAblation = args.Any(a => a is "--ablation-ui");
         StartupAblationView = !StartupAblation ? null : args.Any(a => a is "--new-study") ? "study" : args.Any(a => a is "--focus") ? "focus" : args.Any(a => a is "--cut") ? "cut" : args.Any(a => a is "--seeds") ? "seeds" : args.Any(a => a is "--reference") ? "reference" : null;
         StartupAdvice = args.Any(a => a is "--advice-ui");
+        StartupAdviceEmptyDb = args.Any(a => a is "--empty-db");
         StartupLicence = args.Any(a => a is "--licence" or "--license");
         if (StartupLicence) StartupAbout = true;
 

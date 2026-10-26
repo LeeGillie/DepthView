@@ -28,7 +28,7 @@ public sealed class SettingsAdviceWindow : Window
     private readonly NumericUpDown _passes = new() { Minimum = 1, Maximum = 65535, Increment = 16, FormatString = "0", Width = 110 };
     private readonly TextBlock _verdict = Text("", 13, Bright, FontWeight.SemiBold), _grade = Text("", 12, Ink), _recipe = Text("", 12, Ink),
         _notes = Text("", 11, Muted), _warn = Text("", 12, Amber), _used = Text("", 11, Muted);
-    private readonly Button _copy, _close;
+    private readonly Button _copy, _close, _addSeeds;
     private SettingsAdvice? _advice;
 
     public SettingsAdviceWindow(AblationDatabase db, string? materialName, LaserKind? kind, string? lens, double targetDepthMm, int passes)
@@ -72,6 +72,8 @@ public sealed class SettingsAdviceWindow : Window
 
         _copy = MakeButton("Copy the recipe", "Copy the settings sheet as text, with what every line rests on, to type into the program.");
         _close = MakeButton("Close", "");
+        _addSeeds = MakeButton("Add the reference studies...", "The bundled reference studies - figures other people reported, with their source and grade on every one - are not in this database. See where each comes from, then add them; the advice is recomputed.");
+        _addSeeds.IsVisible = false;
 
         // The program the sheet is written for: the wizard's last target, or MakeIt.
         _host.Items.Add(new ComboBoxItem { Content = RecipeSheet.HostName(HostProgram.MakeIt), Tag = HostProgram.MakeIt });
@@ -99,6 +101,7 @@ public sealed class SettingsAdviceWindow : Window
 
         p.Children.Add(Head("Advice"));
         p.Children.Add(_verdict);
+        p.Children.Add(_addSeeds);
         p.Children.Add(_grade);
         // The sheet: one line per setting the program asks for, with what it rests on beside
         // it. A default is coloured as a default; the descent per layer in particular is never
@@ -128,6 +131,10 @@ public sealed class SettingsAdviceWindow : Window
         _host.SelectionChanged += (_, _) => Refresh();
         _copy.Click += async (_, _) => { if (_advice?.Recipe is not null && Clipboard is { } cb) await cb.SetTextAsync(RecipeSheet.ToText(_advice, Host)); };
         _close.Click += (_, _) => Close();
+        _addSeeds.Click += async (_, _) =>
+        {
+            if (await SeedsOfferDialog.ShowAsync(this, _db, unasked: false)) Refresh();
+        };
         Refresh();
     }
 
@@ -140,6 +147,7 @@ public sealed class SettingsAdviceWindow : Window
         var a = _advice;
         _verdict.Text = a.Verdict;
         _verdict.Foreground = a.HasRecipe && a.PredictedPerPassUm is not null ? (a.Grade == "A" ? Green : Bright) : Amber;
+        _addSeeds.IsVisible = a.ReferenceStudiesMissing;
         _grade.Text = $"Grade of this advice: {a.GradeText}." + (a.RayleighMm is { } z ? $" Estimated Rayleigh range of the lens: {z:0.##} mm." : "");
         _recipe.Text = a.Recipe is null ? "No recipe: nothing in the evidence applies to this material on this kind of source." : RecipeText(a);
         FillSheet(a);

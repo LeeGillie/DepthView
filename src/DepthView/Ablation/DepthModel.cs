@@ -101,6 +101,8 @@ public sealed record SettingsAdvice
     public double? RayleighMm { get; init; }
     public string Grade { get; init; } = "E";
     public string Verdict { get; init; } = "";
+    /// <summary>The bundled reference studies for this material and kind of source are not in the database: adding them would change the advice.</summary>
+    public bool ReferenceStudiesMissing { get; init; }
     public List<string> Notes { get; init; } = [];
     public List<string> Warnings { get; init; } = [];
     public List<Evidence> Used { get; init; } = [];
@@ -179,13 +181,32 @@ public static class SettingsAdvisor
                           (Math.Abs(s.Laser.RatedPowerW - laser.RatedPowerW) > 0.5 ? $"Carried from {s.Laser.RatedPowerW:0} W to {laser.RatedPowerW:0} W by watts ({conv.Note}). " : "") +
                           "No depth was reported for it, so none is predicted.");
             }
+            // "Not in the literature" is only true once the bundled reference studies are in the
+            // database. A database that holds the user's own studies was never offered them, so
+            // say what they would add, and where the button is, instead of a false absence.
+            var missingSeeds = Seeds.All()
+                .Where(sd => db.Studies.All(x => x.Id != sd.Study.Id)
+                             && sd.Study.Material.Name == material.Name && sd.Study.Laser.Kind == laser.Kind)
+                .ToList();
+            bool seedsHoldDepth = missingSeeds.Any(sd => sd.Study.Coupons.SelectMany(c => c.Patches).Any(p => p.Measurement is not null));
+            bool seedsHoldRecipe = missingSeeds.Any(sd => sd.Study.Coupons.SelectMany(c => c.Patches).Any(p => p.Provenance is not null));
+            string uncal;
+            if (laser.Kind != LaserKind.Uv && (seedsHoldDepth || (recipe is null && seedsHoldRecipe)))
+                uncal = $"Uncalibrated here: the bundled reference studies are not in this database, and they hold " +
+                          (seedsHoldDepth ? $"reported depth figures for {material.Name.ToLowerInvariant()} on fibre sources from other machines (grade {string.Join("/", missingSeeds.Select(sd => sd.Grade).Distinct())})"
+                                          : $"reported starting recipes for {material.Name.ToLowerInvariant()} (no depth measured, grade E)") +
+                          ". Add them - Ablation study > Reference studies..., each shown with its source and grade first - and this advice changes accordingly. " +
+                          "Cut one coupon of an ablation study on this material and it becomes a measurement.";
+            else
+                uncal = $"Uncalibrated: there is no depth figure for {material.Name.ToLowerInvariant()} on a {laser.Kind.ToString().ToUpperInvariant()} source - " +
+                          (laser.Kind == LaserKind.Uv ? "no measured UV removal rate exists for any metal. " : "not in the literature, not on this bench. ") +
+                          "Cut one coupon of an ablation study on this material and the advice becomes a measurement.";
             return new SettingsAdvice
             {
                 Recipe = recipe, Laser = laser, MaterialName = material.Name, TargetDepthMm = targetDepthMm, Passes = passes, RayleighMm = zr,
                 Grade = "E",
-                Verdict = $"Uncalibrated: there is no depth figure for {material.Name.ToLowerInvariant()} on a {laser.Kind.ToString().ToUpperInvariant()} source - " +
-                          (laser.Kind == LaserKind.Uv ? "no measured UV removal rate exists for any metal. " : "not in the literature, not on this bench. ") +
-                          "Cut one coupon of an ablation study on this material and the advice becomes a measurement.",
+                Verdict = uncal,
+                ReferenceStudiesMissing = laser.Kind != LaserKind.Uv && missingSeeds.Count > 0,
                 Notes = notes, Warnings = warn,
             };
         }

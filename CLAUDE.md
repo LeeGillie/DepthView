@@ -808,7 +808,15 @@ that are load-bearing:
   OfferSeedsAsync`) lists every seed's source, kind, grade and URL before anything is added -
   Lee: "make it clear to the user where the pre seed data comes from when offering the choice";
   shown once per `Seeds.Version` on an empty database (`SeedsOfferedVersion`, reset by Reset)
-  and from the "Reference studies..." button; never on the demo/screenshot path. Imported
+  and from the "Reference studies..." button; never on the demo/screenshot path. The offer
+  itself lives in `Views/SeedsOfferDialog.ShowAsync` so the settings-advice window can raise
+  it too: when `Advise` finds no evidence it checks `Seeds.All()` for seeds of that material
+  and laser kind missing from the database, sets `SettingsAdvice.ReferenceStudiesMissing`,
+  and the verdict names what they hold (depth figures vs. recipes only, with grades) instead
+  of claiming "not in the literature"; the window shows "Add the reference studies..." and
+  recomputes after. Lee hit this on Benchy 2026-10-26: his database held his own brass
+  study, so the empty-database offer never appeared and stainless looked uncalibrated.
+  `--advice-ui --empty-db` screenshots that state on a temp-path database. Imported
   studies keep their own numbers, so `FindCoupon` searches local studies first.
 - **Settings from the evidence** (`Ablation/DepthModel.cs`: `Evidence`, `SettingsAdvice`,
   `SettingsAdvisor`; `Views/SettingsAdviceWindow`; the Tune window's JOB section button;

@@ -27,7 +27,8 @@ public sealed class AblationStudyDialog : Window
 
     private readonly TextBox _name = new() { Watermark = "e.g. Brass H62 sheet, MOPA 100 W" };
     private readonly ComboBox _material = new(), _laser = new(), _shape = new();
-    private readonly TextBox _alloy = new(), _lens = new(), _materialNotes = new() { Watermark = "Supplier, batch, surface state..." };
+    private readonly TextBox _alloy = new(), _materialNotes = new() { Watermark = "Supplier, batch, surface state..." };
+    private readonly Controls.LensPicker _lens = new();
     private readonly NumericUpDown _density = Num(0.5, 25, 0.01, "0.00"), _rated = Num(1, 1000, 1, "0"), _spot = Num(1, 500, 1, "0"),
         _width = Num(5, 210, 0.1, "0.0"), _height = Num(5, 210, 0.1, "0.0"), _diameter = Num(5, 210, 0.1, "0.0"),
         _thick = Num(0.1, 50, 0.1, "0.0#"), _corner = Num(0, 50, 0.5, "0.0"),
@@ -85,7 +86,7 @@ public sealed class AblationStudyDialog : Window
         left.Children.Add(Row("Laser", _laser, "The source the study is cut on. Its rating in watts is what every figure is derived from: 50 % of a 60 W source is 30 W, of a 100 W source 50 W."));
         left.Children.Add(Row("Rated power W", _rated, "The source's rating. Results are stored against watts, so they can be carried to another rating by watts."));
         left.Children.Add(Row("Spot µm", _spot, "What the fluence figures assume. Measure it (the calibration coupon) rather than trusting the lens label."));
-        left.Children.Add(Row("Lens", _lens, "Which lens was fitted. Removal efficiency is calibrated per lens."));
+        left.Children.Add(Row("Lens", _lens, "Which lens was fitted: the Lumos Ultra's own by default, or a third-party f-theta. Removal efficiency is calibrated per lens, and so is the focus."));
 
         left.Children.Add(Head("Coupon - every one identical"));
         left.Children.Add(Row("Shape", _shape, "A rectangle of sheet, or a round blank."));
@@ -174,7 +175,7 @@ public sealed class AblationStudyDialog : Window
     private LaserSpec Laser()
     {
         var l = Selected<LaserSpec>(_laser) ?? LaserSpec.Presets[0];
-        return l with { RatedPowerW = (double)(_rated.Value ?? 100), SpotDiameterUm = (double)(_spot.Value ?? 40), Lens = _lens.Text ?? l.Lens };
+        return l with { RatedPowerW = (double)(_rated.Value ?? 100), SpotDiameterUm = (double)(_spot.Value ?? 40), Lens = string.IsNullOrWhiteSpace(_lens.Text) ? l.Lens : _lens.Text };
     }
 
     private CouponSpec Coupon() => new()

@@ -114,7 +114,10 @@ public static class MaterialCatalog
 
     /// <summary>The catalogue entry for an ablation study material, by its name; null when the study knows a material the catalogue does not.</summary>
     public static CatalogMaterial? ByAblationName(string? name)
-        => string.IsNullOrWhiteSpace(name) ? null : All.FirstOrDefault(m => m.AblationName is { } a && a.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));
+        => string.IsNullOrWhiteSpace(name) ? null
+         : All.FirstOrDefault(m => m.AblationName is { } a && a.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase))
+           // A material the study does not keep (wood, glass) still has a catalogue entry and a verdict.
+           ?? All.FirstOrDefault(m => m.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The source kind for the Tune window's laser ids ("uv", "mopa", "fiber", "co2", "diode"); null when not set.</summary>
     public static SourceKind? SourceFromId(string? laserTypeId) => laserTypeId?.ToLowerInvariant() switch

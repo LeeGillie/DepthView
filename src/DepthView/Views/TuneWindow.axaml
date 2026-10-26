@@ -364,8 +364,9 @@
               <TextBlock x:Name="CapabilityNote" FontSize="11" Foreground="#8A929E" TextWrapping="Wrap" IsVisible="False" Margin="0,4,0,0" />
               <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
                 <TextBlock Grid.Column="0" Classes="label" Text="Lens" />
-                <TextBox Grid.Column="1" x:Name="LensBox" Watermark="e.g. F160, 110 x 110 mm"
-                         ToolTip.Tip="The lens or field, as you would name it. Recorded in the settings profile and the job report." />
+                <!-- The Lumos Ultra's own lenses first and by default, the common third-party
+                     f-theta sizes after, and a box for any other. The name is what is recorded. -->
+                <ctl:LensPicker Grid.Column="1" x:Name="LensBox" />
               </Grid>
               <Button x:Name="AdviceButton" Content="Settings from the study ..." Click="OnSettingsAdvice" Margin="0,8,0,0"
                       ToolTip.Tip="Power, speed, line density, frequency, pulse width and descent per layer for this target depth and pass count, from the ablation study's evidence - your measured coupons when there are any, the bundled reference studies otherwise - with the predicted depth as a band, the grade of what it rests on, and nothing extrapolated beyond what was tested. Preview: nothing has been measured on a Lumos Ultra yet." />

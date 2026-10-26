@@ -845,6 +845,14 @@ source works, anodised aluminium is marginal (the colour comes off in the first 
 on a CO2 or clear acrylic on a fibre is not possible, with the reason. The verdicts are the
 optics of the pairing, never a removal figure; the settings advisor refuses a pairing that
 removes nothing and warns on a marginal one. `DepthView --materials` prints the table.
+A material the ablation study does not keep - wood, glass, acrylic - is named as such in
+the settings advice ("Wood - not in the ablation study") with the capability verdict and no
+recipe, never quietly swapped for brass. **Lens**, wherever it is asked for (the JOB section,
+the settings advice, a new study), is a list that starts with the lenses the Lumos Ultra
+comes with - the red MOPA lens and the UV lens, marked *as shipped* and chosen by default -
+then the common third-party f-theta sizes (F100 to F420, marked *third party*, with the
+note that the field calibration, the spot and the focus do not carry over), then *Other
+lens (type it)*. The name chosen is what the profile, the focus record and the study store.
 
 ### About
 

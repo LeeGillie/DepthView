@@ -22,7 +22,7 @@ public sealed class SettingsAdviceWindow : Window
 
     private readonly AblationDatabase _db;
     private readonly ComboBox _material = new(), _laser = new(), _host = new();
-    private readonly TextBox _lens = new();
+    private readonly Controls.LensPicker _lens = new();
     private readonly StackPanel _sheet = new() { Spacing = 2 };
     private readonly NumericUpDown _target = new() { Minimum = 0.01m, Maximum = 20, Increment = 0.05m, FormatString = "0.00", Width = 110 };
     private readonly NumericUpDown _passes = new() { Minimum = 1, Maximum = 65535, Increment = 16, FormatString = "0", Width = 110 };
@@ -39,15 +39,34 @@ public sealed class SettingsAdviceWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = Bg;
 
-        foreach (var m in MaterialSpec.Presets) _material.Items.Add(new ComboBoxItem { Content = m.Summary, Tag = m });
+        // Every material the program knows, in the catalogue's order: the alloys the study
+        // keeps for it where there are any, else one entry that says the study has nothing -
+        // never a silent fall-back to brass when the blank says wood.
+        var specs = new List<MaterialSpec>();
+        foreach (var cm in Materials.MaterialCatalog.All)
+        {
+            var alloys = MaterialSpec.Presets.Where(m => cm.AblationName is { } an && m.Name.Equals(an, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (alloys.Count == 0)
+                alloys.Add(new MaterialSpec { Id = "catalog-" + cm.Id, Name = cm.Name, Alloy = "", Notes = "Not in the ablation study's material list: no removal evidence can exist for it yet." });
+            foreach (var m in alloys)
+            {
+                string label = m.Id.StartsWith("catalog-") ? $"{m.Name} - not in the ablation study" : m.Summary;
+                specs.Add(m);
+                _material.Items.Add(new ComboBoxItem { Content = label, Tag = m });
+            }
+        }
         foreach (var l in LaserSpec.Presets) _laser.Items.Add(new ComboBoxItem { Content = l.Summary, Tag = l });
-        // The finishing recipe names its metal with one lowercase word ("brass", "stainless"); match the preset whose name starts with it.
+        // The caller names the material as the catalogue does ("Wood", "Stainless steel") or as the
+        // study does; the first alloy of that material is chosen.
         int mi = string.IsNullOrWhiteSpace(materialName) ? -1
-            : MaterialSpec.Presets.ToList().FindIndex(m => m.Name.StartsWith(materialName.Trim(), StringComparison.OrdinalIgnoreCase) || materialName.Trim().StartsWith(m.Name, StringComparison.OrdinalIgnoreCase));
+            : specs.FindIndex(m => m.Name.Equals(materialName.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (mi < 0 && !string.IsNullOrWhiteSpace(materialName))
+            mi = specs.FindIndex(m => m.Name.StartsWith(materialName.Trim(), StringComparison.OrdinalIgnoreCase) || materialName.Trim().StartsWith(m.Name, StringComparison.OrdinalIgnoreCase));
         _material.SelectedIndex = Math.Max(0, mi);
         int li = kind is { } k ? LaserSpec.Presets.ToList().FindIndex(l => l.Kind == k) : 0;
         _laser.SelectedIndex = Math.Max(0, li);
-        _lens.Text = lens ?? "";
+        // The lens: as named in the Tune window, else the one the Lumos Ultra comes with for this kind of source.
+        _lens.Text = string.IsNullOrWhiteSpace(lens) ? LensCatalog.DefaultFor(kind ?? LaserKind.Mopa).Name : lens;
         _target.Value = (decimal)Math.Clamp(targetDepthMm, 0.01, 20);
         _passes.Value = Math.Max(1, passes);
 
@@ -103,7 +122,7 @@ public sealed class SettingsAdviceWindow : Window
 
         _material.SelectionChanged += (_, _) => Refresh();
         _laser.SelectionChanged += (_, _) => Refresh();
-        _lens.TextChanged += (_, _) => Refresh();
+        _lens.Changed += (_, _) => Refresh();
         _target.ValueChanged += (_, _) => Refresh();
         _passes.ValueChanged += (_, _) => Refresh();
         _host.SelectionChanged += (_, _) => Refresh();

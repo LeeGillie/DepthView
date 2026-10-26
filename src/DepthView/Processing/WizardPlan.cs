@@ -255,11 +255,17 @@ public sealed class WizardPlan
             BlankDiameterMm = blankMm,
             TargetDepthMm = depthMm,
         };
+        // The wizard plans against the program-wide blank's shape; its own figures (blankMm,
+        // depthMm) are what it was given and stay as they are.
+        var shapeOf = Blank.Current;
+        o.Shape = shapeOf.Shape; o.BlankWidthMm = shapeOf.WidthMm; o.BlankHeightMm = shapeOf.HeightMm;
+        o.CornerRadiusMm = shapeOf.CornerRadiusMm; o.Holes = new List<BlankHole>(shapeOf.Holes);
         if (a.Rim != RimChoice.None)
         {
             o.RimWidthMm = a.RimMm;
             o.RimRampMm = a.RampMm;
-            o.Fit = a.Rim == RimChoice.Replace ? FitPolicy.Design : a.Placement switch
+            // Fitting by padding is for the round blank; a plate is cut as the image stands.
+            o.Fit = o.Shape != BlankShape.Round ? FitPolicy.None : a.Rim == RimChoice.Replace ? FitPolicy.Design : a.Placement switch
             {
                 PlacementChoice.Design => FitPolicy.Design,
                 PlacementChoice.Grow => FitPolicy.Content,
@@ -314,12 +320,23 @@ public sealed class WizardPlan
         if (s.BackgroundShare >= 0.01)
             c.Add(new(p.BackgroundIsDesign ? "Background kept as a floor" : "Background treated as a surround",
                 p.BackgroundIsDesign ? "It is part of the design: a cut-away floor engraved to its depth."
-                                     : "It is not part of the coin, so it does not set the levels" +
-                                       (a.Rim == RimChoice.None ? " - but with no rim it is still engraved where it lies." : ", and the rim leaves it uncut.")
+                                     : $"It is not part of the {(o.Shape == BlankShape.Rectangle ? "design" : "coin")}, so it does not set the levels" +
+                                       (a.Rim == RimChoice.None ? $" - but with no {(o.Shape == BlankShape.Rectangle ? "border" : "rim")} it is still engraved where it lies."
+                                        : o.Shape == BlankShape.Rectangle ? ", and the border leaves it uncut along the edges." : ", and the rim leaves it uncut.")
                                        + (o.UniformSurround ? $" It is not one level ({s.BackgroundLow:N0} to {s.BackgroundHigh:N0}), so it is first made one: "
                                                               + "otherwise its shading or marks read as design out to the corners and the coin is shrunk to fit them." : "")));
 
-        if (a.Rim != RimChoice.None)
+        bool plate = o.Shape == BlankShape.Rectangle;
+        if (a.Rim != RimChoice.None && plate)
+        {
+            c.Add(new($"Border {a.RimMm:0.00} mm", "Pure white along all four sides, round the corners and round every hole, so the laser never touches them."));
+            c.Add(new("Canvas kept as it is", "A plate is cut as the image stands; the border paints over anything of the design that runs into it."));
+            c.Add(new(a.RampMm <= 0 ? "Hard step into the border" : $"Taper {a.RampMm:0.00} mm into the border",
+                a.RampMm <= 0 ? "The field meets the border in one pixel; the beam softens it to about its own width."
+                : a.Target == WizardTarget.MakeIt ? "MakeIt samples power every 0.1 mm along a line, so a taper needs at least 0.3 mm to arrive as more than a step or two."
+                : "Several scan lines wide at a fine line interval, so the field rises smoothly to the border."));
+        }
+        else if (a.Rim != RimChoice.None)
         {
             c.Add(new($"Rim {a.RimMm:0.00} mm", "Pure white, so the laser never touches the blank's own rim."));
             if (a.Rim == RimChoice.Replace && s.DrawnRim is { } dr)
@@ -343,7 +360,7 @@ public sealed class WizardPlan
                 : a.Target == WizardTarget.MakeIt ? "MakeIt samples power every 0.1 mm along a line, so a taper needs at least 0.3 mm to arrive as more than a step or two."
                 : "Several scan lines wide at a fine line interval, so the field rises smoothly to the rim."));
         }
-        else c.Add(new("No rim", "The map is engraved right to its edges."));
+        else c.Add(new(plate ? "No border" : "No rim", "The map is engraved right to its edges."));
 
         for (int k = 0; k < o.FlatActions.Count; k++)
         {

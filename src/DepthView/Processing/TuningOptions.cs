@@ -118,8 +118,27 @@ public sealed class TuningOptions
     // right size without anyone scaling it by hand - which is one of the easier ways to
     // ruin a coin.
 
-    /// <summary>Diameter of the blank, in mm, matched to the short side of the image.</summary>
+    /// <summary>Diameter of the blank, in mm, matched to the short side of the image. For a rectangular blank, its short side.</summary>
     public double? BlankDiameterMm;
+
+    /// <summary>
+    /// The blank's outline. Round is the coin, and everything below reads as it always did.
+    /// Rectangle is a plate or tag: the image spans the blank's bounding box, the border
+    /// (<see cref="RimWidthMm"/>) runs round all four sides, the corners may be rounded, and
+    /// the holes are kept clear. See <see cref="ReserveRegion"/>.
+    /// </summary>
+    public BlankShape Shape = BlankShape.Round;
+    public double BlankWidthMm, BlankHeightMm, CornerRadiusMm;
+    public List<BlankHole> Holes = new();
+
+    /// <summary>Takes the shape and size from the program-wide blank.</summary>
+    public void TakeShapeFrom(Blank b)
+    {
+        Shape = b.Shape;
+        BlankDiameterMm = b.ShortSideMm;
+        BlankWidthMm = b.WidthMm; BlankHeightMm = b.HeightMm; CornerRadiusMm = b.CornerRadiusMm;
+        Holes = new List<BlankHole>(b.Holes);
+    }
 
     /// <summary>Rim width in mm, measured from the edge inward.</summary>
     public double? RimWidthMm;
@@ -159,10 +178,12 @@ public sealed class TuningOptions
         if (PixelsPerMm(width, height) is not double ppmm || ppmm <= 0) return;
 
         double half = Math.Min(width, height) / 2.0;
-        if (RimWidthMm is > 0)
+        if (RimWidthMm is > 0 || (Shape == BlankShape.Rectangle && (Holes.Count > 0 || CornerRadiusMm > 0)))
         {
+            // A rectangle's reserve is built by ReserveRegion from the border, corners and holes;
+            // RimRadius is kept as half the usable short side so round-only arithmetic stays sane.
             AddRim = true;
-            RimRadius = Math.Max(1, half - RimWidthMm.Value * ppmm);
+            RimRadius = Math.Max(1, half - (RimWidthMm ?? 0) * ppmm);
             // A ramp is not assumed. Unstated means none: a hard step is what a coin blank's
             // own rim looks like, and a shoulder should be asked for rather than arrive by
             // default in a file someone is about to cut metal from.

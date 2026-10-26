@@ -2,6 +2,7 @@
   <Folder Name="/Solution Items/">
     <File Path=".gitattributes" />
     <File Path=".gitignore" />
+    <File Path=".gitmodules" />
     <File Path=".nojekyll" />
     <File Path="ACKNOWLEDGEMENTS.md" />
     <File Path="CLAUDE.md" />
@@ -67,6 +68,7 @@
     <File Path="docs/make-pdfs.py" />
     <File Path="docs/make-profiles.py" />
     <File Path="docs/make-screenshots.ps1" />
+    <File Path="docs/PRECISION-FOCUS.md" />
     <File Path="docs/TUNING-GUIDE.md" />
   </Folder>
   <Folder Name="/docs/images/">
@@ -82,6 +84,13 @@
     <File Path="docs/images/terraces.png" />
     <File Path="docs/images/tune.png" />
     <File Path="docs/images/wizard.png" />
+  </Folder>
+  <Folder Name="/docs/images/focus/">
+    <File Path="docs/images/focus/ablation-dv1.jpg" />
+    <File Path="docs/images/focus/focus-coins-overview.jpg" />
+    <File Path="docs/images/focus/focus-cut-window.png" />
+    <File Path="docs/images/focus/focus-ramp-coin.jpg" />
+    <File Path="docs/images/focus/focus-ramp-lines.jpg" />
   </Folder>
   <Folder Name="/docs/images/tuning/">
     <File Path="docs/images/tuning/01-before.png" />
@@ -103,6 +112,12 @@
     <File Path="docs/research/finishing-chemistry.md" />
     <File Path="docs/research/laser-ablation-baselines.md" />
   </Folder>
+  <Folder Name="/external/MOPAChromaAtlas/src/">
+    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Camera/LumosUltra.Camera.csproj" />
+    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Client/LumosUltra.Client.csproj" />
+    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Desktop/LumosUltra.Desktop.csproj" />
+    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Jobs/LumosUltra.Jobs.csproj" />
+  </Folder>
   <Folder Name="/packaging/">
     <File Path="packaging/DepthView.icns" />
     <File Path="packaging/install-menu-entry.sh" />
@@ -120,15 +135,6 @@
     <File Path="samples/08-colour-contaminated.png" />
     <File Path="samples/make_samples.py" />
     <File Path="samples/README.md" />
-  </Folder>
-  <Folder Name="/external/">
-    <File Path=".gitmodules" />
-  </Folder>
-  <Folder Name="/external/MOPAChromaAtlas/">
-    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Camera/LumosUltra.Camera.csproj" />
-    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Client/LumosUltra.Client.csproj" />
-    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Desktop/LumosUltra.Desktop.csproj" />
-    <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Jobs/LumosUltra.Jobs.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/DepthView/DepthView.csproj" />

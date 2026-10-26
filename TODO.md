@@ -54,6 +54,48 @@ The cutting side has now run on the Lumos Ultra (Benchy). State when set aside:
   - The Lumos's fan ran on after DV1; the job ends exactly as MakeIt's do. Watch whether it
     stops by itself.
 
+### Every shape, every material - the generalisation, started 2026-10-26 (unreleased)
+
+DepthView grew up around coins; the Lumos Ultra engraves plates, tags, blocks, cylinders and
+more, in metals that are not brass. The plan keeps the coin path numerically unchanged and
+adds the rest beside it. Invariants, decided before the first line:
+
+- **Workpiece, placement and material are three things.** The coin is the first preset of all
+  three (round blank, image spans the diameter, brass), not the model. `Blank` is the
+  workpiece: shape, size, reserves (rim/border, corners, holes), thickness, target depth.
+- **The reserve is a signed distance** (`Processing/ReserveRegion.cs`): positive inside the
+  engraved area, negative in the rim, border or a hole. For a round blank it is radius minus
+  distance from the centre - exactly the arithmetic `ApplyRim` always did, so every coin
+  output is bit-identical. Rectangles, corners and holes come through the same door; a later
+  SVG/mask outline will too.
+- **The image spans the workpiece's bounding box**; the short side of the image is the short
+  side of the blank. A file with other proportions covers the middle of a plate, and the
+  window, the CLI and the job report say so rather than resampling.
+- **Fitting by padding and centring on the design stay round-only** until a mask-based fit
+  exists; the controls are disabled for plates with a note, never silently ignored.
+- **Nothing about material changes the map.** Material lives in the ablation study, the
+  settings advisor and the relief preview's look; the tuner's output does not depend on it.
+
+Build order, and where it stands:
+
+1. ~~Workpiece model behind `Blank`~~ **built 2026-10-26**: `BlankShape`, `BlankHole`,
+   width/height/corner/holes on `Blank`, persisted in preferences, carried by `TuningOptions`
+   (`TakeShapeFrom`), `.dvp` (`portable.workpiece.*`), `--tune --json` (`workpiece`), the job
+   report's Workpiece card, `--plate WxH --corner --holes` on every path that takes `--blank`.
+2. ~~Plates and tags~~ **built 2026-10-26**: BORDER wording in the Tune window, amber boundary
+   in the Tuned pane, `AlignmentOutline.WriteRectangle`, the wizard's Border step (Placement
+   skipped), proportions note. Not yet: a preview that shows the plate's proportions around
+   the file; a mask-based fit that pads a file to the plate; BlankEditor validation of holes
+   that fall outside the plate.
+3. **Unified material catalogue + laser capability gate**: one list of materials (the
+   ablation study's `MaterialPrior` grades, the relief look, the advisor's refusals) and one
+   statement of what a given laser can do to each (a UV source on steel, a MOPA on glass),
+   so a wrong pairing is refused with the reason instead of advised with a number.
+4. **Custom outlines**: an SVG or mask as the reserve (a dog tag, a shield, an oval), through
+   `ReserveRegion`; the alignment outline is then the user's own vector back out.
+5. **Rotary**: a cylinder is a plate whose width is a circumference; the reserve wraps. Needs
+   the Lumos rotary's real behaviour (does MakeIt unwrap, or does the G-code?) before design.
+
 ### Resume here (updated 2026-10-08, 1.11.0)
 
 1.4.0 brought true-scale relief, one program-wide blank, zip installers and the in-place

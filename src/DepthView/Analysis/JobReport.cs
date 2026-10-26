@@ -109,10 +109,12 @@ public static class JobReport
 
         // ---- the job at a glance
         sb.Append("<section><h2>The job</h2><div class=\"grid3\">");
+        var o0 = i.Options;
+        bool rect = o0.Shape == BlankShape.Rectangle;
         sb.Append(Card("Workpiece", new[]
         {
-            ("Shape", "round blank"),
-            ("Diameter", $"{i.BlankMm:0.0#} mm"),
+            ("Shape", rect ? (o0.CornerRadiusMm > 0 ? "rectangular tag" : "rectangular plate") : "round blank"),
+            (rect ? "Size" : "Diameter", rect ? $"{o0.BlankWidthMm:0.0#} × {o0.BlankHeightMm:0.0#} mm" + (o0.CornerRadiusMm > 0 ? $", corner radius {o0.CornerRadiusMm:0.0#} mm" : "") + (o0.Holes.Count > 0 ? $", {o0.Holes.Count} hole{(o0.Holes.Count == 1 ? "" : "s")} kept clear ({Blank.HolesToText(o0.Holes)})" : "") : $"{i.BlankMm:0.0#} mm"),
             ("Thickness", $"{i.ThicknessMm:0.0#} mm"),
             ("Target depth", $"{i.DepthMm:0.00#} mm" + (i.DepthFollowsThickness ? $" ({i.DepthMm / i.ThicknessMm * 100:0}% of the thickness, automatic)" : " (set by hand)")),
             ("Material", string.IsNullOrWhiteSpace(i.Material) ? "not recorded" : i.Material!),

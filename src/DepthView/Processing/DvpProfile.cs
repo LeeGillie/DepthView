@@ -30,8 +30,11 @@ public sealed class DvpProfile
     public string? MapHash;
 
     // ---- portable: the workpiece
+    /// <summary>"round" (the coin) or "rectangle" (a plate or tag, with the figures below).</summary>
     public string Shape = "round";
     public double DiameterMm = Blank.DefaultDiameterMm;
+    public double WidthMm = Blank.DefaultWidthMm, HeightMm = Blank.DefaultHeightMm, CornerRadiusMm;
+    public List<BlankHole> Holes = new();
     public double ThicknessMm = Blank.DefaultThicknessMm;
     /// <summary>Null when the target depth follows the thickness.</summary>
     public double? TargetDepthMm;
@@ -110,13 +113,17 @@ public sealed class DvpProfile
         o.Slices = Slice ? Passes : 0;
         o.Dither = Dither;
         o.OutputBitDepth = OutputBitDepth == 8 ? 8 : 16;
-        o.BlankDiameterMm = DiameterMm;
+        bool rect = Shape == "rectangle";
+        o.Shape = rect ? BlankShape.Rectangle : BlankShape.Round;
+        o.BlankDiameterMm = rect ? Math.Min(WidthMm, HeightMm) : DiameterMm;
+        o.BlankWidthMm = rect ? WidthMm : DiameterMm; o.BlankHeightMm = rect ? HeightMm : DiameterMm;
+        o.CornerRadiusMm = rect ? CornerRadiusMm : 0; o.Holes = rect ? new List<BlankHole>(Holes) : new List<BlankHole>();
         o.TargetDepthMm = TargetDepthMm ?? Math.Clamp(ThicknessMm * DepthPercent / 100.0, Blank.MinDepthMm, Blank.MaxDepthMm);
         if (Rim)
         {
             o.RimWidthMm = RimWidthMm;
             o.RimRampMm = RimRampMm;
-            o.Fit = Fit;
+            o.Fit = rect ? FitPolicy.None : Fit;
             o.PadWith = Pad;
             o.CoverDesignRim = CoverDesignRim && Fit == FitPolicy.Design;
         }
@@ -153,6 +160,20 @@ public sealed class DvpProfile
             w.WriteStartObject("workpiece");
             w.WriteString("shape", Shape);
             w.WriteNumber("diameterMm", DiameterMm);
+            if (Shape == "rectangle")
+            {
+                w.WriteNumber("widthMm", WidthMm);
+                w.WriteNumber("heightMm", HeightMm);
+                w.WriteNumber("cornerRadiusMm", CornerRadiusMm);
+                w.WriteStartArray("holes");
+                foreach (var h in Holes)
+                {
+                    w.WriteStartObject();
+                    w.WriteNumber("xMm", h.XMm); w.WriteNumber("yMm", h.YMm); w.WriteNumber("diameterMm", h.DiameterMm);
+                    w.WriteEndObject();
+                }
+                w.WriteEndArray();
+            }
             w.WriteNumber("thicknessMm", ThicknessMm);
             if (TargetDepthMm is double td) w.WriteNumber("targetDepthMm", td); else w.WriteNull("targetDepthMm");
             w.WriteNumber("depthPercent", DepthPercent);
@@ -254,8 +275,14 @@ public sealed class DvpProfile
             if (po.TryGetProperty("workpiece", out var wk))
             {
                 p.Shape = S(wk, "shape") ?? "round";
-                if (p.Shape != "round") problems.Add($"Workpiece shape '{p.Shape}' is kept, but this build draws round blanks only.");
+                if (p.Shape is not ("round" or "rectangle")) { problems.Add($"Workpiece shape '{p.Shape}' is not one this build knows (round, rectangle); read as round."); p.Shape = "round"; }
                 p.DiameterMm = Math.Clamp(D(wk, "diameterMm") ?? p.DiameterMm, Blank.MinDiameterMm, Blank.MaxDiameterMm);
+                p.WidthMm = Math.Clamp(D(wk, "widthMm") ?? p.WidthMm, Blank.MinDiameterMm, Blank.MaxDiameterMm);
+                p.HeightMm = Math.Clamp(D(wk, "heightMm") ?? p.HeightMm, Blank.MinDiameterMm, Blank.MaxDiameterMm);
+                p.CornerRadiusMm = Math.Clamp(D(wk, "cornerRadiusMm") ?? 0, 0, Blank.MaxDiameterMm / 2);
+                if (wk.TryGetProperty("holes", out var hs) && hs.ValueKind == JsonValueKind.Array)
+                    foreach (var h in hs.EnumerateArray())
+                        if (D(h, "diameterMm") is double hd && hd > 0) p.Holes.Add(new BlankHole(D(h, "xMm") ?? 0, D(h, "yMm") ?? 0, hd));
                 p.ThicknessMm = Math.Clamp(D(wk, "thicknessMm") ?? p.ThicknessMm, Blank.MinThicknessMm, Blank.MaxThicknessMm);
                 p.TargetDepthMm = D(wk, "targetDepthMm") is double t ? Math.Clamp(t, Blank.MinDepthMm, Blank.MaxDepthMm) : null;
                 p.DepthPercent = Math.Clamp(D(wk, "depthPercent") ?? p.DepthPercent, 1, 100);

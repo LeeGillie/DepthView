@@ -264,13 +264,14 @@
                         ToolTip.Tip="Place the points at the darkest and lightest levels that actually occur." />
               </StackPanel>
 
-              <TextBlock Classes="section" Text="RIM" />
+              <TextBlock Classes="section" x:Name="RimSection" Text="RIM" />
               <CheckBox x:Name="RimCheck"
                         Content="Leave an untouched rim at the edge"
-                        ToolTip.Tip="For a coin blank with a raised rim. Measured in millimetres, because that is how a rim is known: with calipers." />
+                        ToolTip.Tip="For a coin blank with a raised rim, or the border of a plate. Measured in millimetres, because that is how a rim is known: with calipers. On a plate the same width runs round all four sides, round the corners and round every hole." />
+              <TextBlock x:Name="ShapeNote" FontSize="11" Foreground="#8A929E" TextWrapping="Wrap" IsVisible="False" Margin="0,4,0,0" />
 
               <Grid ColumnDefinitions="112,*" Margin="0,9,0,0">
-                <TextBlock Grid.Column="0" Classes="label" Text="Rim width mm" />
+                <TextBlock Grid.Column="0" Classes="label" x:Name="RimLabel" Text="Rim width mm" />
                 <NumericUpDown Grid.Column="1" x:Name="RimBox" Minimum="0" Maximum="50"
                                Increment="0.1" FormatString="0.00" Value="1.00" />
               </Grid>

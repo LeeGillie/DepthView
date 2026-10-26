@@ -332,6 +332,10 @@ internal static partial class Program
           --out may not name the input file: the original is never written over.
           Measured in millimetres instead, which is how a rim is actually known:
             --blank <mm>        diameter of the blank, matched to the image's short side
+            --plate <w>x<h>     a rectangular blank instead (mm): the image spans it, the rim
+                                width becomes a border on all four sides; with --corner <mm>
+                                for rounded corners (a tag) and --holes "x,y,d; ..." for
+                                holes to keep clear (mm from the centre, y down)
             --rim-mm <mm>       rim width, measured inward from the edge
             --ramp-mm <mm>      ramp into the rim. Omitted means none: a hard step, which is
                                 what a blank's own rim looks like. A ramp narrower than the
@@ -545,6 +549,7 @@ internal static partial class Program
         StartupDepthMm = Flag(args, "--depth-mm");
         StartupExagStops = Flag(args, "--exag");
         Blank.Current.ApplyTransient(StartupBlankMm, StartupThickMm, StartupDepthMm);
+        ApplyPlateArgs(args);
 
         // An update renames the old program aside because a running file cannot be replaced on
         // Windows. This start is the first moment it can be deleted; a few seconds later, so the
@@ -717,6 +722,28 @@ internal static partial class Program
             && double.TryParse(args[i + 1], System.Globalization.NumberStyles.Float,
                                System.Globalization.CultureInfo.InvariantCulture, out double v)
             ? v : null;
+    }
+
+    /// <summary>"100x60" (mm) as a plate's width and height; also accepts "100,60".</summary>
+    private static bool ParsePlate(string? text, out double width, out double height)
+    {
+        width = height = 0;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var parts = text.Split(new[] { 'x', 'X', ',', '×' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var c = System.Globalization.CultureInfo.InvariantCulture;
+        return parts.Length == 2
+            && double.TryParse(parts[0], System.Globalization.NumberStyles.Float, c, out width) && width > 0
+            && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, c, out height) && height > 0;
+    }
+
+    /// <summary>--plate WxH [--corner r] [--holes "x,y,d; ..."] on the windowed paths: a rectangular blank for this run only.</summary>
+    private static void ApplyPlateArgs(string[] args)
+    {
+        int i = Array.IndexOf(args, "--plate");
+        if (i < 0 || i + 1 >= args.Length || !ParsePlate(args[i + 1], out double w, out double h)) return;
+        int hi = Array.IndexOf(args, "--holes");
+        var holes = hi >= 0 && hi + 1 < args.Length ? Blank.ParseHoles(args[hi + 1]) : null;
+        Blank.Current.ApplyTransientPlate(w, h, Flag(args, "--corner") ?? 0, holes);
     }
 
     // Referenced by the Avalonia previewer in Visual Studio and Rider.
@@ -1625,7 +1652,16 @@ internal static partial class Program
                     break;
                 case "--passes": if (int.TryParse(Next(), out int pp) && pp > 1) passes = pp; break;
                 case "--dpi": if (double.TryParse(Next(), out double d)) o.Dpi = d; break;
-                case "--blank": if (double.TryParse(Next(), out double bd2)) o.BlankDiameterMm = bd2; break;
+                case "--blank": if (double.TryParse(Next(), out double bd2)) { o.BlankDiameterMm = bd2; o.Shape = BlankShape.Round; } break;
+                case "--plate":
+                    if (ParsePlate(Next(), out double pw2, out double ph2))
+                    {
+                        o.Shape = BlankShape.Rectangle; o.BlankWidthMm = pw2; o.BlankHeightMm = ph2;
+                        o.BlankDiameterMm = Math.Min(pw2, ph2);
+                    }
+                    break;
+                case "--corner": if (double.TryParse(Next(), out double cr2)) o.CornerRadiusMm = cr2; break;
+                case "--holes": o.Holes = Blank.ParseHoles(Next()); break;
                 case "--rim-mm": if (double.TryParse(Next(), out double rmm)) o.RimWidthMm = rmm; break;
                 case "--ramp-mm": if (double.TryParse(Next(), out double ramm)) o.RimRampMm = ramm; break;
                 case "--spot": if (double.TryParse(Next(), out double sp)) spotMicrons = sp; break;
@@ -1772,11 +1808,16 @@ internal static partial class Program
             {
                 outlinePath ??= Path.ChangeExtension(outPath, null) + "-outline.svg";
                 double engraveMm = o.RimRadius > 0 ? o.RimRadius * 2 / (Math.Min(outW, outH) / blankMm) : 0;
-                AlignmentOutline.Write(outlinePath, blankMm, engraveMm, Path.GetFileName(outPath));
+                if (o.Shape == BlankShape.Rectangle)
+                    AlignmentOutline.WriteRectangle(outlinePath, o.BlankWidthMm, o.BlankHeightMm, o.CornerRadiusMm, o.AddRim ? o.RimWidthMm ?? 0 : 0, o.Holes, Path.GetFileName(outPath));
+                else
+                    AlignmentOutline.Write(outlinePath, blankMm, engraveMm, Path.GetFileName(outPath));
                 outlineWritten = outlinePath;
 
                 Console.WriteLine($"  outline         {Path.GetFileName(outlinePath)} - "
-                                + $"{blankMm:F1} mm circle to frame against the blank's rim");
+                                + (o.Shape == BlankShape.Rectangle
+                                    ? $"{o.BlankWidthMm:F1} x {o.BlankHeightMm:F1} mm outline to frame against the plate's edge"
+                                    : $"{blankMm:F1} mm circle to frame against the blank's rim"));
                 Console.WriteLine("                  put it on a tool layer, turn Frame off for the image");
                 Console.WriteLine("                  layer, and frame with Hull or Contour rather than Bounds.");
             }
@@ -1797,17 +1838,38 @@ internal static partial class Program
             if (o.PixelsPerMm(outW, outH) is double ppmm)
             {
                 var check = ResolutionCheck.For(1000.0 / ppmm, spotMicrons);
+                bool plate = o.Shape == BlankShape.Rectangle;
                 Console.WriteLine($"  physical        {o.BlankDiameterMm:F1} mm across {Math.Min(outW, outH):N0} px"
                                 + $"  =  {ppmm:F1} px/mm, {o.Dpi:F0} dpi");
+                if (plate)
+                {
+                    // The map covers the plate's bounding box, so its proportions are the
+                    // plate's. A file drawn for other proportions covers only the middle of
+                    // the plate, which the outline shows but nothing else would say.
+                    double mapW = outW / ppmm, mapH = outH / ppmm;
+                    bool wide = o.BlankWidthMm >= o.BlankHeightMm, mapWide = outW >= outH;
+                    double plateAspect = Math.Max(o.BlankWidthMm, o.BlankHeightMm) / Math.Max(1e-9, Math.Min(o.BlankWidthMm, o.BlankHeightMm));
+                    double mapAspect = Math.Max(outW, outH) / (double)Math.Min(outW, outH);
+                    Console.WriteLine($"  plate           {o.BlankWidthMm:F1} x {o.BlankHeightMm:F1} mm; the map covers {mapW:F1} x {mapH:F1} mm of it");
+                    if (Math.Abs(plateAspect - mapAspect) > 0.01 || wide != mapWide)
+                        Console.WriteLine($"                  note: the file's proportions ({outW}:{outH}) are not the plate's, so the"
+                                        + " map covers the middle of the plate; pad the canvas to the plate's proportions to cover it all.");
+                }
                 Console.WriteLine($"  resolution      {check.MicronsPerPixel:F1} um/pixel against a {spotMicrons:F0} um spot"
                                 + $"  -  {check.Note}");
                 if (o.RimWidthMm is double rw)
                 {
                     double rampMm = o.RimRampMm ?? 0;
-                    Console.WriteLine($"  rim             {rw:F2} mm = {rw * ppmm:F0} px"
-                                    + (rampMm <= 0
-                                        ? ", hard step at the rim (no ramp)"
-                                        : $", ramp {rampMm:F2} mm = {rampMm * ppmm:F0} px"));
+                    if (plate)
+                        Console.WriteLine($"  border          {rw:F2} mm = {rw * ppmm:F0} px on all four sides"
+                                        + (o.CornerRadiusMm > 0 ? $", corners {o.CornerRadiusMm:F1} mm" : "")
+                                        + (o.Holes.Count > 0 ? $", {o.Holes.Count} hole{(o.Holes.Count == 1 ? "" : "s")} kept clear by the same border" : "")
+                                        + (rampMm <= 0 ? ", hard step" : $", ramp {rampMm:F2} mm = {rampMm * ppmm:F0} px"));
+                    else
+                        Console.WriteLine($"  rim             {rw:F2} mm = {rw * ppmm:F0} px"
+                                        + (rampMm <= 0
+                                            ? ", hard step at the rim (no ramp)"
+                                            : $", ramp {rampMm:F2} mm = {rampMm * ppmm:F0} px"));
 
                     // Two different things share one pixel value in the output, and it is
                     // worth saying so: the rim is part of the coin and is deliberately left
@@ -1815,13 +1877,17 @@ internal static partial class Program
                     // because white is the only way a depth map can say "no passes here", and
                     // that is the correct instruction for both - but they are not the same
                     // thing, and a reader looking at a white square should know which is which.
+                    // A plate's corners are on the plate, so there is nothing to tell apart.
                     double blankPx = Math.Min(rep.OutWidth, rep.OutHeight) / 2.0;
                     double cornerArea = 1 - Math.PI / 4;
-                    Console.WriteLine($"                  white beyond r={o.RimRadius:F0} px covers both the"
-                                    + $" {rw:F2} mm rim ring and the");
-                    Console.WriteLine($"                  corners outside the blank (r>{blankPx:F0} px,"
-                                    + $" {cornerArea * 100:F0}% of the square). Both get zero");
-                    Console.WriteLine("                  passes, which is right for both, but only the rim is on the coin.");
+                    if (!plate)
+                    {
+                        Console.WriteLine($"                  white beyond r={o.RimRadius:F0} px covers both the"
+                                        + $" {rw:F2} mm rim ring and the");
+                        Console.WriteLine($"                  corners outside the blank (r>{blankPx:F0} px,"
+                                        + $" {cornerArea * 100:F0}% of the square). Both get zero");
+                        Console.WriteLine("                  passes, which is right for both, but only the rim is on the coin.");
+                    }
 
                     // A ramp narrower than the beam is the worst of both: the spot smears the
                     // transition to its own width regardless, so the ramp achieves nothing the
@@ -1882,7 +1948,7 @@ internal static partial class Program
                                 + $" {o.BlankDiameterMm:F1} mm blank, at {fit.PixelsPerMm:F1} px/mm");
             }
 
-            if (o.AddRim) Console.WriteLine($"  rim             {rep.Summary}");
+            if (o.AddRim) Console.WriteLine($"  {(o.Shape == BlankShape.Rectangle ? "border" : "rim   ")}          {rep.Summary}");
             if (rep.FlatChanged > 0)
                 Console.WriteLine($"  flat areas      {o.FlatActions.Count(a => a.Mode == FlatMode.Flatten)} flattened,"
                                 + $" {o.FlatActions.Count(a => a.Mode == FlatMode.Smooth)} smoothed:"

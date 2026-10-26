@@ -816,6 +816,21 @@ file**, so the closing line of the status bar is a measurement rather than a cla
 
 Everything here is also available from the command line; see below.
 
+**Plates and tags** *(unreleased - in the next build)*. The blank need not be round. In the
+Blank panel, **Shape** switches between a round blank and a rectangular plate or tag, with a
+width and height, a corner radius and a list of holes to keep clear (`x,y,d; ...` in mm from
+the centre, y down). The image spans the plate's bounding box, so a file drawn for other
+proportions covers only the middle of the plate, and the window says so. Everything the rim
+does on a coin, the border does on a plate: the RIM section becomes BORDER, the same width
+runs along all four sides, round the corners and round every hole, and the overlap with the
+design is counted the same way. The amber line in the Tuned pane traces the edge of the
+engraved area. Two things stay round-only for now, and the window says which: fitting by
+padding (a plate is cut as the image stands) and centring the blank on the design. The
+alignment outline becomes the plate's rectangle, with the inset engraved area and the holes
+in red, and `.dvp` profiles, the job report and `--tune --json` carry the shape. The tuning
+wizard asks for a border instead of a rim and skips the placement step. From the command
+line: `--plate 100x60 --corner 5 --holes "0,-22,4"`.
+
 ### About
 
 **About** in the header reports the version and the UTC build date, every platform
@@ -1059,6 +1074,8 @@ DepthView --tune coin.png --blank 40 --rim-mm 0.9 --mask rim.png --slices 256 --
 DepthView --tune coin.png --blank 40 --rim-mm 0.9 --save-params      # and keep the settings as coin.dvp
 DepthView --tune next.png --params coin.dvp                          # start another map from them
 DepthView coin.png --tune-ui --blank 40 --rim-mm 0.9 --fit   # the dialog, already set up
+DepthView --tune tag.png --plate 100x60 --corner 5 --holes "0,-22,4" --rim-mm 2 --outline
+                                        # a rectangular tag: a 2 mm border, round the corners and the hole
 ```
 
 Every `--tune` run prints what it changed and then re-reads the file it wrote and

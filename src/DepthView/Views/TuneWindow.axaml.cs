@@ -80,6 +80,8 @@ public partial class TuneWindow : Window
     private string _resultBase = "", _origCaptionBase = "", _tunedCaptionBase = "";
     private int _tunedPreviewW, _tunedPreviewH;
     private double _ringBlank, _ringRim;
+    /// <summary>The reserve at preview scale when the blank is rectangular, for drawing its edge; null for a coin.</summary>
+    private ReserveRegion? _ringRegion;
 
     /// <summary>The profile line: which pane, and its ends as fractions of that image.</summary>
     private (bool Tuned, double U0, double V0, double U1, double V1)? _line;
@@ -167,6 +169,7 @@ public partial class TuneWindow : Window
         // millimetres and sets the rim geometry; target depth is what the depth-per-pass figure
         // divides; thickness sets the slab the 3D panes stand on.
         Blank.Current.Changed += OnBlankChanged;
+        SyncShapeControls();
         RimBox.ValueChanged += (_, _) => Queue();
         RampBox.ValueChanged += (_, _) => Queue();
         SpotBox.ValueChanged += (_, _) => Queue();
@@ -452,8 +455,8 @@ public partial class TuneWindow : Window
                     _ovTuned = r.rt;
                     // The original as it would be cut as it stands: the blank spans its short
                     // side. Only that circle is measured, so it is drawn.
-                    OriginalImage.Source = FinishBitmap(r.oo!, _pw, _ph, Math.Min(_pw, _ph) / 2.0, 0);
-                    TunedImage.Source = FinishBitmap(r.ot!, pw, ph, _ringBlank, _ringRim);
+                    OriginalImage.Source = FinishBitmap(r.oo!, _pw, _ph, Blank.Current.IsRound ? Math.Min(_pw, _ph) / 2.0 : 0, 0, null);
+                    TunedImage.Source = FinishBitmap(r.ot!, pw, ph, _ringBlank, _ringRim, _ringRegion);
                     OriginalCaption.Text = _origCaptionBase + MarkCaption(r.ro);
                     TunedCaption.Text = _tunedCaptionBase + MarkCaption(r.rt);
                     ResultText.Text = _resultBase + Environment.NewLine + string.Join(Environment.NewLine, MarkRows());
@@ -581,7 +584,10 @@ public partial class TuneWindow : Window
         p.MapName = _fileName;
         p.MapWidth = _w; p.MapHeight = _h; p.MapBitDepth = _image.BitDepth; p.MapMaxValue = _maxValue;
         p.MapHash = MapHash;
-        p.DiameterMm = b.DiameterMm;
+        p.Shape = b.IsRound ? "round" : "rectangle";
+        p.DiameterMm = b.IsRound ? b.DiameterMm : b.ShortSideMm;
+        p.WidthMm = b.WidthMm; p.HeightMm = b.HeightMm; p.CornerRadiusMm = b.CornerRadiusMm;
+        p.Holes = new List<BlankHole>(b.Holes);
         p.ThicknessMm = b.ThicknessMm;
         p.DepthPercent = b.DepthPercent;
         p.TargetDepthMm = b.DepthFollowsThickness ? null : b.TargetDepthMm;
@@ -626,7 +632,13 @@ public partial class TuneWindow : Window
 
         _loading = true;
         var b = Blank.Current;
-        b.DiameterMm = p.DiameterMm;
+        if (p.Shape == "rectangle")
+        {
+            b.Shape = BlankShape.Rectangle;
+            b.WidthMm = p.WidthMm; b.HeightMm = p.HeightMm; b.CornerRadiusMm = p.CornerRadiusMm;
+            b.SetHoles(p.Holes);
+        }
+        else { b.Shape = BlankShape.Round; b.DiameterMm = p.DiameterMm; }
         b.ThicknessMm = p.ThicknessMm;
         b.DepthPercent = p.DepthPercent;
         if (p.TargetDepthMm is double td) b.TargetDepthMm = td; else b.FollowThickness();
@@ -1074,9 +1086,50 @@ public partial class TuneWindow : Window
 
     private void OnBlankChanged(object? sender, EventArgs e)
     {
+        SyncShapeControls();
         SyncReliefDepth();
         RefreshRelief();
         Queue();
+    }
+
+    /// <summary>
+    /// The rim section reads as a rim on a coin and as a border on a plate; fitting by padding
+    /// is worked out for the round blank only, so on a plate it is switched off and says so.
+    /// </summary>
+    private void SyncShapeControls()
+    {
+        bool round = Blank.Current.IsRound;
+        RimSection.Text = round ? "RIM" : "BORDER";
+        RimLabel.Text = round ? "Rim width mm" : "Border width mm";
+        RimCheck.Content = round ? "Leave an untouched rim at the edge" : "Leave an untouched border at the edge";
+        FitCheck.IsEnabled = round;
+        FitPolicyBox.IsEnabled = round;
+        CoverRimCheck.IsEnabled = round;
+        PadBox.IsEnabled = round;
+        if (!round && FitCheck.IsChecked == true) FitCheck.IsChecked = false;
+        ShapeNote.IsVisible = !round;
+        if (round) { ShapeNote.Text = ""; return; }
+
+        // The map covers the plate's bounding box, so a file drawn for other proportions
+        // covers only the middle of the plate - worth saying here, because the preview is
+        // the file's shape, not the plate's, and nothing else on screen would point it out.
+        string proportions = "";
+        if (_image is { } src && src.Width > 0 && src.Height > 0)
+        {
+            double plateAspect = Math.Max(Blank.Current.WidthMm, Blank.Current.HeightMm) / Math.Max(1e-9, Blank.Current.ShortSideMm);
+            double mapAspect = Math.Max(src.Width, src.Height) / (double)Math.Min(src.Width, src.Height);
+            bool wide = Blank.Current.WidthMm >= Blank.Current.HeightMm, mapWide = src.Width >= src.Height;
+            if (Math.Abs(plateAspect - mapAspect) > 0.01 || wide != mapWide)
+            {
+                double ppmm = Math.Min(src.Width, src.Height) / Blank.Current.ShortSideMm;
+                proportions = $" This file's proportions are not the plate's: it covers {src.Width / ppmm:0.#} × {src.Height / ppmm:0.#} mm in the middle of the plate; pad the canvas to the plate's proportions to cover it all.";
+            }
+        }
+        ShapeNote.Text =
+            $"Plate: the image spans the {Blank.Current.WidthMm:0.#} × {Blank.Current.HeightMm:0.#} mm blank, the border runs round all four sides" +
+            (Blank.Current.CornerRadiusMm > 0 ? $", the corners are rounded at {Blank.Current.CornerRadiusMm:0.#} mm" : "") +
+            (Blank.Current.Holes.Count > 0 ? $", and {Blank.Current.Holes.Count} hole{(Blank.Current.Holes.Count == 1 ? " is" : "s are")} kept clear" : "") +
+            ". Fitting by padding is for round blanks for now: a plate is cut as the image stands." + proportions;
     }
 
     private void ReliefModeChanged()
@@ -1190,7 +1243,7 @@ public partial class TuneWindow : Window
     /// it is exactly what happens to the coin.
     /// </summary>
     private WriteableBitmap ToBitmap(ushort[] grey, int w, int h,
-                                     double blankRadius = 0, double rimInner = 0)
+                                     double blankRadius = 0, double rimInner = 0, ReserveRegion? region = null)
     {
         var buf = new byte[(long)w * h * 4];
         for (long i = 0; i < grey.Length; i++)
@@ -1199,12 +1252,26 @@ public partial class TuneWindow : Window
             long d = i * 4;
             buf[d] = v; buf[d + 1] = v; buf[d + 2] = v; buf[d + 3] = 255;
         }
-        return FinishBitmap(buf, w, h, blankRadius, rimInner);
+        return FinishBitmap(buf, w, h, blankRadius, rimInner, region);
     }
 
-    /// <summary>A BGRA buffer onto the screen, with the blank and rim rings drawn in.</summary>
-    private static WriteableBitmap FinishBitmap(byte[] buf, int w, int h, double blankRadius, double rimInner)
+    /// <summary>A BGRA buffer onto the screen, with the blank and rim rings drawn in - or, for a rectangular blank, the reserve's edge.</summary>
+    private static WriteableBitmap FinishBitmap(byte[] buf, int w, int h, double blankRadius, double rimInner, ReserveRegion? region)
     {
+        if (region is { IsRound: false })
+        {
+            // The image's own edge is the plate's edge, so only where engraving stops is drawn:
+            // every pixel just inside the reserve's boundary, in amber.
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    double s = region.Inside(x, y);
+                    if (s < 0 || s > 1.0) continue;
+                    long d = ((long)y * w + x) * 4;
+                    buf[d] = 0x5C; buf[d + 1] = 0xB4; buf[d + 2] = 0xF0;
+                }
+            blankRadius = 0;
+        }
 
         // Two rings, drawn in colour on a greyscale preview so they cannot be mistaken for
         // data - nothing in a depth map is ever cyan.
@@ -1462,6 +1529,7 @@ public partial class TuneWindow : Window
             BlankDiameterMm = Blank.Current.DiameterMm,
             TargetDepthMm = Blank.Current.TargetDepthMm,
         };
+        o.TakeShapeFrom(Blank.Current);
 
         if (RimCheck.IsChecked == true)
         {
@@ -1510,7 +1578,8 @@ public partial class TuneWindow : Window
         // come back from the options rather than being worked out again here. The blank spans
         // the short side of the output, fitted or not.
         double blankRadius = full.AddRim ? Math.Min(rep.OutWidth, rep.OutHeight) / 2.0 : 0;
-        TunedImage.Source = ToBitmap(tuned, rep.OutWidth, rep.OutHeight, blankRadius, preview.RimRadius);
+        _ringRegion = preview.Shape == BlankShape.Rectangle ? ReserveRegion.From(preview, rep.OutWidth, rep.OutHeight) : null;
+        TunedImage.Source = ToBitmap(tuned, rep.OutWidth, rep.OutHeight, blankRadius, preview.RimRadius, _ringRegion);
         _tunedPreviewW = rep.OutWidth;
         _tunedPreviewH = rep.OutHeight;
         _ringBlank = blankRadius;
@@ -1543,8 +1612,11 @@ public partial class TuneWindow : Window
                           + (full.OutputBitDepth == 8 ? "   (written as 8-bit)" : "")
                           + StepNote(dAfter, passes)
                           + (full.AddRim
-                              ? "\nCyan: edge of the blank, everything outside it is off the coin. "
-                              + "Amber: where engraving stops. Neither is in the file."
+                              ? full.Shape == BlankShape.Rectangle
+                                  ? "\nAmber: edge of the engraved area - the border, the corners and any holes. "
+                                  + "Nothing outside it is cut. The line is not in the file."
+                                  : "\nCyan: edge of the blank, everything outside it is off the coin. "
+                                  + "Amber: where engraving stops. Neither is in the file."
                               : "");
 
         // Both panes terrace, because both files would be sliced at the same pass count -
@@ -1651,6 +1723,15 @@ public partial class TuneWindow : Window
             yield return "Canvas                 already clear, no growth needed";
         }
 
+        if (o.Shape == BlankShape.Rectangle)
+        {
+            // No single scale clears a border, a corner or a hole, so none is offered.
+            yield return rep.RimClipped > 0
+                ? $"Border overlaps        {rep.RimClippedFraction * 100:F2}% of the design; that part is left uncut"
+                : "Border                 sits clear of the design";
+            yield break;
+        }
+
         yield return rep.RimClipped > 0
             ? $"Rim overlaps           {rep.RimClippedFraction * 100:F2}% of the design; "
             + $"art at {rep.SuggestedScale * 100:F0}% would clear it"
@@ -1697,7 +1778,7 @@ public partial class TuneWindow : Window
         {
             double rw = o.RimWidthMm ?? 0;
             double ramp = o.RimRampMm ?? 0;
-            note += $"  Rim {rw:F2} mm = {rw * ppmm:F0} px, "
+            note += $"  {(o.Shape == BlankShape.Rectangle ? "Border" : "Rim")} {rw:F2} mm = {rw * ppmm:F0} px, "
                   + (ramp <= 0 ? "hard step." : $"ramp {ramp:F2} mm = {ramp * ppmm:F0} px.");
 
             // A ramp narrower than the beam is the worst of both worlds: the spot smears the
@@ -1806,8 +1887,12 @@ public partial class TuneWindow : Window
                 double ppmm = Math.Min(outW, outH) / blankMm;
                 double engraveMm = o.AddRim && o.RimRadius > 0 ? o.RimRadius * 2 / ppmm : 0;
 
-                await Task.Run(() => AlignmentOutline.Write(outlinePath, blankMm, engraveMm,
-                                                            Path.GetFileName(written)));
+                if (o.Shape == BlankShape.Rectangle)
+                    await Task.Run(() => AlignmentOutline.WriteRectangle(outlinePath, o.BlankWidthMm, o.BlankHeightMm, o.CornerRadiusMm,
+                                                                         o.AddRim ? o.RimWidthMm ?? 0 : 0, o.Holes, Path.GetFileName(written)));
+                else
+                    await Task.Run(() => AlignmentOutline.Write(outlinePath, blankMm, engraveMm,
+                                                                Path.GetFileName(written)));
                 maskNote += $"  Alignment outline written as {Path.GetFileName(outlinePath)}"
                           + " - put it on a tool layer and frame with Hull or Contour.";
             }

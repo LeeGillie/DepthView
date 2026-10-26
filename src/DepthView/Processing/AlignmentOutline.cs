@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -85,6 +86,46 @@ public static class AlignmentOutline
 
         sb.AppendLine("</svg>");
 
+        File.WriteAllText(path, sb.ToString());
+
+        string F(double v) => v.ToString("0.####", c);
+    }
+
+    /// <summary>
+    /// The outline for a rectangular blank: the plate's edge as a rounded rectangle, the edge
+    /// of the engraved area (the plate inset by the border) in red, each hole in red, and the
+    /// centre cross - the same colours and the same use as the round version.
+    /// </summary>
+    /// <param name="holes">Holes in mm from the centre, Y down.</param>
+    public static void WriteRectangle(string path, double widthMm, double heightMm, double cornerMm, double borderMm,
+                                      IReadOnlyList<BlankHole> holes, string? sourceName = null)
+    {
+        if (widthMm <= 0 || heightMm <= 0) throw new ArgumentOutOfRangeException(nameof(widthMm));
+        var c = CultureInfo.InvariantCulture;
+        double cross = Math.Max(0.5, Math.Min(widthMm, heightMm) * 0.03);
+        double midX = widthMm / 2, midY = heightMm / 2;
+        cornerMm = Math.Clamp(cornerMm, 0, Math.Min(widthMm, heightMm) / 2);
+
+        var sb = new StringBuilder();
+        sb.AppendLine(@"<?xml version=""1.0"" encoding=""UTF-8""?>");
+        sb.AppendLine($"<!-- Alignment outline for {sourceName ?? "a tuned depth map"}, written by DepthView {BuildInfo.Version}.");
+        sb.AppendLine("     Import this alongside the depth map; both are sized in millimetres. Put these shapes on a");
+        sb.AppendLine("     tool layer, turn Frame off for the image layer, frame with Hull or Contour, and line the");
+        sb.AppendLine("     black outline up with the edge of the plate. -->");
+        sb.AppendLine($@"<svg xmlns=""http://www.w3.org/2000/svg"" version=""1.1"" width=""{F(widthMm)}mm"" height=""{F(heightMm)}mm"" viewBox=""0 0 {F(widthMm)} {F(heightMm)}"">");
+        sb.AppendLine("  <!-- edge of the blank: align this to the plate -->");
+        sb.AppendLine($@"  <rect x=""0"" y=""0"" width=""{F(widthMm)}"" height=""{F(heightMm)}"" rx=""{F(cornerMm)}"" fill=""none"" stroke=""#000000"" stroke-width=""0.1"" />");
+        if (borderMm > 0 && borderMm * 2 < Math.Min(widthMm, heightMm))
+        {
+            double r = Math.Max(0, cornerMm - borderMm);
+            sb.AppendLine("  <!-- edge of the engraved area: everything outside this is left untouched -->");
+            sb.AppendLine($@"  <rect x=""{F(borderMm)}"" y=""{F(borderMm)}"" width=""{F(widthMm - 2 * borderMm)}"" height=""{F(heightMm - 2 * borderMm)}"" rx=""{F(r)}"" fill=""none"" stroke=""#FF0000"" stroke-width=""0.1"" />");
+        }
+        foreach (var h in holes)
+            sb.AppendLine($@"  <circle cx=""{F(midX + h.XMm)}"" cy=""{F(midY + h.YMm)}"" r=""{F(h.DiameterMm / 2)}"" fill=""none"" stroke=""#FF0000"" stroke-width=""0.1"" />");
+        sb.AppendLine("  <!-- centre -->");
+        sb.AppendLine($@"  <path d=""M {F(midX - cross)} {F(midY)} L {F(midX + cross)} {F(midY)} M {F(midX)} {F(midY - cross)} L {F(midX)} {F(midY + cross)}"" fill=""none"" stroke=""#0000FF"" stroke-width=""0.1"" />");
+        sb.AppendLine("</svg>");
         File.WriteAllText(path, sb.ToString());
 
         string F(double v) => v.ToString("0.####", c);

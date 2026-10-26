@@ -35,6 +35,14 @@ public sealed class Preferences
     public double BlankDiameterMm { get; set; } = Blank.DefaultDiameterMm;
     public double BlankThicknessMm { get; set; } = Blank.DefaultThicknessMm;
 
+    /// <summary>"round" (the coin) or "rectangle" (a plate or tag); the rectangle's own figures below. Missing means round, as every earlier version was.</summary>
+    public string? BlankShape { get; set; }
+    public double BlankWidthMm { get; set; } = Blank.DefaultWidthMm;
+    public double BlankHeightMm { get; set; } = Blank.DefaultHeightMm;
+    public double BlankCornerRadiusMm { get; set; }
+    /// <summary>Holes as "x,y,d; ..." in mm from the centre.</summary>
+    public string? BlankHoles { get; set; }
+
     /// <summary>Target depth as a percentage of thickness, while it is following thickness.</summary>
     public double DepthPercent { get; set; } = Blank.DefaultDepthPercent;
 

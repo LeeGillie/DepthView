@@ -130,7 +130,8 @@ The options most useful to a host:
 | `--invert` | for art authored white-deepest |
 | `--bits <8\|16>` | output bit depth (default 16) |
 | `--blank <mm>` | blank diameter; also writes the correct DPI into the PNG |
-| `--rim-mm <mm>` `--ramp-mm <mm>` | leave an untouched rim |
+| `--plate <w>x<h>` | (unreleased) a rectangular plate or tag instead of a round blank, in mm. The image spans the plate's bounding box (its short side = the plate's short side), `--rim-mm` becomes a border on all four sides, and `--fit` is ignored: a plate is cut as the image stands. With `--corner <mm>` for rounded corners and `--holes "x,y,d; ..."` for holes to keep clear (mm from the centre, y down; each hole is grown by the border) |
+| `--rim-mm <mm>` `--ramp-mm <mm>` | leave an untouched rim (a border, on a plate) |
 | `--fit [content\|canvas\|design]` | fit the design inside the rim; nothing is resampled. `design` centres the blank on the design and may crop background (never design) |
 | `--cover-rim` | with `--fit design`: if the artwork has its own raised rim, size the blank so that rim lands under the new one |
 | `--depth-mm <mm>` `--passes <n>` | the job's target depth and pass count, for the figures in the output |
@@ -305,6 +306,7 @@ A complete example, for an 8-bit map saved as 16-bit:
 | `designOffCentreMm` | (added 1.8.0) how far the middle of the design sits from the middle of the blank, when a rim was drawn with `--blank`; else `null`. Above about 0.5 mm, `--fit design` is worth trying |
 | `rim` | `widthMm`, `rampMm`, `radiusPx`, `rampPx`, `pixelsPainted`, `contentPixelsClipped`, `contentClippedFraction`, `summary`, or `null` |
 | `physical` | with `--blank`: `blankDiameterMm`, `pixelsPerMm`, `dpi`, `micronsPerPixel`, `spotMicrons`, `resolutionNote`; else `null` |
+| `workpiece` | (unreleased) the blank the map was tuned for: `shape` (`round` or `rectangle`), `diameterMm` (the diameter, or a plate's short side; `null` without `--blank`/`--plate`), and for a rectangle `widthMm`, `heightMm`, `cornerRadiusMm`, `holes[]` (`xMm`, `yMm` from the centre, y down, `diameterMm`); `rimWidthMm` (the border, on a plate) or `null` |
 | `target` | with `--depth-mm`: `depthMm`, `passes`, `targetMicronsPerPass`; else `null`. **This is the target divided by the passes, not a prediction** of what each pass will cut |
 | `passes` | the pass count the figures were computed for |
 | `terraces` | (added 1.9.0) with `--blank` and `--depth-mm`: `before` and `after`, each the fields of a `depthview.terrace/1` document below (from `width` to `seconds`) for the input and for the file as written; else `null` |
@@ -447,7 +449,7 @@ the map, and by `--params`. Indented JSON; unknown fields are ignored.
 |---|---|
 | `schema`, `depthview`, `saved` | `depthview.params/1`, the version that wrote it, and when (UTC) |
 | `map` | the map it was made for: `name`, `width`, `height`, `bitDepth`, `maxValue`, `greyHash` (SHA-256 of the grey samples and size, so the same picture is recognised whatever it is called) |
-| `portable.workpiece` | `shape` (`round`), `diameterMm`, `thicknessMm`, `targetDepthMm` (`null` when it follows the thickness), `depthPercent`, `material` |
+| `portable.workpiece` | `shape` (`round` or, unreleased, `rectangle`), `diameterMm` (a rectangle's short side), `thicknessMm`, `targetDepthMm` (`null` when it follows the thickness), `depthPercent`, `material`; for a rectangle also `widthMm`, `heightMm`, `cornerRadiusMm`, `holes[]` (`xMm`, `yMm`, `diameterMm`). A rectangle reads with `fit` as `none`; an unknown shape is read as round and noted in `problems[]` |
 | `portable.laser` | `type` (`uv`, `mopa`, `fiber`, `co2`, `diode` or `null`), `lens`, `spotMicrons`, `passes` |
 | `portable.rim` | `enabled`, `widthMm`, `rampMm`, `fit` (`none`, `artwork`, `canvas`, `design`), `pad` (`background`, `untouched`), `coverDesignRim` |
 | `portable.*` | `uniformSurround`, `stretch`, `invert`, `quantise`, `ditherSlices`; `output` (`bitDepth`, `writeDpi`, `outline`, `rimMask`); `finish` (the recipe as `--finish` takes it, or `null`); `notes` |

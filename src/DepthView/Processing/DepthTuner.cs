@@ -159,7 +159,9 @@ public static class DepthTuner
         // over it. The blank is a fixed 40 mm whatever we do, so a larger canvas means the
         // same artwork spans fewer millimetres of it - the same outcome as scaling the art
         // down, reached without resampling a single pixel.
-        if (o.AddRim && o.Fit != FitPolicy.None && o.BlankDiameterMm is > 0)
+        // Fitting by padding is worked out for the round blank (a circle round the design); a
+        // rectangular blank is cut as the image stands, until the box-shaped fit exists.
+        if (o.AddRim && o.Fit != FitPolicy.None && o.BlankDiameterMm is > 0 && o.Shape == BlankShape.Round)
         {
             var plan = DepthCanvas.Plan(outp, w, h, maxValue, o, background);
 
@@ -249,10 +251,16 @@ public static class DepthTuner
                                  int maxValue, ushort untouched, ushort background,
                                  TuningOptions o, TuningReport report)
     {
-        double cx = o.RimCentreX ?? (width - 1) / 2.0;
-        double cy = o.RimCentreY ?? (height - 1) / 2.0;
-        double outer = o.RimRadius;
-        double inner = Math.Max(0, outer - Math.Max(0, o.RimRamp));
+        // The reserve as a signed distance: positive inside the engraved area, negative in the
+        // rim, border or a hole. For a round blank this is radius minus distance from the rim's
+        // centre, which is exactly the arithmetic this method always did; a rectangle gets its
+        // border, corners and holes through the same door.
+        var region = ReserveRegion.From(o, width, height);
+        if (region is null) return;
+        double cx = region.CentreX, cy = region.CentreY;
+        double outer = region.Radius;
+        double ramp = Math.Max(0, o.RimRamp);
+        double inner = Math.Max(0, outer - ramp);
 
         // The background arrives from the caller, measured on the original extent while the
         // border was still the file's own edge rather than our padding.
@@ -260,7 +268,7 @@ public static class DepthTuner
 
         // A ramp covers a pixel gradually; call it covered past the halfway point of the
         // blend, which is also exactly "past the rim" when there is no ramp at all.
-        double coveredFrom = (inner + outer) / 2;
+        double coveredInside = ramp / 2;
 
         long totalContent = 0;
         double furthestContent = 0;
@@ -289,30 +297,28 @@ public static class DepthTuner
                 if (designRimFrom is double from && r >= from) { report.DesignRimCovered++; continue; }
 
                 if (r > furthestContent) furthestContent = r;
-                if (r >= coveredFrom) report.RimClipped++;
+                if (region.Inside(x + designX, y + designY) <= coveredInside) report.RimClipped++;
             }
         }
 
         for (int y = 0; y < height; y++)
         {
-            double dy = y - cy;
             long row = (long)y * width;
             for (int x = 0; x < width; x++)
             {
-                double dx = x - cx;
-                double r = Math.Sqrt(dx * dx + dy * dy);
-                if (r < inner) continue;
+                double s = region.Inside(x, y);
+                if (s > ramp) continue;
 
                 long idx = row + x;
 
-                if (r >= outer)
+                if (s <= 0)
                 {
                     if (buf[idx] != untouched) report.RimPixels++;
                     buf[idx] = untouched;
                     continue;
                 }
 
-                double t = (r - inner) / (outer - inner);
+                double t = (ramp - s) / ramp;
                 t = t * t * (3 - 2 * t);                       // smoothstep
                 int v = buf[idx];
                 buf[idx] = (ushort)Math.Round(v + (untouched - v) * t);
@@ -335,8 +341,21 @@ public static class DepthTuner
 
         // If the rim eats into the design, say by how much the art would have to shrink to
         // clear it: the furthest content from the centre, against the ramp's inner edge.
-        if (report.RimClipped > 0 && inner > 0 && furthestContent > inner)
+        if (report.RimClipped > 0 && inner > 0 && furthestContent > inner && region.IsRound)
             report.SuggestedScale = inner / furthestContent;
+
+        // A plate's reserve is not radial, so there is no one scale that clears it; the
+        // clipped count is what the user needs, and the preview shows where.
+        if (!region.IsRound)
+        {
+            string what = o.Holes.Count > 0 ? "border or a hole" : "border";
+            report.Summary = report.RimClipped == 0
+                ? $"The {what} sits clear of the design."
+                : $"The {what} overlaps {report.RimClipped:N0} pixels of design "
+                + $"({report.RimClippedFraction * 100:F2}% of it); the overlap is left uncut. "
+                + "Move or shrink the art to clear it.";
+            return;
+        }
 
         report.Summary = report.RimClipped == 0
             ? report.Fit is { CoveredRim: { } own } withRim

@@ -441,6 +441,27 @@ public static class JsonReport
             w.WriteBoolean("uniformSurround", o.UniformSurround);
             w.WriteEndObject();
 
+            // Added 1.14.0: the blank's outline. Every earlier report was a round blank.
+            w.WriteStartObject("workpiece");
+            w.WriteString("shape", o.Shape == BlankShape.Rectangle ? "rectangle" : "round");
+            if (o.BlankDiameterMm is double bdm) w.WriteNumber("diameterMm", bdm); else w.WriteNull("diameterMm");
+            if (o.Shape == BlankShape.Rectangle)
+            {
+                w.WriteNumber("widthMm", o.BlankWidthMm);
+                w.WriteNumber("heightMm", o.BlankHeightMm);
+                w.WriteNumber("cornerRadiusMm", o.CornerRadiusMm);
+                w.WriteStartArray("holes");
+                foreach (var hole in o.Holes)
+                {
+                    w.WriteStartObject();
+                    w.WriteNumber("xMm", hole.XMm); w.WriteNumber("yMm", hole.YMm); w.WriteNumber("diameterMm", hole.DiameterMm);
+                    w.WriteEndObject();
+                }
+                w.WriteEndArray();
+            }
+            if (o.AddRim && o.RimWidthMm is double rwm) w.WriteNumber("rimWidthMm", rwm); else w.WriteNull("rimWidthMm");
+            w.WriteEndObject();
+
             w.WriteNumber("changedPixels", rep.Changed);
             w.WriteNumber("surroundPixelsEvened", rep.SurroundEvened);
             w.WriteNumber("flattenedToBlack", rep.FlattenedToBlack);

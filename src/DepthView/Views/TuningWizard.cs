@@ -133,9 +133,11 @@ public sealed class TuningWizard : Window
         {
             new(StepId.Target, "Machine and blank", "What cuts it, on what", () => true),
             new(StepId.Background, "Background", "Surround or floor", () => _s.HasDesign && _s.BackgroundShare >= 0.01),
-            new(StepId.Rim, "Rim", "The coin's edge", () => true),
-            new(StepId.Placement, "Placement", "Where the blank sits", () => _a.Rim == RimChoice.Add),
-            new(StepId.Edge, "Edge into the rim", "Step or taper", () => _a.Rim != RimChoice.None),
+            // The step titles are fixed when the wizard opens; the blank's shape is set in the
+            // Tune window, so it is known by then. Placement is a round-blank fit.
+            new(StepId.Rim, Blank.Current.IsRound ? "Rim" : "Border", Blank.Current.IsRound ? "The coin's edge" : "The plate's edge", () => true),
+            new(StepId.Placement, "Placement", "Where the blank sits", () => _a.Rim == RimChoice.Add && Blank.Current.IsRound),
+            new(StepId.Edge, Blank.Current.IsRound ? "Edge into the rim" : "Edge into the border", "Step or taper", () => _a.Rim != RimChoice.None),
             new(StepId.Floor, "Deepest areas", "What becomes full depth", () => true),
             new(StepId.Top, "Highest areas", "What stays untouched", () => true),
             new(StepId.Flat, "Flat areas", "Level things engrave level", () => _s.FlatAreas.Count > 0),
@@ -225,7 +227,9 @@ public sealed class TuningWizard : Window
             }
         }
         a.Background = WizardAdvice.Background(_s);
-        a.Rim = mem is { WantRim: false } ? RimChoice.None : WizardAdvice.Rim(_s);
+        a.Rim = mem is { WantRim: false } ? RimChoice.None
+              : Blank.Current.IsRound ? WizardAdvice.Rim(_s)
+              : RimChoice.Add;   // a plate has nothing drawn to replace; a border is the recommendation
         a.Placement = WizardAdvice.Placement(_s, a.Background, BlankMm);
         RecommendLevels(a);
         RecommendFlat(a, scopeToo: mem is null);
@@ -258,7 +262,7 @@ public sealed class TuningWizard : Window
         var title = new TextBlock { Text = "Tuning wizard", FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = InkStrong };
         var sub = new TextBlock
         {
-            Text = $"{_src.FileName}  -  a few questions about what you want the coin to be. Every answer shows on the "
+            Text = $"{_src.FileName}  -  a few questions about what you want the {(Blank.Current.IsRound ? "coin" : "engraving")} to be. Every answer shows on the "
                  + "picture as you make it. The recommendations are suggestions: you have the final word, here and in the "
                  + "Tune window afterwards. Nothing is written until you save, and the original is never modified.",
             FontSize = 11.5, Foreground = B("#79818D"), TextWrapping = TextWrapping.Wrap,
@@ -546,7 +550,8 @@ public sealed class TuningWizard : Window
     private List<Ring> ResultRings(TuningOptions po)
     {
         var rings = new List<Ring>();
-        if (!po.AddRim) return rings;
+        // A plate's reserve is not a ring; the painted border shows itself.
+        if (!po.AddRim || po.Shape == BlankShape.Rectangle) return rings;
         double cx = (_tw - 1) / 2.0, cy = (_th - 1) / 2.0;
         rings.Add(new Ring(cx, cy, Math.Min(_tw, _th) / 2.0, CBlank));
         if (po.RimRadius > 0) rings.Add(new Ring(cx, cy, po.RimRadius, CRimInner));
@@ -738,7 +743,7 @@ public sealed class TuningWizard : Window
         var items = new List<(Color C, string Text)>();
         if (result)
         {
-            if (_previewOptions?.AddRim == true)
+            if (_previewOptions?.AddRim == true && _previewOptions.Shape != BlankShape.Rectangle)
             {
                 items.Add((CBlank, "Edge of the blank"));
                 items.Add((CRimInner, "Where engraving stops"));
@@ -779,9 +784,12 @@ public sealed class TuningWizard : Window
             if (rep.Fit is { } fit)
                 parts.Add($"The design spans {fit.ArtAcrossMm:F1} of the {BlankMm:0.#} mm blank.");
             if (_previewOptions?.AddRim == true)
+            {
+                string edge = _previewOptions.Shape == BlankShape.Rectangle ? "border" : "rim";
                 parts.Add(rep.RimClipped > 0
-                    ? $"The rim covers {rep.RimClippedFraction * 100:F2}% of the design."
-                    : "The rim sits clear of the design.");
+                    ? $"The {edge} covers {rep.RimClippedFraction * 100:F2}% of the design."
+                    : $"The {edge} sits clear of the design.");
+            }
             if (rep.FitDesignLost > 0)
                 parts.Add("Centring was refused: it would have cropped part of the design.");
             if (_show3d.IsChecked == true && id == StepId.Layers && _a.Target == WizardTarget.LightBurn)
@@ -801,6 +809,8 @@ public sealed class TuningWizard : Window
                          : $"Level {_s.Background:N0}, around the edge of the image: ")
                      + $"{_s.BackgroundShare * 100:F1}% of the image, "
                      + $"and {_s.BackgroundInsideShare * 100:F1}% of the area inside the design's circle.";
+            case StepId.Rim when !Blank.Current.IsRound:
+                return "The original map, as it is in the file. Tick \"Show the result\" to see the border.";
             case StepId.Rim:
                 return _s.DrawnRim is { } rim
                     ? $"The artwork's own raised rim, {DrawnRimMm(rim):F2} mm wide once the blank is sized to it."
@@ -1201,8 +1211,24 @@ public sealed class TuningWizard : Window
                 Last(WizardTarget.Slicer))));
 
         p.Children.Add(Section("The blank"));
-        p.Children.Add(Number("Diameter", (decimal)Blank.MinDiameterMm, (decimal)Blank.MaxDiameterMm, 0.5m, "0.0#",
-            () => Blank.Current.DiameterMm, v => Blank.Current.DiameterMm = v, "mm"));
+        if (Blank.Current.IsRound)
+        {
+            p.Children.Add(Number("Diameter", (decimal)Blank.MinDiameterMm, (decimal)Blank.MaxDiameterMm, 0.5m, "0.0#",
+                () => Blank.Current.DiameterMm, v => Blank.Current.DiameterMm = v, "mm"));
+        }
+        else
+        {
+            // A plate's shape is set in the Tune window's Blank panel; the wizard shows it and
+            // takes the sizes, since those put millimetres on the map the same way a diameter does.
+            p.Children.Add(Number("Width", (decimal)Blank.MinDiameterMm, (decimal)Blank.MaxDiameterMm, 0.5m, "0.0#",
+                () => Blank.Current.WidthMm, v => Blank.Current.WidthMm = v, "mm"));
+            p.Children.Add(Number("Height", (decimal)Blank.MinDiameterMm, (decimal)Blank.MaxDiameterMm, 0.5m, "0.0#",
+                () => Blank.Current.HeightMm, v => Blank.Current.HeightMm = v, "mm"));
+            p.Children.Add(Why("A rectangular plate or tag: " + Blank.Current.ShapeSummary
+                + ". The image spans the plate, the rim width becomes a border on all four sides, and the corners and "
+                + "holes are kept clear by the same border. Corner radius and holes are set in the Tune window's Blank "
+                + "panel. Fitting by padding is for round blanks for now, so a plate is cut as the image stands."));
+        }
         p.Children.Add(Number("Thickness", (decimal)Blank.MinThicknessMm, (decimal)Blank.MaxThicknessMm, 0.1m, "0.0#",
             () => Blank.Current.ThicknessMm, v => Blank.Current.ThicknessMm = v, "mm"));
         p.Children.Add(Number("Target depth", (decimal)Blank.MinDepthMm, (decimal)Blank.MaxDepthMm, 0.01m, "0.00",
@@ -1255,6 +1281,31 @@ public sealed class TuningWizard : Window
         var rec = WizardAdvice.Rim(_s);
         string? R(RimChoice r) => r == rec ? "Recommended" : null;
         var p = new StackPanel();
+
+        if (!Blank.Current.IsRound)
+        {
+            // A plate has no rim to replace: the width becomes a border on all four sides, and
+            // the corners and holes are kept clear by it. Centring the blank on the design is
+            // a round-blank fit, so that choice is not offered here.
+            if (_a.Rim == RimChoice.Replace) _a.Rim = RimChoice.Add;
+            p.Children.Add(Header("Border", "Should the edge of the plate be left untouched?"));
+            p.Children.Add(Measured(() => Rows(("Blank", Blank.Current.ShapeSummary),
+                                               ("Corners", Blank.Current.CornerRadiusMm > 0 ? $"rounded at {Blank.Current.CornerRadiusMm:0.#} mm" : "square"),
+                                               ("Holes", Blank.Current.Holes.Count > 0 ? Blank.Current.HolesText : "none"))));
+            p.Children.Add(Choices(() => _a.Rim, v => { _a.Rim = v; RecommendLevels(_a); },
+                new Opt<RimChoice>(RimChoice.Add, "Add a border",
+                    "A pure white band along all four sides, round the corners and round every hole, which the laser never touches.",
+                    "Recommended"),
+                new Opt<RimChoice>(RimChoice.None, "No border",
+                    "The map is engraved right to its edges, and holes are not kept clear.")));
+            p.Children.Add(Section("Border width"));
+            p.Children.Add(Number("Width, measured in from the edge", 0.05m, 10m, 0.05m, "0.00", () => _a.RimMm, v => _a.RimMm = v, "mm",
+                () => "The same width runs round the corners and each hole.", () => _a.Rim != RimChoice.None));
+            p.Children.Add(Why("The border is untouched material - the surface every depth is measured from - so in the map it is "
+                + "pure white, and the laser never fires there. Tick \"Show the result\" to see the border your answers make."));
+            return p;
+        }
+
         p.Children.Add(Header("Rim", "How should the edge of the coin be finished?"));
         p.Children.Add(Measured(() => _s.DrawnRim is { } rim
             ? Rows(("Drawn rim", "yes - a raised ring is drawn into the artwork"),

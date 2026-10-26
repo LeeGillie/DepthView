@@ -443,13 +443,14 @@ public static class JsonReport
 
             // Added 1.14.0: the blank's outline. Every earlier report was a round blank.
             w.WriteStartObject("workpiece");
-            w.WriteString("shape", o.Shape == BlankShape.Rectangle ? "rectangle" : "round");
+            w.WriteString("shape", o.Shape switch { BlankShape.Rectangle => "rectangle", BlankShape.Custom => "custom", _ => "round" });
             if (o.BlankDiameterMm is double bdm) w.WriteNumber("diameterMm", bdm); else w.WriteNull("diameterMm");
-            if (o.Shape == BlankShape.Rectangle)
+            if (o.IsPlate)
             {
                 w.WriteNumber("widthMm", o.BlankWidthMm);
                 w.WriteNumber("heightMm", o.BlankHeightMm);
-                w.WriteNumber("cornerRadiusMm", o.CornerRadiusMm);
+                w.WriteNumber("cornerRadiusMm", o.Shape == BlankShape.Custom ? 0 : o.CornerRadiusMm);
+                if (o.Shape == BlankShape.Custom) w.WriteString("outlineFile", o.OutlinePath ?? "");
                 w.WriteStartArray("holes");
                 foreach (var hole in o.Holes)
                 {
@@ -460,6 +461,9 @@ public static class JsonReport
                 w.WriteEndArray();
             }
             if (o.AddRim && o.RimWidthMm is double rwm) w.WriteNumber("rimWidthMm", rwm); else w.WriteNull("rimWidthMm");
+            // The material as the program knows it (a catalogue id); it changes no pixel, and
+            // is here so a host can pair the map with the capability verdict and the advice.
+            w.WriteString("material", Materials.MaterialCatalog.Find(Blank.Current.MaterialId).Id);
             w.WriteEndObject();
 
             w.WriteNumber("changedPixels", rep.Changed);
@@ -488,6 +492,9 @@ public static class JsonReport
             {
                 w.WriteStartObject("fit");
                 w.WriteNumber("canvasPx", fit.Size);
+                // A plate's canvas is not square: its two sides, for every shape.
+                w.WriteNumber("canvasWidthPx", fit.CanvasWidth);
+                w.WriteNumber("canvasHeightPx", fit.CanvasHeight);
                 Num(w, "artAcrossMm", fit.ArtAcrossMm);
                 Num(w, "pixelsPerMm", fit.PixelsPerMm);
                 // Added 1.8.0 with "fit": "design". Offsets place the input's top-left corner on

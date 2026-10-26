@@ -816,20 +816,35 @@ file**, so the closing line of the status bar is a measurement rather than a cla
 
 Everything here is also available from the command line; see below.
 
-**Plates and tags** *(unreleased - in the next build)*. The blank need not be round. In the
-Blank panel, **Shape** switches between a round blank and a rectangular plate or tag, with a
-width and height, a corner radius and a list of holes to keep clear (`x,y,d; ...` in mm from
-the centre, y down). The image spans the plate's bounding box, so a file drawn for other
-proportions covers only the middle of the plate, and the window says so. Everything the rim
-does on a coin, the border does on a plate: the RIM section becomes BORDER, the same width
-runs along all four sides, round the corners and round every hole, and the overlap with the
-design is counted the same way. The amber line in the Tuned pane traces the edge of the
-engraved area. Two things stay round-only for now, and the window says which: fitting by
-padding (a plate is cut as the image stands) and centring the blank on the design. The
-alignment outline becomes the plate's rectangle, with the inset engraved area and the holes
-in red, and `.dvp` profiles, the job report and `--tune --json` carry the shape. The tuning
-wizard asks for a border instead of a rim and skips the placement step. From the command
-line: `--plate 100x60 --corner 5 --holes "0,-22,4"`.
+**Plates, tags and any other outline** *(unreleased - in the next build)*. The blank need not
+be round. In the Blank panel, **Shape** switches between a round blank, a rectangular plate or
+tag - a width and height, a corner radius and a list of holes to keep clear (`x,y,d; ...` in mm
+from the centre, y down) - and a **custom outline**: an SVG you drew (a dog tag, a shield, an
+oval; the filled shapes are the blank) or a mask image (white is the blank). The image spans
+the workpiece's bounding box, and everything the rim does on a coin the border does here: the
+RIM section becomes BORDER, the same width runs along every edge, round the corners and round
+every hole, the overlap with the design is counted the same way, and the amber line in the
+Tuned pane traces the edge of the engraved area. A file drawn for other proportions covers only
+the middle of the workpiece, and the window says so; **Fit** pads it out to the workpiece's
+proportions and, for the artwork, grows the canvas until the design clears the border, the
+corners and the holes - nothing resampled, nothing cropped. Centring the blank on the design
+stays round-only and is greyed. The alignment outline becomes the plate's rectangle, or the
+outline traced back out, with the engraved area and the holes in red; `.dvp` profiles, the job
+report and `--tune --json` carry the shape, and the tuning wizard asks for a border instead of
+a rim and skips the placement step. From the command line: `--plate 100x60 --corner 5 --holes
+"0,-22,4"`, or `--shape tag.svg` (with `--plate WxH` as the bounding box when the file does not
+state its size).
+
+**Material, and what the laser can do to it** *(unreleased)*. The Blank panel also asks what
+the blank is made of - brass, bronze, copper, stainless, mild steel, aluminium (bare or
+anodised), titanium, silver, gold, wood, leather, acrylic, slate, glass. It changes no pixel:
+it picks the relief look and the finishing chemistry, it is what the settings advisor is asked
+about, and it is checked against the laser named in the JOB section. The note under the laser
+says, in words, whether that source can engrave that material in depth - brass on a fibre
+source works, anodised aluminium is marginal (the colour comes off in the first pass), brass
+on a CO2 or clear acrylic on a fibre is not possible, with the reason. The verdicts are the
+optics of the pairing, never a removal figure; the settings advisor refuses a pairing that
+removes nothing and warns on a marginal one. `DepthView --materials` prints the table.
 
 ### About
 
@@ -1003,8 +1018,17 @@ efficiency of roughly 0.7-2.7 µm per J/mm² from other machines; brass, copper 
 have no measured value at all, only a placeholder scaled from stainless; titanium and UV have
 nothing. The review these come from is
 [docs/research/laser-ablation-baselines.md](docs/research/laser-ablation-baselines.md), with
-every grade explained. Later releases will bundle studies measured on a known Lumos Ultra,
-which outrank the literature; the same mechanism carries them.
+every grade explained; a second pass,
+[docs/research/laser-ablation-sweep-2.md](docs/research/laser-ablation-sweep-2.md), found
+graded figures for bronze, copper, titanium, mild steel and more stainless (and still none
+for brass in readable text, or for UV on any metal) - the rows it marks fit to seed are the
+next additions to the bundled set. Later releases will bundle studies measured on a known Lumos Ultra,
+which outrank the literature; the same mechanism carries them. **If you cannot run the bench
+yourself, the next best evidence is someone else's measured study on the same laser model and
+the same material**: ask them to **Export** it, **Import** the file, and its measured patches
+count as grade A from another bench - above every bundled figure, and said to be from another
+bench wherever they are used. Nothing bundled is a prediction for your machine; your own
+coupons, or a coupon cut on a machine like yours, are.
 
 **Settings from the study.** The Tune window's JOB section has **Settings from the study...**:
 for the finishing material, the laser and lens named there, the blank's target depth and the
@@ -1074,8 +1098,12 @@ DepthView --tune coin.png --blank 40 --rim-mm 0.9 --mask rim.png --slices 256 --
 DepthView --tune coin.png --blank 40 --rim-mm 0.9 --save-params      # and keep the settings as coin.dvp
 DepthView --tune next.png --params coin.dvp                          # start another map from them
 DepthView coin.png --tune-ui --blank 40 --rim-mm 0.9 --fit   # the dialog, already set up
-DepthView --tune tag.png --plate 100x60 --corner 5 --holes "0,-22,4" --rim-mm 2 --outline
+DepthView --tune tag.png --plate 100x60 --corner 5 --holes "0,-22,4" --rim-mm 2 --fit --outline
                                         # a rectangular tag: a 2 mm border, round the corners and the hole
+DepthView --tune shield.png --shape shield.svg --rim-mm 2 --fit --outline
+                                        # any outline you drew; a mask PNG works too (white = the blank)
+DepthView --tune coin.png --blank 40 --rim-mm 0.9 --material stainless
+DepthView --materials                   # what each kind of source can do to each material
 ```
 
 Every `--tune` run prints what it changed and then re-reads the file it wrote and

@@ -48,7 +48,7 @@ public sealed class AblationWindow : Window
         Background = Bg;
 
         _newStudy = MakeButton("New study...", "Material, laser, coupon size and the settings to test, with a projection of how many identical coupons it needs.");
-        _import = MakeButton("Import...", "Bring in a study someone shared as a file. It keeps its own test numbers and is marked with where it came from.");
+        _import = MakeButton("Import...", "Bring in a study someone shared as a file. It keeps its own test numbers and is marked with where it came from. A measured study from the same laser model and material is the next best evidence after your own coupons: its measurements count as grade A from another bench, above every bundled reference study.");
         _export = MakeButton("Export...", "Write the chosen study - design, coupons, measurements - as a file to share.");
         _convert = MakeButton("Carry to another rating...", "A copy of the study's design for the other MOPA rating (60 W or 100 W), every setting matched by watts. Predictions until cut and measured.");
         _deleteStudy = MakeButton("Delete study", "Remove the chosen study and its coupons from the database. Its test numbers are not reused.");

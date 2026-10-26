@@ -148,16 +148,18 @@
                   MinHeight="120" CornerRadius="8"
                   Background="#0C0E11" BorderBrush="#3A424E" BorderThickness="2"
                   Cursor="Hand"
-                  ToolTip.Tip="Drop an image file here, click to browse, or press Ctrl+V to paste. Dropping or browsing reads the original file bytes, which is the only way to measure true bit depth.&#x0a;&#x0a;With a map loaded, drag across the picture to plot the depth along a line; a plain click still browses.">
+                  ToolTip.Tip="Drop a depth map here, click to browse, or press Ctrl+V to paste. A laser project (.wws, .lbrn) opens to the depth map inside it; a G-code job (.gc, .gcode, .nc) opens its own report of what the machine is actually sent. Dropping or browsing reads the original file bytes, which is the only way to measure true bit depth.&#x0a;&#x0a;With a map loaded, drag across the picture to plot the depth along a line; a plain click still browses.">
             <Grid>
               <Image x:Name="Thumb" Stretch="Uniform" Margin="6"
                      RenderOptions.BitmapInterpolationMode="HighQuality" />
               <ctl:PaneLine x:Name="ThumbLine" Margin="6" />
               <StackPanel x:Name="DropHint" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
-                <TextBlock Text="Drop an image here" FontSize="15" Foreground="#98A2AF" HorizontalAlignment="Center" />
+                <TextBlock Text="Drop a depth map, a laser project or a G-code job here" FontSize="15" Foreground="#98A2AF" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
                 <TextBlock Text="click to browse  -  Ctrl+V to paste" FontSize="11" Foreground="#5E6773" HorizontalAlignment="Center" />
                 <TextBlock Text="PNG - TIFF - JPEG - BMP - WebP - PGM/PPM - PFM"
                            FontSize="10" Foreground="#49515C" HorizontalAlignment="Center" />
+                <TextBlock Text=".wws - .lbrn / .lbrn2 projects     .gc - .gcode - .nc jobs (what the machine is sent)"
+                           FontSize="10" Foreground="#49515C" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
               </StackPanel>
             </Grid>
           </Border>

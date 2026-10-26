@@ -30,11 +30,13 @@ public sealed class DvpProfile
     public string? MapHash;
 
     // ---- portable: the workpiece
-    /// <summary>"round" (the coin) or "rectangle" (a plate or tag, with the figures below).</summary>
+    /// <summary>"round" (the coin), "rectangle" (a plate or tag, with the figures below) or "custom" (an outline file, with its bounding box).</summary>
     public string Shape = "round";
     public double DiameterMm = Blank.DefaultDiameterMm;
     public double WidthMm = Blank.DefaultWidthMm, HeightMm = Blank.DefaultHeightMm, CornerRadiusMm;
     public List<BlankHole> Holes = new();
+    /// <summary>For "custom": the SVG or mask file, as a path. Relative paths are taken from the profile's own folder.</summary>
+    public string? OutlineFile;
     public double ThicknessMm = Blank.DefaultThicknessMm;
     /// <summary>Null when the target depth follows the thickness.</summary>
     public double? TargetDepthMm;
@@ -113,19 +115,26 @@ public sealed class DvpProfile
         o.Slices = Slice ? Passes : 0;
         o.Dither = Dither;
         o.OutputBitDepth = OutputBitDepth == 8 ? 8 : 16;
-        bool rect = Shape == "rectangle";
-        o.Shape = rect ? BlankShape.Rectangle : BlankShape.Round;
+        bool custom = Shape == "custom";
+        bool rect = Shape == "rectangle" || custom;
+        o.Shape = custom ? BlankShape.Custom : rect ? BlankShape.Rectangle : BlankShape.Round;
         o.BlankDiameterMm = rect ? Math.Min(WidthMm, HeightMm) : DiameterMm;
         o.BlankWidthMm = rect ? WidthMm : DiameterMm; o.BlankHeightMm = rect ? HeightMm : DiameterMm;
-        o.CornerRadiusMm = rect ? CornerRadiusMm : 0; o.Holes = rect ? new List<BlankHole>(Holes) : new List<BlankHole>();
+        o.CornerRadiusMm = rect && !custom ? CornerRadiusMm : 0; o.Holes = rect ? new List<BlankHole>(Holes) : new List<BlankHole>();
+        if (custom)
+        {
+            o.OutlinePath = OutlineFile;
+            o.Outline = CustomOutline.Load(OutlineFile, out _);
+        }
         o.TargetDepthMm = TargetDepthMm ?? Math.Clamp(ThicknessMm * DepthPercent / 100.0, Blank.MinDepthMm, Blank.MaxDepthMm);
         if (Rim)
         {
             o.RimWidthMm = RimWidthMm;
             o.RimRampMm = RimRampMm;
-            o.Fit = rect ? FitPolicy.None : Fit;
+            // Centring on the design is round-only; a plate fits by padding and clearing the border.
+            o.Fit = rect && Fit == FitPolicy.Design ? FitPolicy.Content : Fit;
             o.PadWith = Pad;
-            o.CoverDesignRim = CoverDesignRim && Fit == FitPolicy.Design;
+            o.CoverDesignRim = !rect && CoverDesignRim && Fit == FitPolicy.Design;
         }
         if (mapSpecific)
         {
@@ -160,11 +169,12 @@ public sealed class DvpProfile
             w.WriteStartObject("workpiece");
             w.WriteString("shape", Shape);
             w.WriteNumber("diameterMm", DiameterMm);
-            if (Shape == "rectangle")
+            if (Shape is "rectangle" or "custom")
             {
                 w.WriteNumber("widthMm", WidthMm);
                 w.WriteNumber("heightMm", HeightMm);
                 w.WriteNumber("cornerRadiusMm", CornerRadiusMm);
+                if (Shape == "custom") Str(w, "outlineFile", OutlineFile);
                 w.WriteStartArray("holes");
                 foreach (var h in Holes)
                 {
@@ -243,9 +253,10 @@ public sealed class DvpProfile
     // ------------------------------------------------------------------ reading
 
     public static DvpProfile Load(string path, out List<string> problems)
-        => Parse(File.ReadAllText(path), out problems);
+        => Parse(File.ReadAllText(path), out problems, path);
 
-    public static DvpProfile Parse(string json, out List<string> problems)
+    /// <param name="path">Where the profile came from, when it came from a file: a relative outline file is resolved against it.</param>
+    public static DvpProfile Parse(string json, out List<string> problems, string? path = null)
     {
         problems = new List<string>();
         var p = new DvpProfile();
@@ -275,7 +286,16 @@ public sealed class DvpProfile
             if (po.TryGetProperty("workpiece", out var wk))
             {
                 p.Shape = S(wk, "shape") ?? "round";
-                if (p.Shape is not ("round" or "rectangle")) { problems.Add($"Workpiece shape '{p.Shape}' is not one this build knows (round, rectangle); read as round."); p.Shape = "round"; }
+                if (p.Shape is not ("round" or "rectangle" or "custom")) { problems.Add($"Workpiece shape '{p.Shape}' is not one this build knows (round, rectangle, custom); read as round."); p.Shape = "round"; }
+                if (p.Shape == "custom")
+                {
+                    p.OutlineFile = S(wk, "outlineFile");
+                    // A relative path is relative to the profile, which travels with its map.
+                    if (p.OutlineFile is { } of && !Path.IsPathRooted(of) && path is not null && Path.GetDirectoryName(path) is { } dir)
+                        p.OutlineFile = Path.Combine(dir, of);
+                    if (string.IsNullOrWhiteSpace(p.OutlineFile) || !File.Exists(p.OutlineFile))
+                        problems.Add($"The outline file '{p.OutlineFile ?? ""}' is missing; the blank's bounding box stands in until it is found.");
+                }
                 p.DiameterMm = Math.Clamp(D(wk, "diameterMm") ?? p.DiameterMm, Blank.MinDiameterMm, Blank.MaxDiameterMm);
                 p.WidthMm = Math.Clamp(D(wk, "widthMm") ?? p.WidthMm, Blank.MinDiameterMm, Blank.MaxDiameterMm);
                 p.HeightMm = Math.Clamp(D(wk, "heightMm") ?? p.HeightMm, Blank.MinDiameterMm, Blank.MaxDiameterMm);

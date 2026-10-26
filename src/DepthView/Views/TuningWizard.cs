@@ -551,7 +551,7 @@ public sealed class TuningWizard : Window
     {
         var rings = new List<Ring>();
         // A plate's reserve is not a ring; the painted border shows itself.
-        if (!po.AddRim || po.Shape == BlankShape.Rectangle) return rings;
+        if (!po.AddRim || po.IsPlate) return rings;
         double cx = (_tw - 1) / 2.0, cy = (_th - 1) / 2.0;
         rings.Add(new Ring(cx, cy, Math.Min(_tw, _th) / 2.0, CBlank));
         if (po.RimRadius > 0) rings.Add(new Ring(cx, cy, po.RimRadius, CRimInner));
@@ -743,7 +743,7 @@ public sealed class TuningWizard : Window
         var items = new List<(Color C, string Text)>();
         if (result)
         {
-            if (_previewOptions?.AddRim == true && _previewOptions.Shape != BlankShape.Rectangle)
+            if (_previewOptions?.AddRim == true && !_previewOptions.IsPlate)
             {
                 items.Add((CBlank, "Edge of the blank"));
                 items.Add((CRimInner, "Where engraving stops"));
@@ -785,7 +785,7 @@ public sealed class TuningWizard : Window
                 parts.Add($"The design spans {fit.ArtAcrossMm:F1} of the {BlankMm:0.#} mm blank.");
             if (_previewOptions?.AddRim == true)
             {
-                string edge = _previewOptions.Shape == BlankShape.Rectangle ? "border" : "rim";
+                string edge = _previewOptions.IsPlate ? "border" : "rim";
                 parts.Add(rep.RimClipped > 0
                     ? $"The {edge} covers {rep.RimClippedFraction * 100:F2}% of the design."
                     : $"The {edge} sits clear of the design.");
@@ -1224,10 +1224,11 @@ public sealed class TuningWizard : Window
                 () => Blank.Current.WidthMm, v => Blank.Current.WidthMm = v, "mm"));
             p.Children.Add(Number("Height", (decimal)Blank.MinDiameterMm, (decimal)Blank.MaxDiameterMm, 0.5m, "0.0#",
                 () => Blank.Current.HeightMm, v => Blank.Current.HeightMm = v, "mm"));
-            p.Children.Add(Why("A rectangular plate or tag: " + Blank.Current.ShapeSummary
-                + ". The image spans the plate, the rim width becomes a border on all four sides, and the corners and "
-                + "holes are kept clear by the same border. Corner radius and holes are set in the Tune window's Blank "
-                + "panel. Fitting by padding is for round blanks for now, so a plate is cut as the image stands."));
+            p.Children.Add(Why((Blank.Current.Shape == BlankShape.Custom ? "A custom outline: " : "A rectangular plate or tag: ") + Blank.Current.ShapeSummary
+                + ". The image spans the blank's bounding box, the rim width becomes a border that follows the edge, and the "
+                + "corners and holes are kept clear by the same border. Corner radius, holes and the outline file are set in the "
+                + "Tune window's Blank panel. The canvas is padded to the blank's proportions and grown until the design clears "
+                + "the border; centring the blank on the design is for round blanks."));
         }
         p.Children.Add(Number("Thickness", (decimal)Blank.MinThicknessMm, (decimal)Blank.MaxThicknessMm, 0.1m, "0.0#",
             () => Blank.Current.ThicknessMm, v => Blank.Current.ThicknessMm = v, "mm"));

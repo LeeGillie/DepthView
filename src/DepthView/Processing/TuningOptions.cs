@@ -131,6 +131,16 @@ public sealed class TuningOptions
     public double BlankWidthMm, BlankHeightMm, CornerRadiusMm;
     public List<BlankHole> Holes = new();
 
+    /// <summary>A custom outline (SVG or mask) for <see cref="BlankShape.Custom"/>; the bounding box is BlankWidthMm × BlankHeightMm.</summary>
+    public CustomOutline? Outline;
+    public string? OutlinePath;
+
+    /// <summary>True for any blank that is not the coin: a plate, a tag or a custom outline, all of which the border and the fit treat alike.</summary>
+    public bool IsPlate => Shape != BlankShape.Round;
+
+    /// <summary>"blank", "plate" or "outline": the word for the workpiece in a sentence.</summary>
+    public string ShapeNoun => Shape switch { BlankShape.Rectangle => "plate", BlankShape.Custom => "outline", _ => "blank" };
+
     /// <summary>Takes the shape and size from the program-wide blank.</summary>
     public void TakeShapeFrom(Blank b)
     {
@@ -138,6 +148,27 @@ public sealed class TuningOptions
         BlankDiameterMm = b.ShortSideMm;
         BlankWidthMm = b.WidthMm; BlankHeightMm = b.HeightMm; CornerRadiusMm = b.CornerRadiusMm;
         Holes = new List<BlankHole>(b.Holes);
+        OutlinePath = b.OutlinePath;
+        Outline = Shape == BlankShape.Custom ? CustomOutline.Load(b.OutlinePath, out _) : null;
+    }
+
+    /// <summary>Sets a custom outline from a file, taking its size when the file states one.</summary>
+    public string? UseOutline(string path)
+    {
+        Outline = CustomOutline.Load(path, out string? error);
+        OutlinePath = path;
+        if (Outline is null) return error;
+        Shape = BlankShape.Custom;
+        if (Outline.WidthMm is { } wmm && Outline.HeightMm is { } hmm && wmm > 0 && hmm > 0)
+        {
+            BlankWidthMm = wmm; BlankHeightMm = hmm;
+        }
+        else if (BlankWidthMm > 0 && BlankHeightMm <= 0) BlankHeightMm = BlankWidthMm / Outline.Aspect;
+        else if (BlankHeightMm > 0 && BlankWidthMm <= 0) BlankWidthMm = BlankHeightMm * Outline.Aspect;
+        if (BlankWidthMm <= 0 || BlankHeightMm <= 0)
+            return $"{System.IO.Path.GetFileName(path)} does not state its size in millimetres; give the outline's bounding box (--plate WxH before --shape).";
+        BlankDiameterMm = Math.Min(BlankWidthMm, BlankHeightMm);
+        return null;
     }
 
     /// <summary>Rim width in mm, measured from the edge inward.</summary>
@@ -178,7 +209,9 @@ public sealed class TuningOptions
         if (PixelsPerMm(width, height) is not double ppmm || ppmm <= 0) return;
 
         double half = Math.Min(width, height) / 2.0;
-        if (RimWidthMm is > 0 || (Shape == BlankShape.Rectangle && (Holes.Count > 0 || CornerRadiusMm > 0)))
+        // A custom outline is a reserve on its own - everything off the blank is left alone -
+        // as are a plate's rounded corners and holes, border or no border.
+        if (RimWidthMm is > 0 || Shape == BlankShape.Custom || (Shape == BlankShape.Rectangle && (Holes.Count > 0 || CornerRadiusMm > 0)))
         {
             // A rectangle's reserve is built by ReserveRegion from the border, corners and holes;
             // RimRadius is kept as half the usable short side so round-only arithmetic stays sane.

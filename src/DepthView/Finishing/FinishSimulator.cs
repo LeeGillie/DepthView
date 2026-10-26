@@ -49,8 +49,11 @@ public static class FinishSimulator
     /// <param name="field">0..1 heights, 1 = the untouched surface.</param>
     /// <param name="mmPerPx">Millimetres per field sample.</param>
     /// <param name="depthMm">Depth that 0 in the field stands for.</param>
+    /// <param name="onBlank">Which samples are metal. Null means the round blank on the short side;
+    /// a plate passes its own outline (the whole canvas less the corners outside its radius).</param>
     public static FinishResult Run(FinishCatalogue c, FinishRecipe r, float[] field, int w, int h,
-                                   double mmPerPx, double depthMm, CancellationToken ct = default)
+                                   double mmPerPx, double depthMm, CancellationToken ct = default,
+                                   Func<int, int, bool>? onBlank = null)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         long n = (long)w * h;
@@ -77,17 +80,18 @@ public static class FinishSimulator
         // not hold a tool up: a white corner would otherwise stand above the rim like a wall
         // and keep every tool off the coin's edge. It is dropped to the deepest level inside.
         double bcx = (w - 1) / 2.0, bcy = (h - 1) / 2.0, br = Math.Min(w, h) / 2.0, br2 = br * br;
+        onBlank ??= (x, y) => (x - bcx) * (x - bcx) + (y - bcy) * (y - bcy) <= br2;
         float floor = 0;
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
-                if ((x - bcx) * (x - bcx) + (y - bcy) * (y - bcy) <= br2) floor = Math.Min(floor, hmm[(long)y * w + x]);
+                if (onBlank(x, y)) floor = Math.Min(floor, hmm[(long)y * w + x]);
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
             {
                 // The canvas border too: the 3D view hangs its slab edge from it, and where the
                 // blank touches the border that edge would otherwise be drawn as coin.
                 bool border = x == 0 || y == 0 || x == w - 1 || y == h - 1;
-                if (!border && (x - bcx) * (x - bcx) + (y - bcy) * (y - bcy) <= br2) continue;
+                if (!border && onBlank(x, y)) continue;
                 long i = (long)y * w + x;
                 hmm[i] = floor;
                 eng[i] = 0;

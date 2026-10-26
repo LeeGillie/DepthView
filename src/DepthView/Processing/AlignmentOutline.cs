@@ -130,4 +130,62 @@ public static class AlignmentOutline
 
         string F(double v) => v.ToString("0.####", c);
     }
+
+    /// <summary>
+    /// The outline for a custom shape: its edge traced from the distance field (so an SVG and
+    /// a painted mask come out the same way) in black, the edge of the engraved area - the
+    /// outline inset by the border - in red, the holes in red, and the centre cross. Traced at
+    /// the given field size and simplified to 0.05 mm, so the file stays small.
+    /// </summary>
+    public static void WriteCustom(string path, CustomOutline outline, double widthMm, double heightMm, double borderMm,
+                                   IReadOnlyList<BlankHole> holes, string? sourceName = null)
+    {
+        if (widthMm <= 0 || heightMm <= 0) throw new ArgumentOutOfRangeException(nameof(widthMm));
+        var c = CultureInfo.InvariantCulture;
+        // Trace at about 20 px/mm, capped: fine enough for a vector, cheap enough to do on save.
+        double ppmm = Math.Min(20, 4000 / Math.Max(widthMm, heightMm));
+        int w = Math.Max(16, (int)Math.Round(widthMm * ppmm)), h = Math.Max(16, (int)Math.Round(heightMm * ppmm));
+        double mmPerPx = widthMm / w;
+        double cross = Math.Max(0.5, Math.Min(widthMm, heightMm) * 0.03);
+        double midX = widthMm / 2, midY = heightMm / 2;
+
+        var sb = new StringBuilder();
+        sb.AppendLine(@"<?xml version=""1.0"" encoding=""UTF-8""?>");
+        sb.AppendLine($"<!-- Alignment outline for {sourceName ?? "a tuned depth map"}, written by DepthView {BuildInfo.Version},");
+        sb.AppendLine($"     traced from {System.IO.Path.GetFileName(outline.Path)}.");
+        sb.AppendLine("     Import this alongside the depth map; both are sized in millimetres. Put these shapes on a");
+        sb.AppendLine("     tool layer, turn Frame off for the image layer, frame with Hull or Contour, and line the");
+        sb.AppendLine("     black outline up with the edge of the blank. -->");
+        sb.AppendLine($@"<svg xmlns=""http://www.w3.org/2000/svg"" version=""1.1"" width=""{F(widthMm)}mm"" height=""{F(heightMm)}mm"" viewBox=""0 0 {F(widthMm)} {F(heightMm)}"">");
+        sb.AppendLine("  <!-- edge of the blank: align this to the workpiece -->");
+        foreach (var loop in outline.EdgePx(w, h, 0))
+            sb.AppendLine($@"  <path d=""{PathData(loop, mmPerPx, c)}"" fill=""none"" stroke=""#000000"" stroke-width=""0.1"" />");
+        if (borderMm > 0)
+        {
+            sb.AppendLine("  <!-- edge of the engraved area: everything outside this is left untouched -->");
+            foreach (var loop in outline.EdgePx(w, h, borderMm / mmPerPx))
+                sb.AppendLine($@"  <path d=""{PathData(loop, mmPerPx, c)}"" fill=""none"" stroke=""#FF0000"" stroke-width=""0.1"" />");
+        }
+        foreach (var hole in holes)
+            sb.AppendLine($@"  <circle cx=""{F(midX + hole.XMm)}"" cy=""{F(midY + hole.YMm)}"" r=""{F(hole.DiameterMm / 2)}"" fill=""none"" stroke=""#FF0000"" stroke-width=""0.1"" />");
+        sb.AppendLine("  <!-- centre -->");
+        sb.AppendLine($@"  <path d=""M {F(midX - cross)} {F(midY)} L {F(midX + cross)} {F(midY)} M {F(midX)} {F(midY - cross)} L {F(midX)} {F(midY + cross)}"" fill=""none"" stroke=""#0000FF"" stroke-width=""0.1"" />");
+        sb.AppendLine("</svg>");
+        File.WriteAllText(path, sb.ToString());
+
+        string F(double v) => v.ToString("0.####", c);
+    }
+
+    private static string PathData(List<Pt> loopPx, double mmPerPx, CultureInfo c)
+    {
+        var pts = MarchingSquares.Simplify(loopPx, 0.05 / mmPerPx);
+        var sb = new StringBuilder();
+        for (int i = 0; i < pts.Count; i++)
+        {
+            sb.Append(i == 0 ? "M " : " L ");
+            sb.Append((pts[i].X * mmPerPx).ToString("0.###", c)).Append(' ').Append((pts[i].Y * mmPerPx).ToString("0.###", c));
+        }
+        sb.Append(" Z");
+        return sb.ToString();
+    }
 }

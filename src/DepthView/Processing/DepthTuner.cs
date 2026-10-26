@@ -159,11 +159,13 @@ public static class DepthTuner
         // over it. The blank is a fixed 40 mm whatever we do, so a larger canvas means the
         // same artwork spans fewer millimetres of it - the same outcome as scaling the art
         // down, reached without resampling a single pixel.
-        // Fitting by padding is worked out for the round blank (a circle round the design); a
-        // rectangular blank is cut as the image stands, until the box-shaped fit exists.
-        if (o.AddRim && o.Fit != FitPolicy.None && o.BlankDiameterMm is > 0 && o.Shape == BlankShape.Round)
+        // A rectangular blank is padded to the plate's proportions instead (and, for Content,
+        // grown until the design clears the border); centring on the design is round-only.
+        if (o.AddRim && o.Fit != FitPolicy.None && o.BlankDiameterMm is > 0)
         {
-            var plan = DepthCanvas.Plan(outp, w, h, maxValue, o, background);
+            var plan = o.IsPlate
+                ? DepthCanvas.PlanPlate(outp, w, h, maxValue, o, background)
+                : DepthCanvas.Plan(outp, w, h, maxValue, o, background);
 
             // Centring on the design may crop, and a crop is only allowed to take background.
             // That holds by construction; it is counted anyway, and a plan that would lose a
@@ -191,10 +193,11 @@ public static class DepthTuner
                 // design's background is already near untouched - otherwise the boundary of
                 // the source image shows up as a square step around the artwork.
                 ushort fill = o.PadWith == PadFill.Untouched ? untouched : background;
-                outp = DepthCanvas.Pad(outp, w, h, plan.Size, plan.OffsetX, plan.OffsetY, fill);
+                outp = DepthCanvas.Pad(outp, w, h, plan.CanvasWidth, plan.CanvasHeight, plan.OffsetX, plan.OffsetY, fill);
                 designX = plan.OffsetX;
                 designY = plan.OffsetY;
-                w = h = plan.Size;
+                w = plan.CanvasWidth;
+                h = plan.CanvasHeight;
                 report.Fit = plan;
                 report.OutWidth = w;
                 report.OutHeight = h;
@@ -204,7 +207,7 @@ public static class DepthTuner
                 // would place the padded map at the wrong scale, which is a worse failure than
                 // writing none at all. Only rewritten when one was going to be written.
                 double ppmm = plan.PixelsPerMm;
-                o.RimRadius = Math.Max(1, w / 2.0 - (o.RimWidthMm ?? 0) * ppmm);
+                o.RimRadius = Math.Max(1, Math.Min(w, h) / 2.0 - (o.RimWidthMm ?? 0) * ppmm);
                 o.RimRamp = (o.RimRampMm ?? 0) * ppmm;
                 if (o.Dpi is not null) o.Dpi = ppmm * 25.4;
             }
@@ -349,11 +352,17 @@ public static class DepthTuner
         if (!region.IsRound)
         {
             string what = o.Holes.Count > 0 ? "border or a hole" : "border";
+            string padded = report.Fit is { } f
+                ? $"The canvas was padded to the {o.ShapeNoun}'s proportions, {f.CanvasWidth:N0} x {f.CanvasHeight:N0} px"
+                  + (o.Fit == FitPolicy.Content ? " and grown so the design clears the border" : "")
+                  + $"; the file spans {f.ArtAcrossMm:F1} mm of the {o.BlankWidthMm:0.#} mm {o.ShapeNoun}. "
+                : "";
             report.Summary = report.RimClipped == 0
-                ? $"The {what} sits clear of the design."
-                : $"The {what} overlaps {report.RimClipped:N0} pixels of design "
+                ? padded + $"The {what} sits clear of the design."
+                : padded + $"The {what} overlaps {report.RimClipped:N0} pixels of design "
                 + $"({report.RimClippedFraction * 100:F2}% of it); the overlap is left uncut. "
-                + "Move or shrink the art to clear it.";
+                + (o.Fit == FitPolicy.Content ? "Even three times the file could not clear it: move the art, or shrink it."
+                                              : "Fit the design to clear it, or move or shrink the art.");
             return;
         }
 

@@ -358,6 +358,10 @@
                   <ComboBoxItem Content="Diode" />
                 </ComboBox>
               </Grid>
+              <!-- The capability gate: what this source can do to the blank's material, in
+                   words. A pairing that removes nothing is said to be refused here, before a
+                   depth map is cut with it. -->
+              <TextBlock x:Name="CapabilityNote" FontSize="11" Foreground="#8A929E" TextWrapping="Wrap" IsVisible="False" Margin="0,4,0,0" />
               <Grid ColumnDefinitions="112,*" Margin="0,6,0,0">
                 <TextBlock Grid.Column="0" Classes="label" Text="Lens" />
                 <TextBox Grid.Column="1" x:Name="LensBox" Watermark="e.g. F160, 110 x 110 mm"

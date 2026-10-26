@@ -42,6 +42,10 @@ public sealed class Preferences
     public double BlankCornerRadiusMm { get; set; }
     /// <summary>Holes as "x,y,d; ..." in mm from the centre.</summary>
     public string? BlankHoles { get; set; }
+    /// <summary>The material, as a material catalogue id. Missing means brass, as every earlier version assumed.</summary>
+    public string? BlankMaterial { get; set; }
+    /// <summary>For a "custom" shape: the SVG or mask file that draws the outline.</summary>
+    public string? BlankOutlinePath { get; set; }
 
     /// <summary>Target depth as a percentage of thickness, while it is following thickness.</summary>
     public double DepthPercent { get; set; } = Blank.DefaultDepthPercent;

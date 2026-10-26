@@ -154,7 +154,7 @@ public partial class TuneWindow : Window
         InvertCheck.IsCheckedChanged += (_, _) => Queue();
         SurroundCheck.IsCheckedChanged += (_, _) => Queue();
         RimCheck.IsCheckedChanged += (_, _) => Queue();
-        FitCheck.IsCheckedChanged += (_, _) => Queue();
+        FitCheck.IsCheckedChanged += (_, _) => { SyncShapeControls(); Queue(); };
         FitPolicyBox.SelectionChanged += (_, _) => Queue();
         CoverRimCheck.IsCheckedChanged += (_, _) => Queue();
         PadBox.SelectionChanged += (_, _) => Queue();
@@ -170,6 +170,8 @@ public partial class TuneWindow : Window
         // divides; thickness sets the slab the 3D panes stand on.
         Blank.Current.Changed += OnBlankChanged;
         SyncShapeControls();
+        SyncCapability();
+        LaserBox.SelectionChanged += (_, _) => SyncCapability();
         RimBox.ValueChanged += (_, _) => Queue();
         RampBox.ValueChanged += (_, _) => Queue();
         SpotBox.ValueChanged += (_, _) => Queue();
@@ -281,6 +283,7 @@ public partial class TuneWindow : Window
         if (Program.StartupBits is int bits) BitBox.SelectedIndex = bits == 8 ? 1 : 0;
         if (Program.StartupSpot is double spot && spot > 0) SpotBox.Value = (decimal)spot;
         if (Program.StartupOutline) OutlineCheck.IsChecked = true;
+        if (Program.StartupLaser is { } laserId && Array.IndexOf(LaserIds, laserId) is int lix && lix > 0) LaserBox.SelectedIndex = lix;
         if (Program.StartupWriteDpi) DpiCheck.IsChecked = true;
 
         // --relief alongside --tune-ui opens straight into the lit view. Same reason as every
@@ -584,14 +587,18 @@ public partial class TuneWindow : Window
         p.MapName = _fileName;
         p.MapWidth = _w; p.MapHeight = _h; p.MapBitDepth = _image.BitDepth; p.MapMaxValue = _maxValue;
         p.MapHash = MapHash;
-        p.Shape = b.IsRound ? "round" : "rectangle";
+        p.Shape = b.Shape switch { BlankShape.Rectangle => "rectangle", BlankShape.Custom => "custom", _ => "round" };
         p.DiameterMm = b.IsRound ? b.DiameterMm : b.ShortSideMm;
         p.WidthMm = b.WidthMm; p.HeightMm = b.HeightMm; p.CornerRadiusMm = b.CornerRadiusMm;
         p.Holes = new List<BlankHole>(b.Holes);
+        p.OutlineFile = b.Shape == BlankShape.Custom ? b.OutlinePath : null;
         p.ThicknessMm = b.ThicknessMm;
         p.DepthPercent = b.DepthPercent;
         p.TargetDepthMm = b.DepthFollowsThickness ? null : b.TargetDepthMm;
-        if (CurrentFinish() is { } fin) { p.Finish = fin.ToSpec(); p.Material = fin.Material; }
+        if (CurrentFinish() is { } fin) p.Finish = fin.ToSpec();
+        // The blank's material is the one the program knows; the finish recipe's own material
+        // id follows it where the finishing catalogue has that material.
+        p.Material = Materials.MaterialCatalog.Find(b.MaterialId).Id;
         p.LaserType = LaserIds[Math.Clamp(LaserBox.SelectedIndex, 0, LaserIds.Length - 1)];
         p.Lens = string.IsNullOrWhiteSpace(LensBox.Text) ? null : LensBox.Text.Trim();
         p.Notes = string.IsNullOrWhiteSpace(NotesBox.Text) ? null : NotesBox.Text.Trim();
@@ -632,13 +639,15 @@ public partial class TuneWindow : Window
 
         _loading = true;
         var b = Blank.Current;
-        if (p.Shape == "rectangle")
+        if (p.Shape is "rectangle" or "custom")
         {
-            b.Shape = BlankShape.Rectangle;
+            b.Shape = p.Shape == "custom" ? BlankShape.Custom : BlankShape.Rectangle;
+            if (p.Shape == "custom") b.OutlinePath = p.OutlineFile;
             b.WidthMm = p.WidthMm; b.HeightMm = p.HeightMm; b.CornerRadiusMm = p.CornerRadiusMm;
             b.SetHoles(p.Holes);
         }
         else { b.Shape = BlankShape.Round; b.DiameterMm = p.DiameterMm; }
+        if (!string.IsNullOrWhiteSpace(p.Material)) b.MaterialId = Materials.MaterialCatalog.Find(p.Material).Id;
         b.ThicknessMm = p.ThicknessMm;
         b.DepthPercent = p.DepthPercent;
         if (p.TargetDepthMm is double td) b.TargetDepthMm = td; else b.FollowThickness();
@@ -800,7 +809,8 @@ public partial class TuneWindow : Window
         try
         {
             var db = Ablation.AblationDatabase.Load();
-            string? material = CurrentFinish()?.Material;
+            var cm = Materials.MaterialCatalog.Find(Blank.Current.MaterialId);
+            string? material = cm.AblationName ?? cm.Name;
             Ablation.LaserKind? kind = LaserBox.SelectedIndex switch { 1 => Ablation.LaserKind.Uv, 2 or 3 => Ablation.LaserKind.Mopa, _ => null };
             var w = new SettingsAdviceWindow(db, material, kind, LensBox.Text, Blank.Current.TargetDepthMm, (int)(PassBox.Value ?? 256)) { Icon = Icon };
             await w.ShowDialog(this);
@@ -989,6 +999,7 @@ public partial class TuneWindow : Window
         foreach (var m in MaterialLibrary.Presets)
             ReliefMaterialBox.Items.Add(new ComboBoxItem { Content = m.Name });
         ReliefMaterialBox.SelectedIndex = 0;
+        FollowBlankMaterial();
 
         OriginalRelief.Settings = _relief;
         TunedRelief.Settings = _relief;
@@ -1087,14 +1098,56 @@ public partial class TuneWindow : Window
     private void OnBlankChanged(object? sender, EventArgs e)
     {
         SyncShapeControls();
+        FollowBlankMaterial();
+        SyncCapability();
         SyncReliefDepth();
         RefreshRelief();
         Queue();
     }
 
+    private string? _followedMaterial;
+
     /// <summary>
-    /// The rim section reads as a rim on a coin and as a border on a plate; fitting by padding
-    /// is worked out for the round blank only, so on a plate it is switched off and says so.
+    /// The relief look follows the blank's material when the material changes - once, so a
+    /// look chosen by hand afterwards stays. The catalogue says which preset looks like what.
+    /// </summary>
+    private void FollowBlankMaterial()
+    {
+        var cm = Materials.MaterialCatalog.Find(Blank.Current.MaterialId);
+        if (cm.Id == _followedMaterial) return;
+        _followedMaterial = cm.Id;
+        FinishWindow.FollowMaterial(cm.FinishId);
+        if (cm.ReliefPreset is null) return;
+        int k = MaterialLibrary.Presets.FindIndex(m => m.Name.Equals(cm.ReliefPreset, StringComparison.OrdinalIgnoreCase));
+        if (k >= 0 && ReliefMaterialBox.SelectedIndex != k) ReliefMaterialBox.SelectedIndex = k;
+    }
+
+    /// <summary>
+    /// What the chosen source can do to the blank's material, in words, under the laser box.
+    /// Nothing is cut from here, so nothing is blocked; a refused pairing is said to be one,
+    /// and the settings advisor refuses it on its own.
+    /// </summary>
+    private void SyncCapability()
+    {
+        string? laserId = LaserIds[Math.Clamp(LaserBox.SelectedIndex, 0, LaserIds.Length - 1)];
+        var source = Materials.MaterialCatalog.SourceFromId(laserId);
+        if (source is null) { CapabilityNote.IsVisible = false; CapabilityNote.Text = ""; return; }
+        var cm = Materials.MaterialCatalog.Find(Blank.Current.MaterialId);
+        var v = Materials.MaterialCatalog.Gate(source.Value, cm);
+        CapabilityNote.Text = $"{cm.Name} on {Materials.MaterialCatalog.SourceName(source.Value)}: {v.Word}. {v.Reason}";
+        CapabilityNote.Foreground = v.Level switch
+        {
+            Materials.Capability.Cannot => new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#E8837A")),
+            Materials.Capability.Marginal => new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#E8B04B")),
+            _ => new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#8A929E")),
+        };
+        CapabilityNote.IsVisible = true;
+    }
+
+    /// <summary>
+    /// The rim section reads as a rim on a coin and as a border on a plate; centring the blank
+    /// on the design is worked out for the round blank only, so on a plate it is greyed and
+    /// the note says what the fit does instead.
     /// </summary>
     private void SyncShapeControls()
     {
@@ -1102,17 +1155,19 @@ public partial class TuneWindow : Window
         RimSection.Text = round ? "RIM" : "BORDER";
         RimLabel.Text = round ? "Rim width mm" : "Border width mm";
         RimCheck.Content = round ? "Leave an untouched rim at the edge" : "Leave an untouched border at the edge";
-        FitCheck.IsEnabled = round;
-        FitPolicyBox.IsEnabled = round;
+        // Centring the blank on the design is a round-blank placement; on a plate the fit
+        // pads to the plate's proportions and clears the border, so the other two policies
+        // stay and the third is greyed. The fit control itself is the same.
+        if (FitPolicyBox.Items[2] is ComboBoxItem centred) centred.IsEnabled = round;
+        if (!round && FitPolicyBox.SelectedIndex == 2) FitPolicyBox.SelectedIndex = 0;
         CoverRimCheck.IsEnabled = round;
-        PadBox.IsEnabled = round;
-        if (!round && FitCheck.IsChecked == true) FitCheck.IsChecked = false;
+        if (!round) CoverRimCheck.IsChecked = false;
         ShapeNote.IsVisible = !round;
         if (round) { ShapeNote.Text = ""; return; }
 
         // The map covers the plate's bounding box, so a file drawn for other proportions
-        // covers only the middle of the plate - worth saying here, because the preview is
-        // the file's shape, not the plate's, and nothing else on screen would point it out.
+        // covers only the middle of the plate unless it is fitted - worth saying here,
+        // because the preview is the file's shape and nothing else on screen points it out.
         string proportions = "";
         if (_image is { } src && src.Width > 0 && src.Height > 0)
         {
@@ -1122,14 +1177,27 @@ public partial class TuneWindow : Window
             if (Math.Abs(plateAspect - mapAspect) > 0.01 || wide != mapWide)
             {
                 double ppmm = Math.Min(src.Width, src.Height) / Blank.Current.ShortSideMm;
-                proportions = $" This file's proportions are not the plate's: it covers {src.Width / ppmm:0.#} × {src.Height / ppmm:0.#} mm in the middle of the plate; pad the canvas to the plate's proportions to cover it all.";
+                proportions = FitCheck.IsChecked == true
+                    ? $" This file's proportions are not the plate's, so the fit pads it to them."
+                    : $" This file's proportions are not the plate's: as it stands it covers {src.Width / ppmm:0.#} × {src.Height / ppmm:0.#} mm in the middle of the plate; tick Fit to pad it to the plate.";
             }
+        }
+        if (Blank.Current.Shape == BlankShape.Custom)
+        {
+            var outline = CustomOutline.Load(Blank.Current.OutlinePath, out string? outlineError);
+            string file = outline is null
+                ? $"No outline is loaded ({outlineError ?? "no file"}); the {Blank.Current.WidthMm:0.#} × {Blank.Current.HeightMm:0.#} mm bounding box stands in as a plate with square corners."
+                : $"Outline from {System.IO.Path.GetFileName(outline.Path)}: the image spans its {Blank.Current.WidthMm:0.#} × {Blank.Current.HeightMm:0.#} mm bounding box, everything off the outline is left untouched, and the border follows the outline's edge"
+                  + (Blank.Current.Holes.Count > 0 ? $", with {Blank.Current.Holes.Count} hole{(Blank.Current.Holes.Count == 1 ? "" : "s")} kept clear" : "") + "."
+                  + (outline.Problems.Count > 0 ? " " + string.Join(" ", outline.Problems) : "");
+            ShapeNote.Text = file + " Fit pads the canvas to the bounding box's proportions and, for the artwork, grows it until the design clears the border." + proportions;
+            return;
         }
         ShapeNote.Text =
             $"Plate: the image spans the {Blank.Current.WidthMm:0.#} × {Blank.Current.HeightMm:0.#} mm blank, the border runs round all four sides" +
             (Blank.Current.CornerRadiusMm > 0 ? $", the corners are rounded at {Blank.Current.CornerRadiusMm:0.#} mm" : "") +
             (Blank.Current.Holes.Count > 0 ? $", and {Blank.Current.Holes.Count} hole{(Blank.Current.Holes.Count == 1 ? " is" : "s are")} kept clear" : "") +
-            ". Fitting by padding is for round blanks for now: a plate is cut as the image stands." + proportions;
+            ". Fit pads the canvas to the plate's proportions and, for the artwork, grows it until the design clears the border; centring on the design is for round blanks." + proportions;
     }
 
     private void ReliefModeChanged()
@@ -1544,6 +1612,9 @@ public partial class TuneWindow : Window
                   };
             o.PadWith = PadBox.SelectedIndex == 1 ? PadFill.Untouched : PadFill.Background;
             o.CoverDesignRim = CoverRimCheck.IsChecked == true && o.Fit == FitPolicy.Design;
+            // Centring on the design is round-only; the control is disabled for a plate, and
+            // a saved profile that asks for it gets the nearest thing.
+            if (o.IsPlate && o.Fit == FitPolicy.Design) { o.Fit = FitPolicy.Content; o.CoverDesignRim = false; }
         }
 
         o.FlatActions = new List<FlatAction>(_flatActions);
@@ -1578,7 +1649,7 @@ public partial class TuneWindow : Window
         // come back from the options rather than being worked out again here. The blank spans
         // the short side of the output, fitted or not.
         double blankRadius = full.AddRim ? Math.Min(rep.OutWidth, rep.OutHeight) / 2.0 : 0;
-        _ringRegion = preview.Shape == BlankShape.Rectangle ? ReserveRegion.From(preview, rep.OutWidth, rep.OutHeight) : null;
+        _ringRegion = preview.IsPlate ? ReserveRegion.From(preview, rep.OutWidth, rep.OutHeight) : null;
         TunedImage.Source = ToBitmap(tuned, rep.OutWidth, rep.OutHeight, blankRadius, preview.RimRadius, _ringRegion);
         _tunedPreviewW = rep.OutWidth;
         _tunedPreviewH = rep.OutHeight;
@@ -1612,8 +1683,10 @@ public partial class TuneWindow : Window
                           + (full.OutputBitDepth == 8 ? "   (written as 8-bit)" : "")
                           + StepNote(dAfter, passes)
                           + (full.AddRim
-                              ? full.Shape == BlankShape.Rectangle
-                                  ? "\nAmber: edge of the engraved area - the border, the corners and any holes. "
+                              ? full.IsPlate
+                                  ? (full.Shape == BlankShape.Custom
+                                      ? "\nAmber: edge of the engraved area - the border inside the outline, and any holes. "
+                                      : "\nAmber: edge of the engraved area - the border, the corners and any holes. ")
                                   + "Nothing outside it is cut. The line is not in the file."
                                   : "\nCyan: edge of the blank, everything outside it is off the coin. "
                                   + "Amber: where engraving stops. Neither is in the file."
@@ -1689,7 +1762,14 @@ public partial class TuneWindow : Window
             int fullSize = (int)Math.Round(Math.Max(_w, _h) * (fit.Size / (double)Math.Max(_pw, _ph)));
             double blank = o.BlankDiameterMm ?? 40;
 
-            if (fit.Recentred)
+            if (o.IsPlate)
+            {
+                double k = Math.Max(_w, _h) / (double)Math.Max(_pw, _ph);
+                yield return $"Canvas padded          {_w:N0}x{_h:N0} to ~{fit.CanvasWidth * k:N0}x{fit.CanvasHeight * k:N0} px, the {o.ShapeNoun}'s proportions";
+                yield return $"File spans             {fit.ArtAcrossMm:F1} of {o.BlankWidthMm:0.#} mm "
+                           + $"({fit.ArtAcrossMm / Math.Max(1e-9, o.BlankWidthMm) * 100:F0}% of the {o.ShapeNoun}'s width)";
+            }
+            else if (fit.Recentred)
             {
                 yield return "Blank centred          on the design, no resampling";
                 yield return $"Canvas                 {_w:N0}x{_h:N0} to ~{fullSize:N0} sq, "
@@ -1723,7 +1803,7 @@ public partial class TuneWindow : Window
             yield return "Canvas                 already clear, no growth needed";
         }
 
-        if (o.Shape == BlankShape.Rectangle)
+        if (o.IsPlate)
         {
             // No single scale clears a border, a corner or a hole, so none is offered.
             yield return rep.RimClipped > 0
@@ -1778,7 +1858,7 @@ public partial class TuneWindow : Window
         {
             double rw = o.RimWidthMm ?? 0;
             double ramp = o.RimRampMm ?? 0;
-            note += $"  {(o.Shape == BlankShape.Rectangle ? "Border" : "Rim")} {rw:F2} mm = {rw * ppmm:F0} px, "
+            note += $"  {(o.IsPlate ? "Border" : "Rim")} {rw:F2} mm = {rw * ppmm:F0} px, "
                   + (ramp <= 0 ? "hard step." : $"ramp {ramp:F2} mm = {ramp * ppmm:F0} px.");
 
             // A ramp narrower than the beam is the worst of both worlds: the spot smears the
@@ -1887,7 +1967,7 @@ public partial class TuneWindow : Window
                 double ppmm = Math.Min(outW, outH) / blankMm;
                 double engraveMm = o.AddRim && o.RimRadius > 0 ? o.RimRadius * 2 / ppmm : 0;
 
-                if (o.Shape == BlankShape.Rectangle)
+                if (o.IsPlate)
                     await Task.Run(() => AlignmentOutline.WriteRectangle(outlinePath, o.BlankWidthMm, o.BlankHeightMm, o.CornerRadiusMm,
                                                                          o.AddRim ? o.RimWidthMm ?? 0 : 0, o.Holes, Path.GetFileName(written)));
                 else

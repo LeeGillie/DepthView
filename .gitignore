@@ -103,3 +103,6 @@ Thumbs.db
 
 # Python bytecode from the test scripts
 __pycache__/
+
+# The Claude desktop app writes delivered files here when this folder is connected; never source.
+/Claude outputs/

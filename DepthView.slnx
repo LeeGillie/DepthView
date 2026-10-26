@@ -111,6 +111,7 @@
   <Folder Name="/docs/research/">
     <File Path="docs/research/finishing-chemistry.md" />
     <File Path="docs/research/laser-ablation-baselines.md" />
+    <File Path="docs/research/laser-ablation-sweep-2.md" />
   </Folder>
   <Folder Name="/external/MOPAChromaAtlas/src/">
     <Project Path="external/MOPAChromaAtlas/src/LumosUltra.Camera/LumosUltra.Camera.csproj" />

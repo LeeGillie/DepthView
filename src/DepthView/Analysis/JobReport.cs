@@ -110,18 +110,28 @@ public static class JobReport
         // ---- the job at a glance
         sb.Append("<section><h2>The job</h2><div class=\"grid3\">");
         var o0 = i.Options;
-        bool rect = o0.Shape == BlankShape.Rectangle;
+        bool rect = o0.IsPlate;
+        bool custom = o0.Shape == BlankShape.Custom;
         sb.Append(Card("Workpiece", new[]
         {
-            ("Shape", rect ? (o0.CornerRadiusMm > 0 ? "rectangular tag" : "rectangular plate") : "round blank"),
-            (rect ? "Size" : "Diameter", rect ? $"{o0.BlankWidthMm:0.0#} × {o0.BlankHeightMm:0.0#} mm" + (o0.CornerRadiusMm > 0 ? $", corner radius {o0.CornerRadiusMm:0.0#} mm" : "") + (o0.Holes.Count > 0 ? $", {o0.Holes.Count} hole{(o0.Holes.Count == 1 ? "" : "s")} kept clear ({Blank.HolesToText(o0.Holes)})" : "") : $"{i.BlankMm:0.0#} mm"),
+            ("Shape", custom ? $"custom outline from {System.IO.Path.GetFileName(o0.OutlinePath ?? "")}" : rect ? (o0.CornerRadiusMm > 0 ? "rectangular tag" : "rectangular plate") : "round blank"),
+            (rect ? "Size" : "Diameter", rect ? $"{o0.BlankWidthMm:0.0#} × {o0.BlankHeightMm:0.0#} mm" + (custom ? " bounding box" : "") + (!custom && o0.CornerRadiusMm > 0 ? $", corner radius {o0.CornerRadiusMm:0.0#} mm" : "") + (o0.Holes.Count > 0 ? $", {o0.Holes.Count} hole{(o0.Holes.Count == 1 ? "" : "s")} kept clear ({Blank.HolesToText(o0.Holes)})" : "") : $"{i.BlankMm:0.0#} mm"),
             ("Thickness", $"{i.ThicknessMm:0.0#} mm"),
             ("Target depth", $"{i.DepthMm:0.00#} mm" + (i.DepthFollowsThickness ? $" ({i.DepthMm / i.ThicknessMm * 100:0}% of the thickness, automatic)" : " (set by hand)")),
-            ("Material", string.IsNullOrWhiteSpace(i.Material) ? "not recorded" : i.Material!),
+            ("Material", string.IsNullOrWhiteSpace(i.Material) ? "not recorded" : Materials.MaterialCatalog.Find(i.Material).Name),
         }));
+        // The capability gate, in the report that goes to the bench: what this source can do
+        // to this material, in words, before anyone trusts the map to it.
+        string capability = "laser type not recorded";
+        if (Materials.MaterialCatalog.SourceFromId(i.LaserType) is { } src && !string.IsNullOrWhiteSpace(i.Material))
+        {
+            var v = Materials.MaterialCatalog.Gate(src, Materials.MaterialCatalog.Find(i.Material));
+            capability = $"{v.Word} - {v.Reason}";
+        }
         sb.Append(Card("Laser", new[]
         {
             ("Type", LaserName(i.LaserType)),
+            ("On this material", capability),
             ("Lens", string.IsNullOrWhiteSpace(i.Lens) ? "not recorded" : i.Lens!),
             ("Spot", $"{i.SpotMicrons:0.#} um"),
             ("Passes", $"{i.Passes:N0}"),
@@ -271,7 +281,8 @@ public static class JobReport
         if (recipe is not null)
         {
             var cat = FinishCatalogue.Builtin;
-            var f = FinishSimulator.Run(cat, recipe, field, fw, fh, i.BlankMm / Math.Min(fw, fh), i.DepthMm);
+            var f = FinishSimulator.Run(cat, recipe, field, fw, fh, i.BlankMm / Math.Min(fw, fh), i.DepthMm,
+                                        onBlank: Blank.Current.OnBlank(fw, fh));
             fin = f;
             o.Finish = f.Layer;
             o.Material = new Rendering.MaterialPreset { Name = "Finishing", Metallic = true };

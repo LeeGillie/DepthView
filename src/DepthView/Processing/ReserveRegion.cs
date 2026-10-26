@@ -20,13 +20,24 @@ public sealed class ReserveRegion
     private readonly bool _round;
     private readonly double _cx, _cy, _radius;                    // round
     private readonly double _x0, _y0, _x1, _y1, _corner;          // rectangle: the usable box
+    private readonly float[]? _sdf;                               // custom: signed distance onto the blank, pixels
+    private readonly int _w, _h;
+    private readonly double _border;
     private readonly List<(double X, double Y, double R)> _holes = new();
 
     public bool IsRound => _round;
+    public bool IsCustom => _sdf is not null;
     public double CentreX => _cx;
     public double CentreY => _cy;
-    /// <summary>The circle's radius for a round blank; for a rectangle, half its usable short side.</summary>
+    /// <summary>The circle's radius for a round blank; for a rectangle or a custom outline, half its usable short side.</summary>
     public double Radius => _round ? _radius : Math.Min(_x1 - _x0, _y1 - _y0) / 2;
+
+    private ReserveRegion(float[] sdf, int w, int h, double border)
+    {
+        _round = false; _sdf = sdf; _w = w; _h = h; _border = border;
+        _x0 = border - 0.5; _y0 = border - 0.5; _x1 = w - 0.5 - border; _y1 = h - 0.5 - border;
+        _cx = (w - 1) / 2.0; _cy = (h - 1) / 2.0;
+    }
 
     private ReserveRegion(double cx, double cy, double radius)
     {
@@ -50,8 +61,21 @@ public sealed class ReserveRegion
 
         double ppmm = o.PixelsPerMm(width, height) ?? 0;
         double border = (o.RimWidthMm ?? 0) * ppmm;
-        var r = new ReserveRegion(border - 0.5, border - 0.5, width - 0.5 - border, height - 0.5 - border, Math.Max(0, o.CornerRadiusMm * ppmm - border));
         double cx = (width - 1) / 2.0, cy = (height - 1) / 2.0;
+        if (o.Shape == BlankShape.Custom)
+        {
+            // No outline loaded: the bounding box stands in, as a plate with square corners,
+            // so a missing file degrades to something visible rather than to nothing.
+            if (o.Outline is null)
+                return WithHoles(new ReserveRegion(border - 0.5, border - 0.5, width - 0.5 - border, height - 0.5 - border, 0), o, cx, cy, ppmm, border);
+            return WithHoles(new ReserveRegion(o.Outline.SignedDistance(width, height), width, height, border), o, cx, cy, ppmm, border);
+        }
+        var r = new ReserveRegion(border - 0.5, border - 0.5, width - 0.5 - border, height - 0.5 - border, Math.Max(0, o.CornerRadiusMm * ppmm - border));
+        return WithHoles(r, o, cx, cy, ppmm, border);
+    }
+
+    private static ReserveRegion WithHoles(ReserveRegion r, TuningOptions o, double cx, double cy, double ppmm, double border)
+    {
         foreach (var h in o.Holes)
             r._holes.Add((cx + h.XMm * ppmm, cy + h.YMm * ppmm, h.DiameterMm / 2 * ppmm + border));
         return r;
@@ -65,6 +89,18 @@ public sealed class ReserveRegion
         {
             double dx = x - _cx, dy = y - _cy;
             s = _radius - Math.Sqrt(dx * dx + dy * dy);
+        }
+        else if (_sdf is { } sdf)
+        {
+            // Nearest sample of the distance field; off the field is off the blank by at
+            // least the distance to its edge.
+            int ix = (int)Math.Round(x), iy = (int)Math.Round(y);
+            if (ix < 0 || iy < 0 || ix >= _w || iy >= _h)
+            {
+                double ox = ix < 0 ? -ix : ix >= _w ? ix - _w + 1 : 0, oy = iy < 0 ? -iy : iy >= _h ? iy - _h + 1 : 0;
+                s = -Math.Sqrt(ox * ox + oy * oy) - _border;
+            }
+            else s = sdf[(long)iy * _w + ix] - _border;
         }
         else
         {

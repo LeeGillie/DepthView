@@ -143,6 +143,22 @@ public static class SettingsAdvisor
         var notes = new List<string>();
         var warn = new List<string>();
         double? zr = Rayleigh(laser);
+
+        // The capability gate first: a source that cannot remove this material gets no
+        // recipe, however much evidence of some other pairing there is, and the reason is the
+        // verdict. A marginal pairing is advised with the warning in front of it.
+        if (Materials.MaterialCatalog.ByAblationName(material.Name) is { } cm)
+        {
+            var gate = Materials.MaterialCatalog.Gate(Materials.MaterialCatalog.SourceFrom(laser.Kind), cm);
+            if (gate.Refused)
+                return new SettingsAdvice
+                {
+                    Laser = laser, MaterialName = material.Name, TargetDepthMm = targetDepthMm, Passes = passes, RayleighMm = zr,
+                    Grade = "E", Verdict = $"Refused: {gate.Reason}", Notes = notes, Warnings = warn,
+                };
+            if (gate.Level == Materials.Capability.Marginal) warn.Add(gate.Reason);
+        }
+
         var all = Evidence.Gather(db);
 
         // The evidence for this material and kind of laser, best grade only.

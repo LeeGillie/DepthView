@@ -84,17 +84,43 @@ Build order, and where it stands:
    report's Workpiece card, `--plate WxH --corner --holes` on every path that takes `--blank`.
 2. ~~Plates and tags~~ **built 2026-10-26**: BORDER wording in the Tune window, amber boundary
    in the Tuned pane, `AlignmentOutline.WriteRectangle`, the wizard's Border step (Placement
-   skipped), proportions note. Not yet: a preview that shows the plate's proportions around
-   the file; a mask-based fit that pads a file to the plate; BlankEditor validation of holes
-   that fall outside the plate.
-3. **Unified material catalogue + laser capability gate**: one list of materials (the
-   ablation study's `MaterialPrior` grades, the relief look, the advisor's refusals) and one
-   statement of what a given laser can do to each (a UV source on steel, a MOPA on glass),
-   so a wrong pairing is refused with the reason instead of advised with a number.
-4. **Custom outlines**: an SVG or mask as the reserve (a dog tag, a shield, an oval), through
-   `ReserveRegion`; the alignment outline is then the user's own vector back out.
+   skipped), proportions note. Same day, the loose ends: `DepthCanvas.PlanPlate` (Fit pads
+   the file to the workpiece's proportions; Content also grows the canvas until the design
+   clears the border, corners and holes - bounding box first, then a pixel check against the
+   real reserve, growing 2 % a step up to 3x); `FitPlan.Height` so a canvas need not be
+   square; `--fit design` taken as content on a plate, with a note; BlankEditor warns on a
+   hole past the plate's edge; `FinishSimulator` takes the blank's own outline
+   (`Blank.OnBlank`) instead of assuming a disc.
+3. ~~Unified material catalogue + laser capability gate~~ **built 2026-10-26**:
+   `Materials/MaterialCatalog.cs` - sixteen materials tying together the relief preset, the
+   finishing-catalogue id and the ablation study's material name; `Gate(source, material)`
+   says in words what a 1064 nm fibre, a 355 nm UV, a CO2 or a diode source can do to each
+   for depth (works / marginal / not possible), with no removal figure anywhere. Wired:
+   Material in the Blank panel (`Blank.MaterialId`, preferences, `.dvp` `material`,
+   `--material`), the capability note under the JOB section's laser box (and `--laser` on
+   `--tune-ui` to capture it), the relief look and the finishing recipe following the
+   material, `SettingsAdvisor.Advise` refusing a *not possible* pairing and warning on a
+   *marginal* one, the job report's Laser card, and `--materials` on the command line.
+   Not done: the ablation study's own material list is still `MaterialSpec.Presets`
+   (alloys and densities) - the catalogue maps to it by name; the two could share one file.
+   The advisor pools 60 W and 100 W MOPA evidence by kind, converted by watts - keep them
+   apart if Lee says so.
+4. ~~Custom outlines~~ **built 2026-10-26**: `BlankShape.Custom` with `Blank.OutlinePath`;
+   `Processing/CustomOutline.cs` reads an SVG (`SvgOutline.cs`: paths with M/L/H/V/C/S/Q/T/A/Z,
+   rects, circles, ellipses, polygons, polylines, transforms; units give the size) or a mask
+   image (white = the blank); `DistanceTransform.cs` makes the signed distance field the
+   reserve reads through `ReserveRegion` (so the ramp works as on a coin); `MarchingSquares.cs`
+   traces the edge back out for `AlignmentOutline.WriteCustom`. `--shape <file>` on every
+   path that takes `--blank`, with `--plate WxH` as the bounding box when the file has no
+   units (either order). Not done: for an SVG source the alignment outline is traced from
+   the field rather than the user's own paths copied back out, and an outline that touches
+   the canvas edge traces as open polylines; a preview that shows the outline *around* a file
+   that does not fill it (the fit covers the common case).
 5. **Rotary**: a cylinder is a plate whose width is a circumference; the reserve wraps. Needs
    the Lumos rotary's real behaviour (does MakeIt unwrap, or does the G-code?) before design.
+6. Also built 2026-10-26 beside the above: `--job-report` headless (the Tune window's Job
+   report button from the command line, with the workpiece and laser flags), and the main
+   window's drop-zone hint naming G-code jobs.
 
 ### Resume here (updated 2026-10-08, 1.11.0)
 

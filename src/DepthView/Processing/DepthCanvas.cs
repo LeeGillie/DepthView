@@ -79,12 +79,17 @@ public static class DepthCanvas
         double PixelsPerMm,     // resolution of the padded canvas
         bool Recentred = false, // Design: the blank is centred on the design, not the canvas
         double DesignCentreX = 0, double DesignCentreY = 0,   // that centre, in source pixels
-        DesignRim? CoveredRim = null)   // the design's own rim, sized to sit under ours
+        DesignRim? CoveredRim = null,   // the design's own rim, sized to sit under ours
+        int Height = 0)         // a plate's canvas is not square: Size is its width, this its height
     {
-        public bool Grows(int w, int h) => Size > w || Size > h;
+        /// <summary>The new canvas, pixels: square for a round blank, the plate's proportions for a plate.</summary>
+        public int CanvasWidth => Size;
+        public int CanvasHeight => Height > 0 ? Height : Size;
+
+        public bool Grows(int w, int h) => CanvasWidth > w || CanvasHeight > h;
 
         /// <summary>Some of the original falls outside the new canvas. Only ever background.</summary>
-        public bool Crops(int w, int h) => OffsetX < 0 || OffsetY < 0 || OffsetX + w > Size || OffsetY + h > Size;
+        public bool Crops(int w, int h) => OffsetX < 0 || OffsetY < 0 || OffsetX + w > CanvasWidth || OffsetY + h > CanvasHeight;
     }
 
     /// <summary>
@@ -487,23 +492,144 @@ public static class DepthCanvas
     }
 
     /// <summary>
+    /// The canvas for a rectangular plate: the file padded out to the plate's proportions, and
+    /// with <see cref="FitPolicy.Content"/> grown further until every pixel of design clears
+    /// the border, the corners and the holes.
+    ///
+    /// <para>Nothing is resampled and nothing is cropped: the file is centred on a canvas of
+    /// the plate's proportions, so it covers the whole plate instead of its middle. Growing
+    /// the canvas makes the same artwork span fewer millimetres, which is how the design is
+    /// brought inside the reserve. The bounding box of the design against the usable box
+    /// gives the canvas directly; the corners and holes are not boxes, so the result is then
+    /// checked pixel by pixel against the real reserve and grown in small steps until it
+    /// clears - or, past three times the file, left for the border to paint over, which the
+    /// report counts as usual.</para>
+    /// </summary>
+    public static FitPlan PlanPlate(ushort[] p, int w, int h, int maxValue, TuningOptions o,
+                                    ushort background)
+    {
+        double plateW = o.BlankWidthMm, plateH = o.BlankHeightMm;
+        if (plateW <= 0 || plateH <= 0 || !o.IsPlate) return default;
+        double shortMm = Math.Min(plateW, plateH);
+        double aspect = plateW / plateH;
+
+        // The smallest canvas of the plate's proportions that holds the whole file.
+        (int cw, int ch) Canvas(double scale)
+        {
+            double ch0 = Math.Max(h, w / aspect) * scale;
+            double cw0 = ch0 * aspect;
+            int cwI = Math.Max(w, (int)Math.Ceiling(cw0)), chI = Math.Max(h, (int)Math.Ceiling(ch0));
+            // Keep the proportions exact to the pixel on the long side.
+            if (aspect >= 1) chI = Math.Max(h, (int)Math.Round(cwI / aspect)); else cwI = Math.Max(w, (int)Math.Round(chI * aspect));
+            return (cwI, chI);
+        }
+
+        int tol = ContentTolerance(maxValue);
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
+        for (int y = 0; y < h; y++)
+        {
+            long row = (long)y * w;
+            for (int x = 0; x < w; x++)
+            {
+                if (Math.Abs(p[row + x] - background) <= tol) continue;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+        }
+
+        double scale = 1;
+        if (o.Fit == FitPolicy.Content && maxX >= 0)
+        {
+            // Half-extents of the design about the file's centre, in file pixels.
+            double ex = Math.Max(Math.Abs(minX - (w - 1) / 2.0), Math.Abs(maxX - (w - 1) / 2.0)) + 1;
+            double ey = Math.Max(Math.Abs(minY - (h - 1) / 2.0), Math.Abs(maxY - (h - 1) / 2.0)) + 1;
+            double clearMm = (o.RimWidthMm ?? 0) + (o.RimRampMm ?? 0);
+            // The usable half-extents in mm are plateW/2 - clear and plateH/2 - clear; the
+            // canvas must put ex, ey inside them at the canvas's px/mm (short side / shortMm).
+            double usableX = plateW / 2 - clearMm, usableY = plateH / 2 - clearMm;
+            if (usableX > 0 && usableY > 0)
+            {
+                var (cw1, ch1) = Canvas(1);
+                double ppmm1 = Math.Min(cw1, ch1) / shortMm;
+                double need = Math.Max(ex / (usableX * ppmm1), ey / (usableY * ppmm1));
+                if (need > 1) scale = need;
+            }
+
+            // Corners and holes: grow until the real reserve clears the design, within reason.
+            for (int step = 0; step < 60; step++)
+            {
+                var (cw2, ch2) = Canvas(scale);
+                if (ClearsReserve(p, w, h, cw2, ch2, o, background, tol)) break;
+                if (scale >= 3) break;
+                scale *= 1.02;
+            }
+        }
+
+        var (cw, ch) = Canvas(scale);
+        double ppmm = Math.Min(cw, ch) / shortMm;
+        return new FitPlan(
+            Size: cw,
+            OffsetX: (cw - w) / 2,
+            OffsetY: (ch - h) / 2,
+            ContentRadius: maxX >= 0 ? Math.Max(maxX - minX, maxY - minY) / 2.0 : 0,
+            CornerRadius: Math.Sqrt(Sq((w - 1) / 2.0) + Sq((h - 1) / 2.0)),
+            Background: background,
+            ArtAcrossMm: w / ppmm,
+            PixelsPerMm: ppmm,
+            Height: ch);
+    }
+
+    /// <summary>True when every pixel of design, centred on a canvas of this size, sits inside the reserve past the ramp.</summary>
+    private static bool ClearsReserve(ushort[] p, int w, int h, int cw, int ch, TuningOptions o, ushort background, int tol)
+    {
+        var probe = new TuningOptions
+        {
+            Shape = o.Shape, BlankWidthMm = o.BlankWidthMm, BlankHeightMm = o.BlankHeightMm,
+            CornerRadiusMm = o.CornerRadiusMm, Holes = o.Holes, BlankDiameterMm = o.BlankDiameterMm,
+            Outline = o.Outline, OutlinePath = o.OutlinePath,
+            RimWidthMm = o.RimWidthMm, AddRim = true,
+        };
+        var region = ReserveRegion.From(probe, cw, ch);
+        if (region is null) return true;
+        double ppmm = probe.PixelsPerMm(cw, ch) ?? 0;
+        double ramp = (o.RimRampMm ?? 0) * ppmm;
+        int ox = (cw - w) / 2, oy = (ch - h) / 2;
+        for (int y = 0; y < h; y++)
+        {
+            long row = (long)y * w;
+            for (int x = 0; x < w; x++)
+            {
+                if (Math.Abs(p[row + x] - background) <= tol) continue;
+                if (region.Inside(x + ox, y + oy) < ramp) return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
     /// Copy the map onto a square canvas filled with one value, its top-left corner at
     /// (<paramref name="ox"/>, <paramref name="oy"/>). Negative offsets, or a canvas smaller
     /// than the map, crop: whatever falls outside is not copied. Pixels are copied, never
     /// resampled.
     /// </summary>
     public static ushort[] Pad(ushort[] src, int w, int h, int size, int ox, int oy, ushort fill)
+        => Pad(src, w, h, size, size, ox, oy, fill);
+
+    /// <summary>The same onto a canvas of any proportions.</summary>
+    public static ushort[] Pad(ushort[] src, int w, int h, int cw, int ch, int ox, int oy, ushort fill)
     {
-        var dst = new ushort[(long)size * size];
+        var dst = new ushort[(long)cw * ch];
         if (fill != 0) Array.Fill(dst, fill);
 
-        int sx0 = Math.Max(0, -ox), sx1 = Math.Min(w, size - ox);
+        int sx0 = Math.Max(0, -ox), sx1 = Math.Min(w, cw - ox);
         if (sx1 <= sx0) return dst;
         for (int y = 0; y < h; y++)
         {
             int ty = y + oy;
-            if (ty < 0 || ty >= size) continue;
-            Array.Copy(src, (long)y * w + sx0, dst, (long)ty * size + sx0 + ox, sx1 - sx0);
+            if (ty < 0 || ty >= ch) continue;
+            Array.Copy(src, (long)y * w + sx0, dst, (long)ty * cw + sx0 + ox, sx1 - sx0);
         }
 
         return dst;

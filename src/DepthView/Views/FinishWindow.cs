@@ -54,6 +54,17 @@ public sealed class FinishWindow : Window
         _used = true;
     }
 
+    /// <summary>
+    /// The blank's material, for the next finishing window: the recipe this session starts
+    /// from takes the finishing catalogue's material for it, when the catalogue has one.
+    /// Does not touch a window that is open; its own box is the authority there.
+    /// </summary>
+    public static void FollowMaterial(string? finishId)
+    {
+        if (string.IsNullOrWhiteSpace(finishId) || _lastRecipe.Material == finishId) return;
+        _lastRecipe.Material = finishId;
+    }
+
     /// <summary>The recipe as it stands in this open window.</summary>
     public FinishRecipe Recipe => _r.Clone();
 
@@ -494,10 +505,11 @@ public sealed class FinishWindow : Window
         double mmPerPx = _blankMm / Math.Max(1, Math.Min(fw, fh));
         double depth = _depthMm;
         _status.Text = "Working...";
+        var onBlank = Blank.Current.OnBlank(fw, fh);
 
         Task.Run(() =>
         {
-            try { return FinishSimulator.Run(_cat, recipe, field, fw, fh, mmPerPx, depth, cts.Token); }
+            try { return FinishSimulator.Run(_cat, recipe, field, fw, fh, mmPerPx, depth, cts.Token, onBlank); }
             catch (OperationCanceledException) { return null; }
         }).ContinueWith(t =>
         {

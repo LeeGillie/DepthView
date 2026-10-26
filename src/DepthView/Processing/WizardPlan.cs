@@ -260,18 +260,22 @@ public sealed class WizardPlan
         var shapeOf = Blank.Current;
         o.Shape = shapeOf.Shape; o.BlankWidthMm = shapeOf.WidthMm; o.BlankHeightMm = shapeOf.HeightMm;
         o.CornerRadiusMm = shapeOf.CornerRadiusMm; o.Holes = new List<BlankHole>(shapeOf.Holes);
+        // A custom outline comes along too, or the reserve would fall back to the bounding box.
+        o.OutlinePath = shapeOf.OutlinePath;
+        o.Outline = o.Shape == BlankShape.Custom ? CustomOutline.Load(shapeOf.OutlinePath, out _) : null;
         if (a.Rim != RimChoice.None)
         {
             o.RimWidthMm = a.RimMm;
             o.RimRampMm = a.RampMm;
-            // Fitting by padding is for the round blank; a plate is cut as the image stands.
-            o.Fit = o.Shape != BlankShape.Round ? FitPolicy.None : a.Rim == RimChoice.Replace ? FitPolicy.Design : a.Placement switch
+            // A plate is padded to its proportions and grown until the design clears the
+            // border; centring the blank on the design is a round-blank placement.
+            o.Fit = o.Shape != BlankShape.Round ? FitPolicy.Content : a.Rim == RimChoice.Replace ? FitPolicy.Design : a.Placement switch
             {
                 PlacementChoice.Design => FitPolicy.Design,
                 PlacementChoice.Grow => FitPolicy.Content,
                 _ => FitPolicy.None,
             };
-            o.CoverDesignRim = a.Rim == RimChoice.Replace;
+            o.CoverDesignRim = a.Rim == RimChoice.Replace && o.Shape == BlankShape.Round;
             o.PadWith = a.Background == BackgroundRole.Surround ? PadFill.Untouched : PadFill.Background;
         }
         // A shaded surround the user called a surround is evened out first, so the tuner sees
@@ -320,17 +324,17 @@ public sealed class WizardPlan
         if (s.BackgroundShare >= 0.01)
             c.Add(new(p.BackgroundIsDesign ? "Background kept as a floor" : "Background treated as a surround",
                 p.BackgroundIsDesign ? "It is part of the design: a cut-away floor engraved to its depth."
-                                     : $"It is not part of the {(o.Shape == BlankShape.Rectangle ? "design" : "coin")}, so it does not set the levels" +
-                                       (a.Rim == RimChoice.None ? $" - but with no {(o.Shape == BlankShape.Rectangle ? "border" : "rim")} it is still engraved where it lies."
-                                        : o.Shape == BlankShape.Rectangle ? ", and the border leaves it uncut along the edges." : ", and the rim leaves it uncut.")
+                                     : $"It is not part of the {(o.IsPlate ? "design" : "coin")}, so it does not set the levels" +
+                                       (a.Rim == RimChoice.None ? $" - but with no {(o.IsPlate ? "border" : "rim")} it is still engraved where it lies."
+                                        : o.IsPlate ? ", and the border leaves it uncut along the edges." : ", and the rim leaves it uncut.")
                                        + (o.UniformSurround ? $" It is not one level ({s.BackgroundLow:N0} to {s.BackgroundHigh:N0}), so it is first made one: "
                                                               + "otherwise its shading or marks read as design out to the corners and the coin is shrunk to fit them." : "")));
 
-        bool plate = o.Shape == BlankShape.Rectangle;
+        bool plate = o.IsPlate;
         if (a.Rim != RimChoice.None && plate)
         {
             c.Add(new($"Border {a.RimMm:0.00} mm", "Pure white along all four sides, round the corners and round every hole, so the laser never touches them."));
-            c.Add(new("Canvas kept as it is", "A plate is cut as the image stands; the border paints over anything of the design that runs into it."));
+            c.Add(new("Canvas padded to the plate", "Pixels are copied onto a canvas of the plate's proportions, never scaled, and the canvas is grown until the design clears the border, the corners and the holes."));
             c.Add(new(a.RampMm <= 0 ? "Hard step into the border" : $"Taper {a.RampMm:0.00} mm into the border",
                 a.RampMm <= 0 ? "The field meets the border in one pixel; the beam softens it to about its own width."
                 : a.Target == WizardTarget.MakeIt ? "MakeIt samples power every 0.1 mm along a line, so a taper needs at least 0.3 mm to arrive as more than a step or two."

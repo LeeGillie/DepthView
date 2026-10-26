@@ -877,7 +877,7 @@ Facts the code and docs now rest on - **do not re-derive them**:
 The plan and its invariants are in TODO.md ("Every shape, every material"). What a reader of
 the code needs:
 
-- **`Blank` is the workpiece.** `BlankShape { Round, Rectangle }`, `BlankHole(XMm, YMm,
+- **`Blank` is the workpiece.** `BlankShape { Round, Rectangle, Custom }`, `BlankHole(XMm, YMm,
   DiameterMm)` (from the centre, y down - the same convention the outline SVG uses),
   `WidthMm`/`HeightMm`/`CornerRadiusMm`/`Holes`, `ShortSideMm`. `DiameterMm` on a rectangle
   returns the short side, so every caller that only knew diameters still gets millimetres
@@ -890,9 +890,34 @@ the code needs:
   rect SDF of the usable box (inset by the border, corner = corner radius - border), min'd
   with the holes (radius + border). `ApplyRim` and the Tune window's amber boundary both read
   it; nothing else should re-derive the shape.
-- **Round-only, on purpose, with the controls disabled and a note:** `DepthCanvas.Plan` fit by
-  padding, `--fit design` centring, `CoverDesignRim`, the wizard's Placement step. `WizardPlan`
-  and `DvpProfile.ApplyTo` force `Fit = None` for rectangles.
+- **Fit on a plate or an outline is `DepthCanvas.PlanPlate`:** pad to the workpiece's
+  proportions (`Canvas`), and for `Content` grow until every design pixel clears the real
+  reserve (bounding box first, then a 2 % ladder against `ReserveRegion`, capped at 3x).
+  `FitPlan` gained `Height`/`CanvasWidth`/`CanvasHeight`; `Pad` has a w x h overload. Still
+  round-only, greyed with a note: `--fit design` centring and `CoverDesignRim` (coerced to
+  `Content` on the CLI, in `.dvp` and in the window), the wizard's Placement step.
+- **Custom outlines (`BlankShape.Custom`):** `Processing/CustomOutline.cs` loads an SVG
+  (`SvgOutline`: paths, rects, circles, ellipses, polygons; filled shapes are the blank) or a
+  mask image (white = blank), rasterises it onto the map's size and keeps a signed distance
+  field from `DistanceTransform.Signed` (Felzenszwalb-Huttenlocher; the canvas edge counts as
+  outside, or a tag whose straight sides run to the bounding box got no border there).
+  `ReserveRegion.From` reads that field for `Custom`; `EdgePx` traces it with
+  `MarchingSquares` inside a one-pixel ring of outside so the loops close along the canvas
+  edge, and `AlignmentOutline.WriteCustom` writes the traced edge and its border inset. The
+  outline's bounding box is `BlankWidthMm x BlankHeightMm`: taken from an SVG with mm units,
+  else from `--plate WxH` / the Blank panel. `Blank.OutlinePath` is the one reference; Blank
+  cannot load files (tests/updater), so `Blank.CustomOnBlank` is set by `Program.Main`.
+- **Material (`Materials/MaterialCatalog.cs`):** one list ties the relief preset, the finishing
+  id and the ablation study's material name together; `Blank.MaterialId` (pref `BlankMaterial`,
+  `.dvp` `material`, `--material`) is the one choice. `Gate(SourceKind, material)` is the
+  capability verdict in words - the optics of the pairing, never a removal figure; the Tune
+  window's `CapabilityNote`, the job report's Laser card, `--materials` and
+  `SettingsAdvisor.Advise` (refuses `Cannot`, warns `Marginal`) all read it. Console strings
+  write "um", not "µm": a plain Windows console mangles the µ.
+- **Two sessions on one checkout happened on 2026-10-26** (a duplicated run of the same turn,
+  through the same desktop bridge) and built items 2 and 3 side by side with this one. The
+  work was reviewed line by line before the commit; if the tool-history log in
+  `~\.claude-server-commander\` ever shows calls this session did not make, stop and ask.
 - **Wording follows the shape:** RIM/BORDER section, "Rim width"/"Border width", the Tuned
   caption, `TuningReport.Summary` (no "scale the art to N%" for a plate - that figure is
   radial), the CLI's `rim`/`border` lines and the plate proportions note, the wizard's Border

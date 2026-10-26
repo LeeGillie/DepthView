@@ -58,6 +58,8 @@ internal static partial class Program
     public static string? StartupFinish;
     public static double? StartupSpot;
     public static bool StartupCoverRim, StartupOutline, StartupWriteDpi, StartupUniformSurround;
+    /// <summary>--laser uv|mopa|fiber|co2|diode with --tune-ui: the JOB section's laser, so the capability note can be captured.</summary>
+    public static string? StartupLaser;
 
     /// <summary>--show-terraces and --profile-line with --tune-ui, so both can be captured.</summary>
     public static bool StartupTerraces;
@@ -153,6 +155,10 @@ internal static partial class Program
           DepthView --window <w> <h>      open the window at this size, to check the
                                           layout at screen sizes you do not own
           DepthView --version             print the version and exit
+          DepthView --materials [<material> <uv|mopa|fiber|co2|diode>]
+                                          the material catalogue, and what each source can do
+                                          to each material for depth; with a pairing, the
+                                          reason (exit 1 = refused)
           DepthView --whats-new           print this version's release notes (built in)
           DepthView --whats-new-ui        open them in a window
           DepthView --check-update        ask GitHub whether a newer release exists
@@ -336,6 +342,12 @@ internal static partial class Program
                                 width becomes a border on all four sides; with --corner <mm>
                                 for rounded corners (a tag) and --holes "x,y,d; ..." for
                                 holes to keep clear (mm from the centre, y down)
+            --shape <file>      any outline instead: an SVG (paths, rects, circles, polygons;
+                                even-odd fill, so inner contours are holes) or a mask image
+                                (white = the blank). The image spans the outline's bounding
+                                box; its size comes from the SVG's units, or from --plate WxH
+                                given before --shape. The rim width becomes a border that
+                                follows the outline; --outline traces it back out as a vector
             --rim-mm <mm>       rim width, measured inward from the edge
             --ramp-mm <mm>      ramp into the rim. Omitted means none: a hard step, which is
                                 what a blank's own rim looks like. A ramp narrower than the
@@ -363,6 +375,8 @@ internal static partial class Program
           DepthView --job-report <image> [--params <file.dvp>] [--finish "<recipe>"]
                                 [--passes <n>] [--blank <mm>] [--thick <mm>] [--depth-mm <mm>]
                                 [--spot <um>] [--out <file.html>]
+                                [--plate <w>x<h> | --shape <file>] [--material <id>]
+                                [--laser <uv|mopa|fiber|co2|diode>]
                                 the map, the blank and laser, every tuning setting, what the
                                 job will cut before and after tuning, the finishing recipe
                                 with its safety notes, and the profile's notes. Written
@@ -433,6 +447,15 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Blank cannot read files (it is compiled without the processing code); this is how a
+        // custom outline reaches everything that asks the blank which pixels are metal.
+        Blank.CustomOnBlank = (b, w, h) =>
+        {
+            if (CustomOutline.Load(b.OutlinePath, out _) is not { } outline) return null;
+            var mask = outline.Rasterise(w, h);
+            return (x, y) => x >= 0 && y >= 0 && x < w && y < h && mask[(long)y * w + x];
+        };
+
         if (args.Any(a => a is "-h" or "--help" or "/?" or "-?"))
         {
             AttachParentConsole();
@@ -447,6 +470,39 @@ internal static partial class Program
             AttachParentConsole();
             Console.WriteLine($"DepthView {BuildInfo.Version}");
             return 0;
+        }
+
+        // The material catalogue and the capability gate, as text: what each source can do to
+        // each material, in words. Exit 2 for an unknown source; the material matches loosely.
+        if (args.Any(a => a is "--materials"))
+        {
+            AttachParentConsole();
+            int mi = Array.IndexOf(args, "--materials");
+            string? matArg = mi + 1 < args.Length && !args[mi + 1].StartsWith('-') ? args[mi + 1] : null;
+            string? srcArg = mi + 2 < args.Length && !args[mi + 2].StartsWith('-') ? args[mi + 2] : null;
+            if (matArg is null)
+            {
+                Console.WriteLine("Materials DepthView knows, with what each kind of source can do to them for depth:");
+                Console.WriteLine($"  {"id",-20} {"name",-20} {"1064 nm fibre",-14} {"355 nm UV",-13} {"CO2",-13} diode");
+                foreach (var m in Materials.MaterialCatalog.All)
+                {
+                    string W(Materials.SourceKind s) => Materials.MaterialCatalog.Gate(s, m).Word;
+                    Console.WriteLine($"  {m.Id,-20} {m.Name,-20} {W(Materials.SourceKind.Fibre),-14} {W(Materials.SourceKind.Uv),-13} {W(Materials.SourceKind.Co2),-13} {W(Materials.SourceKind.Diode)}");
+                }
+                Console.WriteLine("DepthView --materials <material> <uv|mopa|fiber|co2|diode> prints the reason.");
+                return 0;
+            }
+            var cm = Materials.MaterialCatalog.Find(matArg);
+            if (Materials.MaterialCatalog.SourceFromId(srcArg) is not { } src)
+            {
+                Console.Error.WriteLine("Name the source: uv, mopa, fiber, co2 or diode.");
+                return 2;
+            }
+            var v = Materials.MaterialCatalog.Gate(src, cm);
+            Console.WriteLine($"{cm.Name} on {Materials.MaterialCatalog.SourceName(src)}: {v.Word}.");
+            Console.WriteLine(v.Reason);
+            Console.WriteLine(cm.Notes);
+            return v.Refused ? 1 : 0;
         }
 
         // Release notes, as text. Exit 1 when the notes built in are not this version's - CI
@@ -568,6 +624,8 @@ internal static partial class Program
             StartupWhite = Flag(args, "--white") is double whiteLevel ? (int)whiteLevel : null;
             StartupBits = Flag(args, "--bits") is double outBits ? (int)outBits : null;
             StartupSpot = Flag(args, "--spot");
+            int li = Array.IndexOf(args, "--laser");
+            StartupLaser = li >= 0 && li + 1 < args.Length && !args[li + 1].StartsWith('-') ? args[li + 1].ToLowerInvariant() : null;
             StartupCoverRim = args.Any(a => a is "--cover-rim");
             if (StartupCoverRim) StartupFit = FitPolicy.Design;
             StartupOutline = args.Any(a => a is "--outline");
@@ -736,13 +794,42 @@ internal static partial class Program
             && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, c, out height) && height > 0;
     }
 
-    /// <summary>--plate WxH [--corner r] [--holes "x,y,d; ..."] on the windowed paths: a rectangular blank for this run only.</summary>
+    /// <summary>
+    /// --plate WxH [--corner r] [--holes "x,y,d; ..."] and --material <id> on the windowed
+    /// paths: a rectangular blank and a material for this run only.
+    /// </summary>
     private static void ApplyPlateArgs(string[] args)
     {
+        int mi = Array.IndexOf(args, "--material");
+        if (mi >= 0 && mi + 1 < args.Length && !args[mi + 1].StartsWith('-'))
+            Blank.Current.ApplyTransientMaterial(Materials.MaterialCatalog.Find(args[mi + 1]).Id);
         int i = Array.IndexOf(args, "--plate");
-        if (i < 0 || i + 1 >= args.Length || !ParsePlate(args[i + 1], out double w, out double h)) return;
+        double w = 0, h = 0;
+        bool havePlate = i >= 0 && i + 1 < args.Length && ParsePlate(args[i + 1], out w, out h);
         int hi = Array.IndexOf(args, "--holes");
         var holes = hi >= 0 && hi + 1 < args.Length ? Blank.ParseHoles(args[hi + 1]) : null;
+        int si = Array.IndexOf(args, "--shape");
+        if (si >= 0 && si + 1 < args.Length && !args[si + 1].StartsWith('-'))
+        {
+            // A custom outline: the file draws the shape, --plate gives the bounding box when
+            // the file does not state its own size; failing both, the width kept in the
+            // preferences and the file's proportions.
+            var outline = CustomOutline.Load(args[si + 1], out string? error);
+            if (outline is null) { Console.Error.WriteLine("--shape: " + error); }
+            else
+            {
+                double? ow = outline.WidthMm, oh = outline.HeightMm;
+                if (ow is null || oh is null)
+                {
+                    if (havePlate) { ow = w; oh = h; }
+                    else { ow = Blank.Current.WidthMm; oh = ow / outline.Aspect; }
+                }
+                Blank.Current.ApplyTransientOutline(outline.Path, ow, oh);
+                if (holes is not null) Blank.Current.SetHoles(holes);
+                return;
+            }
+        }
+        if (!havePlate) return;
         Blank.Current.ApplyTransientPlate(w, h, Flag(args, "--corner") ?? 0, holes);
     }
 
@@ -1556,6 +1643,7 @@ internal static partial class Program
         bool haveBlack = false, haveWhite = false, wantOutline = false, json = false, noDpi = false;
         string? flatSpec = null, levelsFrom = null;
         double? rimPct = null, rampPct = null;
+        string? shapePath = null;
         int passes = 256;
         // WeCreat support give 6-8 um for the Lumos Ultra UV spot; 7 sits in the middle.
         double spotMicrons = 7;
@@ -1662,6 +1750,12 @@ internal static partial class Program
                     break;
                 case "--corner": if (double.TryParse(Next(), out double cr2)) o.CornerRadiusMm = cr2; break;
                 case "--holes": o.Holes = Blank.ParseHoles(Next()); break;
+                // Applied after the loop, so --plate can give the bounding box of an outline
+                // that has none of its own whichever order the two are typed in.
+                case "--shape": shapePath = Next(); break;
+                // The material changes no pixel; it goes into the profile, the JSON and the
+                // job report, through the shared blank, for this run only.
+                case "--material": if (Next() is { } matId) Blank.Current.ApplyTransientMaterial(Materials.MaterialCatalog.Find(matId).Id); break;
                 case "--rim-mm": if (double.TryParse(Next(), out double rmm)) o.RimWidthMm = rmm; break;
                 case "--ramp-mm": if (double.TryParse(Next(), out double ramm)) o.RimRampMm = ramm; break;
                 case "--spot": if (double.TryParse(Next(), out double sp)) spotMicrons = sp; break;
@@ -1681,6 +1775,13 @@ internal static partial class Program
                     if (!a.StartsWith('-') && input is null) input = a;
                     break;
             }
+        }
+
+        if (shapePath is not null && o.UseOutline(shapePath) is string shapeError)
+        {
+            if (json) Console.WriteLine(JsonReport.Error(JsonReport.TuneSchema, "--shape: " + shapeError));
+            Console.Error.WriteLine("--shape: " + shapeError);
+            return 2;
         }
 
         if (input is null || !File.Exists(input))
@@ -1775,6 +1876,15 @@ internal static partial class Program
             // calipers and the other is a guess.
             o.ResolvePhysical(loaded.Image.Width, loaded.Image.Height);
             if (noDpi) o.Dpi = null;
+            // Centring the blank on the design is a round-blank fit; on a plate the nearest
+            // honest thing is to pad to the plate and clear the border, and to say so.
+            bool fitCoerced = false;
+            if (o.IsPlate && (o.Fit == FitPolicy.Design || o.CoverDesignRim))
+            {
+                o.Fit = FitPolicy.Content;
+                o.CoverDesignRim = false;
+                fitCoerced = true;
+            }
             if (rimPct is double pct && o.RimWidthMm is null)
             {
                 double half = Math.Min(loaded.Image.Width, loaded.Image.Height) / 2.0;
@@ -1808,14 +1918,18 @@ internal static partial class Program
             {
                 outlinePath ??= Path.ChangeExtension(outPath, null) + "-outline.svg";
                 double engraveMm = o.RimRadius > 0 ? o.RimRadius * 2 / (Math.Min(outW, outH) / blankMm) : 0;
-                if (o.Shape == BlankShape.Rectangle)
+                if (o.Shape == BlankShape.Custom && o.Outline is { } customOutline)
+                    AlignmentOutline.WriteCustom(outlinePath, customOutline, o.BlankWidthMm, o.BlankHeightMm, o.AddRim ? o.RimWidthMm ?? 0 : 0, o.Holes, Path.GetFileName(outPath));
+                else if (o.IsPlate)
                     AlignmentOutline.WriteRectangle(outlinePath, o.BlankWidthMm, o.BlankHeightMm, o.CornerRadiusMm, o.AddRim ? o.RimWidthMm ?? 0 : 0, o.Holes, Path.GetFileName(outPath));
                 else
                     AlignmentOutline.Write(outlinePath, blankMm, engraveMm, Path.GetFileName(outPath));
                 outlineWritten = outlinePath;
 
                 Console.WriteLine($"  outline         {Path.GetFileName(outlinePath)} - "
-                                + (o.Shape == BlankShape.Rectangle
+                                + (o.Shape == BlankShape.Custom
+                                    ? $"{o.BlankWidthMm:F1} x {o.BlankHeightMm:F1} mm outline traced from {Path.GetFileName(o.OutlinePath ?? "")} to frame against the workpiece's edge"
+                                    : o.IsPlate
                                     ? $"{o.BlankWidthMm:F1} x {o.BlankHeightMm:F1} mm outline to frame against the plate's edge"
                                     : $"{blankMm:F1} mm circle to frame against the blank's rim"));
                 Console.WriteLine("                  put it on a tool layer, turn Frame off for the image");
@@ -1838,7 +1952,7 @@ internal static partial class Program
             if (o.PixelsPerMm(outW, outH) is double ppmm)
             {
                 var check = ResolutionCheck.For(1000.0 / ppmm, spotMicrons);
-                bool plate = o.Shape == BlankShape.Rectangle;
+                bool plate = o.IsPlate;
                 Console.WriteLine($"  physical        {o.BlankDiameterMm:F1} mm across {Math.Min(outW, outH):N0} px"
                                 + $"  =  {ppmm:F1} px/mm, {o.Dpi:F0} dpi");
                 if (plate)
@@ -1850,10 +1964,14 @@ internal static partial class Program
                     bool wide = o.BlankWidthMm >= o.BlankHeightMm, mapWide = outW >= outH;
                     double plateAspect = Math.Max(o.BlankWidthMm, o.BlankHeightMm) / Math.Max(1e-9, Math.Min(o.BlankWidthMm, o.BlankHeightMm));
                     double mapAspect = Math.Max(outW, outH) / (double)Math.Min(outW, outH);
-                    Console.WriteLine($"  plate           {o.BlankWidthMm:F1} x {o.BlankHeightMm:F1} mm; the map covers {mapW:F1} x {mapH:F1} mm of it");
+                    string noun = o.ShapeNoun;
+                    Console.WriteLine($"  {noun,-16}{o.BlankWidthMm:F1} x {o.BlankHeightMm:F1} mm; the map covers {mapW:F1} x {mapH:F1} mm of it");
                     if (Math.Abs(plateAspect - mapAspect) > 0.01 || wide != mapWide)
-                        Console.WriteLine($"                  note: the file's proportions ({outW}:{outH}) are not the plate's, so the"
-                                        + " map covers the middle of the plate; pad the canvas to the plate's proportions to cover it all.");
+                        Console.WriteLine($"                  note: the file's proportions ({outW}:{outH}) are not the {noun}'s, so the"
+                                        + $" map covers the middle of the {noun}; --fit pads the canvas to the {noun}'s proportions.");
+                    if (fitCoerced)
+                        Console.WriteLine($"                  note: centring the blank on the design is for round blanks; the {noun} was"
+                                        + " fitted by padding and clearing the border instead.");
                 }
                 Console.WriteLine($"  resolution      {check.MicronsPerPixel:F1} um/pixel against a {spotMicrons:F0} um spot"
                                 + $"  -  {check.Note}");
@@ -1861,8 +1979,8 @@ internal static partial class Program
                 {
                     double rampMm = o.RimRampMm ?? 0;
                     if (plate)
-                        Console.WriteLine($"  border          {rw:F2} mm = {rw * ppmm:F0} px on all four sides"
-                                        + (o.CornerRadiusMm > 0 ? $", corners {o.CornerRadiusMm:F1} mm" : "")
+                        Console.WriteLine($"  border          {rw:F2} mm = {rw * ppmm:F0} px " + (o.Shape == BlankShape.Custom ? "inside the outline's edge" : "on all four sides")
+                                        + (o.Shape == BlankShape.Rectangle && o.CornerRadiusMm > 0 ? $", corners {o.CornerRadiusMm:F1} mm" : "")
                                         + (o.Holes.Count > 0 ? $", {o.Holes.Count} hole{(o.Holes.Count == 1 ? "" : "s")} kept clear by the same border" : "")
                                         + (rampMm <= 0 ? ", hard step" : $", ramp {rampMm:F2} mm = {rampMm * ppmm:F0} px"));
                     else
@@ -1940,6 +2058,15 @@ internal static partial class Program
                 else if (o.CoverDesignRim)
                     Console.WriteLine("  design rim      none found, so nothing was covered: the design sits inside the new rim");
             }
+            else if (rep.Fit is { } plateFit && o.IsPlate)
+            {
+                Console.WriteLine($"  fitted          canvas padded {loaded.Image.Width:N0} x {loaded.Image.Height:N0} ->"
+                                + $" {plateFit.CanvasWidth:N0} x {plateFit.CanvasHeight:N0} px, the {o.ShapeNoun}'s proportions"
+                                + (o.Fit == FitPolicy.Content ? ", grown so the design clears the border" : "")
+                                + "; no pixel resampled");
+                Console.WriteLine($"                  the file now spans {plateFit.ArtAcrossMm:F1} mm of the"
+                                + $" {o.BlankWidthMm:F1} x {o.BlankHeightMm:F1} mm {o.ShapeNoun}, at {plateFit.PixelsPerMm:F1} px/mm");
+            }
             else if (rep.Fit is { } fit)
             {
                 Console.WriteLine($"  fitted          canvas grown {loaded.Image.Width:N0} -> {fit.Size:N0} px"
@@ -1948,7 +2075,7 @@ internal static partial class Program
                                 + $" {o.BlankDiameterMm:F1} mm blank, at {fit.PixelsPerMm:F1} px/mm");
             }
 
-            if (o.AddRim) Console.WriteLine($"  {(o.Shape == BlankShape.Rectangle ? "border" : "rim   ")}          {rep.Summary}");
+            if (o.AddRim) Console.WriteLine($"  {(o.IsPlate ? "border" : "rim   ")}          {rep.Summary}");
             if (rep.FlatChanged > 0)
                 Console.WriteLine($"  flat areas      {o.FlatActions.Count(a => a.Mode == FlatMode.Flatten)} flattened,"
                                 + $" {o.FlatActions.Count(a => a.Mode == FlatMode.Smooth)} smoothed:"
@@ -2061,6 +2188,18 @@ internal static partial class Program
         p.MapWidth = w; p.MapHeight = h; p.MapBitDepth = bitDepth; p.MapMaxValue = maxValue;
         p.MapHash = hash;
         p.DiameterMm = o.BlankDiameterMm ?? p.DiameterMm;
+        // The workpiece as the tune saw it: shape, size, corners, holes, outline and material.
+        // Without this a profile written from the command line claimed a round blank whatever
+        // --plate or --shape said.
+        p.Shape = o.Shape switch { BlankShape.Rectangle => "rectangle", BlankShape.Custom => "custom", _ => "round" };
+        if (o.Shape != BlankShape.Round)
+        {
+            p.WidthMm = o.BlankWidthMm; p.HeightMm = o.BlankHeightMm;
+            p.CornerRadiusMm = o.Shape == BlankShape.Rectangle ? o.CornerRadiusMm : 0;
+            p.Holes = new List<BlankHole>(o.Holes);
+            p.OutlineFile = o.Shape == BlankShape.Custom ? o.OutlinePath : null;
+        }
+        p.Material = Materials.MaterialCatalog.Find(Blank.Current.MaterialId).Id;
         if (o.TargetDepthMm is double td) p.TargetDepthMm = td;
         p.Passes = passes;
         p.SpotMicrons = spot;
@@ -2210,7 +2349,7 @@ internal static partial class Program
     private static int RunJobReport(string[] rest)
     {
         AttachParentConsole();
-        string? input = null, outPath = null, paramsPath = null, finishSpec = null;
+        string? input = null, outPath = null, paramsPath = null, finishSpec = null, laserArg = null;
         int? passesArg = null;
         double? blankArg = null, thickArg = null, depthArg = null, spotArg = null;
         for (int i = 0; i < rest.Length; i++)
@@ -2227,6 +2366,9 @@ internal static partial class Program
                 case "--thick": if (double.TryParse(Next(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double t) && t > 0) thickArg = t; break;
                 case "--depth-mm": if (double.TryParse(Next(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double d) && d > 0) depthArg = d; break;
                 case "--spot": if (double.TryParse(Next(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double s) && s > 0) spotArg = s; break;
+                case "--laser": laserArg = Next(); break;
+                // --material, --plate, --corner, --holes and --shape are read by ApplyPlateArgs below.
+                case "--material" or "--plate" or "--corner" or "--holes" or "--shape": Next(); break;
                 default: if (!a.StartsWith('-') && input is null) input = a; break;
             }
         }
@@ -2235,6 +2377,10 @@ internal static partial class Program
             Console.Error.WriteLine("Usage: DepthView --job-report <image> [--params file.dvp] [--finish recipe] [--out report.html]. See --help.");
             return 2;
         }
+        // The workpiece from the command line, the same flags as every windowed path takes.
+        ApplyPlateArgs(rest);
+        bool shapeOnCommandLine = rest.Any(a => a is "--plate" or "--shape");
+        bool materialOnCommandLine = rest.Any(a => a is "--material");
         outPath ??= JobReport.PathBeside(input);
         if (SamePath(input, outPath))
         {
@@ -2255,6 +2401,10 @@ internal static partial class Program
             o.BlackPoint = sb;
             o.WhitePoint = sw;
             p?.ApplyTo(o, mapSpecific: same, maxValue: img.MaxValue);
+            // A shape typed on the command line wins over the profile's; with neither, the
+            // program-wide blank (a plate kept in the preferences counts).
+            if (shapeOnCommandLine || p is null) o.TakeShapeFrom(Blank.Current);
+            if (o.IsPlate) blankArg ??= o.BlankDiameterMm;
 
             double blank = blankArg ?? p?.DiameterMm ?? Blank.Current.DiameterMm;
             double thick = thickArg ?? p?.ThicknessMm ?? Blank.Current.ThicknessMm;
@@ -2289,9 +2439,9 @@ internal static partial class Program
                 ThicknessMm = thick,
                 DepthMm = depth,
                 DepthFollowsThickness = depthArg is null && p is { TargetDepthMm: null },
-                LaserType = p?.LaserType,
+                LaserType = laserArg ?? p?.LaserType,
                 Lens = p?.Lens,
-                Material = p?.Material ?? recipe?.Material,
+                Material = materialOnCommandLine || p?.Material is null ? Blank.Current.MaterialId : p.Material,
                 Notes = p?.Notes,
                 Finish = recipe,
                 ProfilePath = paramsPath,
@@ -2442,7 +2592,8 @@ internal static partial class Program
                 foreach (var p in problems) Console.Error.WriteLine("--finish: " + p);
                 if (problems.Count > 0) return 2;
                 var fin = Finishing.FinishSimulator.Run(cat, recipe, field, fw, fh,
-                                                        blankMm / Math.Min(fw, fh), depthMm);
+                                                        blankMm / Math.Min(fw, fh), depthMm,
+                                                        onBlank: Blank.Current.OnBlank(fw, fh));
                 o.Finish = fin.Layer;
                 o.Material = new Rendering.MaterialPreset { Name = "Finishing", Metallic = true };
                 Console.WriteLine(recipe.Describe(cat));

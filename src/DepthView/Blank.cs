@@ -4,8 +4,12 @@ using System.Globalization;
 
 namespace DepthView;
 
-/// <summary>The outline of the workpiece. Round is the coin; Rectangle covers plates, tags and bars (a corner radius makes a tag).</summary>
-public enum BlankShape { Round, Rectangle }
+/// <summary>
+/// The outline of the workpiece. Round is the coin; Rectangle covers plates, tags and bars (a
+/// corner radius makes a tag); Custom is any outline drawn as an SVG or painted as a mask,
+/// sized by its bounding box.
+/// </summary>
+public enum BlankShape { Round, Rectangle, Custom }
 
 /// <summary>A hole through the workpiece, in millimetres from the blank's centre (Y down), kept clear by the job like the rim.</summary>
 public readonly record struct BlankHole(double XMm, double YMm, double DiameterMm);
@@ -72,6 +76,50 @@ public sealed class Blank
 
     public bool IsRound => _shape == BlankShape.Round;
 
+    /// <summary>
+    /// The material, as an id in the material catalogue ("brass", "stainless", "wood" ...).
+    /// Kept as a string here so this file stays free of everything but System; the catalogue
+    /// resolves it. Nothing about the material changes a pixel: it picks the relief look and
+    /// the finishing chemistry, and it is what the settings advisor and the capability gate
+    /// are asked about.
+    /// </summary>
+    public string MaterialId
+    {
+        get => _material;
+        set
+        {
+            string v = string.IsNullOrWhiteSpace(value) ? "brass" : value.Trim().ToLowerInvariant();
+            if (_material == v) return;
+            _material = v;
+            Raise();
+        }
+    }
+    private string _material = "brass";
+
+    /// <summary>
+    /// For <see cref="BlankShape.Custom"/>: the SVG or mask file that draws the outline. The
+    /// outline's bounding box is <see cref="WidthMm"/> × <see cref="HeightMm"/>; the file
+    /// itself is read by the processing code (Blank stays free of everything but System).
+    /// </summary>
+    public string? OutlinePath
+    {
+        get => _outlinePath;
+        set
+        {
+            string? v = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (_outlinePath == v) return;
+            _outlinePath = v;
+            Raise();
+        }
+    }
+    private string? _outlinePath;
+
+    /// <summary>
+    /// Hook for the processing code: which pixels of a w × h map are on a custom outline.
+    /// Set once at startup; null (or a null result) falls back to the bounding box.
+    /// </summary>
+    public static Func<Blank, int, int, Func<int, int, bool>?>? CustomOnBlank;
+
     /// <summary>Diameter of a round blank. For a rectangle this is its short side, so code written for coins keeps working.</summary>
     public double DiameterMm
     {
@@ -124,10 +172,67 @@ public sealed class Blank
     /// <summary>"40 mm round" / "100 × 60 mm plate, r 5" - for titles and reports.</summary>
     public string ShapeSummary => IsRound
         ? $"{_diameter:0.#} mm round"
+        : _shape == BlankShape.Custom
+        ? $"{_width:0.#} × {_height:0.#} mm outline" + (_outlinePath is { } op ? $" ({System.IO.Path.GetFileName(op)})" : " (no file)") + (_holes.Count > 0 ? $", {_holes.Count} hole{(_holes.Count == 1 ? "" : "s")}" : "")
         : $"{_width:0.#} × {_height:0.#} mm {(CornerRadiusMm > 0 ? $"tag (corner r {CornerRadiusMm:0.#})" : "plate")}" + (_holes.Count > 0 ? $", {_holes.Count} hole{(_holes.Count == 1 ? "" : "s")}" : "");
 
     /// <summary>Holes as text, "x,y,d; x,y,d" in mm, for a box or a command line.</summary>
     public string HolesText => HolesToText(_holes);
+
+    /// <summary>
+    /// Holes that are not on the plate: their edge reaches past the plate's edge. Round
+    /// blanks have no holes. For a warning in the editor, not a refusal: the reserve simply
+    /// ignores the part of a hole that is off the plate.
+    /// </summary>
+    public IReadOnlyList<BlankHole> HolesOffPlate()
+    {
+        var off = new List<BlankHole>();
+        if (IsRound) return off;
+        foreach (var h in _holes)
+            if (Math.Abs(h.XMm) + h.DiameterMm / 2 > _width / 2 + 1e-9 || Math.Abs(h.YMm) + h.DiameterMm / 2 > _height / 2 + 1e-9)
+                off.Add(h);
+        return off;
+    }
+
+    /// <summary>
+    /// Which pixels of a w × h map are metal: the circle on the short side for a round blank,
+    /// or the plate's rounded rectangle less its holes. The map is taken to span the blank's
+    /// bounding box, as the tuner does.
+    /// </summary>
+    public Func<int, int, bool> OnBlank(int w, int h)
+    {
+        double cx = (w - 1) / 2.0, cy = (h - 1) / 2.0;
+        if (IsRound)
+        {
+            double r2 = Math.Min(w, h) / 2.0; r2 *= r2;
+            return (x, y) => (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r2;
+        }
+        double ppmm = Math.Min(w, h) / Math.Max(1e-9, ShortSideMm);
+        double corner = CornerRadiusMm * ppmm;
+        double hx = w / 2.0 - corner, hy = h / 2.0 - corner;
+        var holes = new List<(double X, double Y, double R2)>();
+        foreach (var hole in _holes)
+        {
+            double r = hole.DiameterMm / 2 * ppmm;
+            holes.Add((cx + hole.XMm * ppmm, cy + hole.YMm * ppmm, r * r));
+        }
+        // The outline itself: the custom one when its file reads, else the rounded rectangle
+        // of the bounding box. Holes come off either.
+        Func<int, int, bool>? custom = _shape == BlankShape.Custom ? CustomOnBlank?.Invoke(this, w, h) : null;
+        Func<int, int, bool> outline = custom ?? ((x, y) =>
+        {
+            double qx = Math.Abs(x - cx) - hx, qy = Math.Abs(y - cy) - hy;
+            return !(qx > 0 && qy > 0 && qx * qx + qy * qy > corner * corner);
+        });
+        if (holes.Count == 0) return outline;
+        return (x, y) =>
+        {
+            if (!outline(x, y)) return false;
+            foreach (var hole in holes)
+                if ((x - hole.X) * (x - hole.X) + (y - hole.Y) * (y - hole.Y) <= hole.R2) return false;
+            return true;
+        };
+    }
 
     public static string HolesToText(IReadOnlyList<BlankHole> holes)
     {
@@ -241,6 +346,14 @@ public sealed class Blank
         finally { _persist = true; }
     }
 
+    /// <summary>A material from the command line (--material), not saved to the preferences.</summary>
+    public void ApplyTransientMaterial(string id)
+    {
+        _persist = false;
+        try { MaterialId = id; }
+        finally { _persist = true; }
+    }
+
     /// <summary>A rectangular blank from the command line (--plate), not saved to the preferences.</summary>
     public void ApplyTransientPlate(double width, double height, double corner, IEnumerable<BlankHole>? holes)
     {
@@ -250,6 +363,20 @@ public sealed class Blank
             Shape = BlankShape.Rectangle;
             WidthMm = width; HeightMm = height; CornerRadiusMm = corner;
             if (holes is not null) SetHoles(holes);
+        }
+        finally { _persist = true; }
+    }
+
+    /// <summary>A custom outline from the command line (--shape), with the bounding box when the file does not state one; not saved.</summary>
+    public void ApplyTransientOutline(string path, double? width, double? height)
+    {
+        _persist = false;
+        try
+        {
+            Shape = BlankShape.Custom;
+            OutlinePath = path;
+            if (width is > 0) WidthMm = width.Value;
+            if (height is > 0) HeightMm = height.Value;
         }
         finally { _persist = true; }
     }
@@ -279,7 +406,11 @@ public sealed class Blank
         if (p.BlankHeightMm > 0) b.HeightMm = p.BlankHeightMm;
         b.CornerRadiusMm = p.BlankCornerRadiusMm;
         b._holes = ParseHoles(p.BlankHoles);
-        b._shape = string.Equals(p.BlankShape, "rectangle", StringComparison.OrdinalIgnoreCase) ? BlankShape.Rectangle : BlankShape.Round;
+        b._shape = string.Equals(p.BlankShape, "rectangle", StringComparison.OrdinalIgnoreCase) ? BlankShape.Rectangle
+                 : string.Equals(p.BlankShape, "custom", StringComparison.OrdinalIgnoreCase) ? BlankShape.Custom
+                 : BlankShape.Round;
+        b._outlinePath = string.IsNullOrWhiteSpace(p.BlankOutlinePath) ? null : p.BlankOutlinePath.Trim();
+        if (!string.IsNullOrWhiteSpace(p.BlankMaterial)) b._material = p.BlankMaterial.Trim().ToLowerInvariant();
         b._persist = true;
         return b;
     }
@@ -299,11 +430,13 @@ public sealed class Blank
         p.BlankThicknessMm = _thickness;
         p.DepthPercent = _percent;
         p.TargetDepthMm = _manualDepth;
-        p.BlankShape = _shape == BlankShape.Rectangle ? "rectangle" : "round";
+        p.BlankShape = _shape switch { BlankShape.Rectangle => "rectangle", BlankShape.Custom => "custom", _ => "round" };
+        p.BlankOutlinePath = _outlinePath;
         p.BlankWidthMm = _width;
         p.BlankHeightMm = _height;
         p.BlankCornerRadiusMm = _corner;
         p.BlankHoles = HolesToText(_holes);
+        p.BlankMaterial = _material;
         p.Save();
     }
 }

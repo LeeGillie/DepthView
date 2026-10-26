@@ -429,15 +429,19 @@ internal static partial class Program
                                 of the bundled reference studies over it, which the
                                 screenshot then shows; --reference selects a reference study
           DepthView --suggest-settings [--material <id>] [--laser <id>] [--target-mm <mm>] [--passes <n>]
-                                [--lens <text>] [--db <file> | --demo-db] [--json]
+                                [--lens <text>] [--for makeit|lightburn|slicer]
+                                [--db <file> | --demo-db] [--json]
                                 settings for a job from the ablation study's evidence (the
-                                Tune window's "Settings from the study" button): a MakeIt
-                                recipe, the predicted depth as a band with its grade, the
-                                descent per layer, and every note and warning. Nothing is
+                                Tune window's "Settings from the study" button): the complete
+                                sheet for the program --for names, every line with what it
+                                rests on, the predicted depth as a band with its grade, and
+                                every note and warning. The descent per layer is the predicted
+                                removal per pass, or a labelled DEFAULT when there is no
+                                ablation-rate evidence - never a bare number. Nothing is
                                 extrapolated beyond what was tested; without depth evidence
                                 for the material it says "uncalibrated". --json prints
                                 depthview.settings-advice/1.
-          DepthView --advice-ui [--screenshot <png>]
+          DepthView --advice-ui [--material <id>] [--screenshot <png>]
                                 open the settings-advice window on the demo database
 
         Exit codes: 0 all clean, 1 at least one file flagged (an imposter, or a picture that is mostly
@@ -794,6 +798,9 @@ internal static partial class Program
             && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, c, out height) && height > 0;
     }
 
+    /// <summary>--material was given on the windowed command line (so a screenshot can ask for it).</summary>
+    public static bool StartupMaterialOnCommandLine;
+
     /// <summary>
     /// --plate WxH [--corner r] [--holes "x,y,d; ..."] and --material <id> on the windowed
     /// paths: a rectangular blank and a material for this run only.
@@ -802,7 +809,10 @@ internal static partial class Program
     {
         int mi = Array.IndexOf(args, "--material");
         if (mi >= 0 && mi + 1 < args.Length && !args[mi + 1].StartsWith('-'))
+        {
             Blank.Current.ApplyTransientMaterial(Materials.MaterialCatalog.Find(args[mi + 1]).Id);
+            StartupMaterialOnCommandLine = true;
+        }
         int i = Array.IndexOf(args, "--plate");
         double w = 0, h = 0;
         bool havePlate = i >= 0 && i + 1 < args.Length && ParsePlate(args[i + 1], out w, out h);
@@ -2307,6 +2317,14 @@ internal static partial class Program
         }
         catch (Exception ex) { Console.Error.WriteLine($"Could not open the ablation database: {ex.Message}"); return 2; }
         var a = Ablation.SettingsAdvisor.Advise(db, material, laser, target, passes, lens.Length > 0 ? lens : null);
+        // The program the sheet is written for: --for makeit | lightburn | slicer (default makeit).
+        var host = Arg("--for", "makeit").ToLowerInvariant() switch
+        {
+            "lightburn" or "grayscale" or "lb" => Ablation.HostProgram.LightBurnGrayscale,
+            "slicer" or "slice" or "3d" => Ablation.HostProgram.LightBurnSlice,
+            _ => Ablation.HostProgram.MakeIt,
+        };
+        var zad = Ablation.ZAdvice.For(a);
         if (json)
         {
             var o = new
@@ -2314,6 +2332,15 @@ internal static partial class Program
                 schema = "depthview.settings-advice/1", program = $"DepthView {BuildInfo.Version}",
                 material = material.Summary, laser = new { laser.Id, laser.Name, laser.RatedPowerW, kind = laser.Kind.ToString(), laser.Lens },
                 a.TargetDepthMm, a.Passes, neededPerPassUm = Math.Round(a.NeededPerPassUm, 2),
+                // The descent per layer with what it rests on: "predicted" at the advice's grade,
+                // "default" (WeCreat's 0.01 mm, no ablation-rate evidence - said so), or "none".
+                zAdvance = new { mm = zad.Mm, basis = zad.Basis, grade = zad.Grade, note = zad.Note },
+                // The complete sheet for the program named by --for, each line with its basis.
+                sheet = new
+                {
+                    program = host.ToString(), programName = Ablation.RecipeSheet.HostName(host),
+                    lines = Ablation.RecipeSheet.Build(a, host).Select(s => new { label = s.Label, value = s.Value, basis = s.Basis.ToString(), note = s.Note }),
+                },
                 recipe = a.Recipe is null ? null : new
                 {
                     a.Recipe.PowerPercent, powerW = Math.Round(a.Recipe.PowerW(laser.RatedPowerW), 2), a.Recipe.SpeedMmPerS, a.Recipe.LineDensityPerCm,
@@ -2335,7 +2362,7 @@ internal static partial class Program
         else
         {
             Console.WriteLine(a.Verdict);
-            Console.WriteLine(a.Recipe is null ? "No recipe." : Views.SettingsAdviceWindow.RecipeText(a));
+            Console.WriteLine(a.Recipe is null ? "No recipe." : Ablation.RecipeSheet.ToText(a, host));
             foreach (var w in a.Warnings) Console.WriteLine("WARNING: " + w);
             foreach (var n in a.Notes) Console.WriteLine(n);
         }

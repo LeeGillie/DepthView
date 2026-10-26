@@ -124,7 +124,11 @@ public partial class MainWindow : Window
             if (Program.StartupAdvice)
             {
                 var (db, _, _) = Ablation.Demo.Build();
-                _advice = new SettingsAdviceWindow(db, "stainless", Ablation.LaserKind.Mopa, "Lumos Ultra red lens (MOPA)", 1.1, 256) { Icon = Icon };
+                // --material <name> picks the material shown (stainless by default), so the
+                // screenshot can show either a predicted descent or the labelled default.
+                var cm = Materials.MaterialCatalog.Find(Blank.Current.MaterialId);
+                string adviceMaterial = Program.StartupMaterialOnCommandLine ? cm.AblationName ?? cm.Name : "stainless";
+                _advice = new SettingsAdviceWindow(db, adviceMaterial, Ablation.LaserKind.Mopa, "Lumos Ultra red lens (MOPA)", 1.1, 256) { Icon = Icon };
                 _advice.Show(this);
                 if (Program.ScreenshotPath is not null) ScheduleScreenshot();
                 return;

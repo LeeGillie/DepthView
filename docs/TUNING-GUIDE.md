@@ -196,9 +196,16 @@ DepthView's own measurements, as the wizard does.
 
 - **Layers: 72**, to match the pass count above. Keep the settings the same for every layer
   (see the Summary for why).
-- **Cleaning Layer: off.** In the job checked with it on, MakeIt 3.0.6 wrote each cleaning layer
-  as a copy of the engraving layer before it, at the engraving settings, and none of the cleaning
-  settings appeared in the file. That is an extra engraving layer every N layers with no step in Z.
+- **Cleaning Layer: on from MakeIt 3.0.7, off in 3.0.6.** In 3.0.7 the cleaning layer works
+  as described - a light, fast pass every N layers that clears slag from the floor at its own
+  settings. In the job checked on 3.0.6 MakeIt wrote each cleaning layer as a copy of the
+  engraving layer before it, at the engraving settings, and none of the cleaning settings
+  appeared in the file: an extra engraving layer every N layers with no step in Z. Check the
+  G-code either way (next point); the cleaning settings should appear in it.
+- **Descent per layer: what one layer really removes.** MakeIt's 0.01 mm is WeCreat's default,
+  not a measurement for your material. *Settings from the study* in the Tune window's JOB
+  section gives the predicted removal with its grade where the evidence allows, and says
+  plainly when it is only this default.
 - **Check what MakeIt actually sent.** After you click *Send*, MakeIt writes the job before you
   press the button on the machine, and the file stays if you cancel. Open it in DepthView
   (`Ctrl+Shift+P` in MakeIt opens its folder) and read *Cutting heights* and *Settings*: the

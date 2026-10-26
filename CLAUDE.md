@@ -914,6 +914,17 @@ the code needs:
   window's `CapabilityNote`, the job report's Laser card, `--materials` and
   `SettingsAdvisor.Advise` (refuses `Cannot`, warns `Marginal`) all read it. Console strings
   write "um", not "µm": a plain Windows console mangles the µ.
+- **The settings sheet (`Ablation/RecipeSheet.cs`) is where a complete recipe for a program
+  is written**, from `SettingsAdvice`: `HostProgram` (MakeIt, LightBurn Grayscale, a slicer),
+  one `SheetLine` per setting the program asks for, each with a `SettingBasis` (Evidence,
+  Start = a grade-E recipe with no depth, Default, YourInput, Fixed, Unknown). `ZAdvice.For`
+  is the one place the descent per layer is decided: predicted removal per pass at the
+  advice's grade, else WeCreat's 0.01 mm as a DEFAULT with the reason, else none - it is
+  never shown as a bare number anywhere (window, text, JSON `zAdvance`, the wizard's Layers
+  step says "assumed ... a DEFAULT"). Lee's rule, 2026-10-26: wherever a focus advance is
+  shown, the user must see the quality of the data behind it or be told it is a default.
+  MakeIt 3.0.7 runs cleaning layers properly (3.0.6 re-engraved the previous layer with no Z
+  step); the sheet's cleaning layer is WeCreat's relief-job default, marked DEFAULT.
 - **Two sessions on one checkout happened on 2026-10-26** (a duplicated run of the same turn,
   through the same desktop bridge) and built items 2 and 3 side by side with this one. The
   work was reviewed line by line before the commit; if the tool-history log in

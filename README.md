@@ -1050,6 +1050,25 @@ recipe may be offered as a starting point, but no depth is predicted, and the on
 named: cut a coupon. Once your own coupons are measured they are grade A and everything else
 is set aside. `DepthView --suggest-settings` does the same headlessly, with `--json`.
 
+**The settings sheet** *(unreleased)*. The answer is written for the program you will type
+it into - **Settings for** picks WeCreat MakeIt (Relief), LightBurn's Image layer in
+Grayscale mode, or a slicer - as a complete sheet of every setting that program asks for, in
+its own words and units: for MakeIt the craft, the 8-bit map, power, speed, line density,
+frequency, pulse width, layers, the descent per layer, the cleaning layer and the starting Z;
+for LightBurn the max and min power, speed, line interval, frequency, pulse width, passes
+and the Z offset per pass. Every line says what it rests on: *evidence* at the grade shown,
+*START (E)* for a reported recipe with no depth behind it, *yours* for what you set, *fixed*
+for how the program works, *DEFAULT* for a number not derived from this material or laser,
+and *UNKNOWN* where nothing in the evidence says and a test will. The descent per layer is
+the line that matters most and is never a bare number: without an ablation rate for your
+material on your laser it is only a guess, so it is either the predicted removal per pass at
+the advice's grade, or the 0.01 mm WeCreat's own relief jobs use, shown in amber as a default
+with the reason - if a layer really removes more or less, the focus drifts off the floor. The
+cleaning layer on the MakeIt sheet is WeCreat's relief-job default, also marked so; it works
+from MakeIt 3.0.7 (3.0.6 engraved the previous layer again with no step in Z). **Copy the
+recipe** copies the sheet with its reasons; `--suggest-settings --for makeit|lightburn|slicer`
+prints it, and its JSON carries the sheet and a `zAdvance` object with the basis.
+
 Not built yet: entering the depth readings. The record's shape is settled (readings in
 micrometres relative to the untouched gap beside each patch, the method, notes); the window
 waits for the gauge and its interface, so it is shaped by real numbers.
@@ -1147,13 +1166,18 @@ DepthView --ablation-ui --cut --screenshot c.png         # ... with the cut wind
 DepthView --ablation-ui --seeds --screenshot r.png       # ... with the reference-studies offer
 DepthView --ablation-ui --reference --screenshot q.png   # ... with a reference study selected
 DepthView --suggest-settings --material stainless-304 --laser lumos-ultra-mopa-100w --target-mm 1.1 --passes 256 --json
+DepthView --suggest-settings --material brass-h62 --for lightburn   # the sheet for LightBurn Grayscale, as text
 DepthView --advice-ui --screenshot adv.png               # the settings-advice window on the demo database
+DepthView --advice-ui --material brass --screenshot adv-brass.png   # ... showing the labelled default descent
 ```
 
 `--suggest-settings` reads your own ablation database (`--db <file>` for another; `--demo-db`
 for the bundled demo with the reference studies) and prints `depthview.settings-advice/1`:
-the recipe, the predicted depth band, the grade, the evidence used, and every note and
-warning. `--material` and `--laser` take the preset ids the message lists when one is wrong.
+the recipe, the predicted depth band, the grade, the evidence used, every note and warning,
+and (unreleased) the settings sheet for the program `--for` names (`makeit`, `lightburn`,
+`slicer`) with the basis of every line, plus `zAdvance` - the descent per layer with its basis
+(`predicted`, `default` or `none`) and grade. `--material` and `--laser` take the preset ids
+the message lists when one is wrong.
 
 The demo's JSON also carries a focus ramp built around a made-up Z (13 bars, ±1.5 mm in
 0.25 mm steps) and the same coupon job with that Z in it, so the check can confirm that Z

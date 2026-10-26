@@ -91,7 +91,11 @@ public sealed class WizardAnswers
 /// </summary>
 public static class WizardAdvice
 {
-    /// <summary>MakeIt 3.0.6 lowered Z this far per layer in every relief job DepthView has read.</summary>
+    /// <summary>
+    /// The descent per layer WeCreat's own relief jobs use (every MakeIt relief job DepthView has
+    /// read, 3.0.6 and 3.0.7). A DEFAULT, not a removal rate: the right step is what one layer
+    /// really removes, which only an ablation study measures (<see cref="Ablation.ZAdvice"/>).
+    /// </summary>
     public const double MakeItZStepMm = 0.01;
 
     /// <summary>MakeIt works in 8 bits: up to 256 layers.</summary>

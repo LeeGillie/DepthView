@@ -1741,7 +1741,7 @@ public sealed class TuningWizard : Window
                     int lo = 256 / n, hi = (256 + n - 1) / n;
                     return Rows(
                         ("Target depth", $"{DepthMm:0.00} mm"),
-                        ("MakeIt's Z step", $"{z:0.00} mm a layer, in every relief job read so far (3.0.6)"),
+                        ("Z step assumed", $"{z:0.00} mm a layer - a DEFAULT (WeCreat's relief jobs step this), not a measurement for {Materials.MaterialCatalog.Find(Blank.Current.MaterialId).Name.ToLowerInvariant()}"),
                         ("Layers for that", DepthMm / z > WizardAdvice.MakeItMaxLayers
                             ? $"{rec} - MakeIt stops at 256 layers, {256 * z:0.00} mm" : $"{rec}"),
                         ("Z at your count", $"{n} x {z:0.00} = {travel:0.00} mm"
@@ -1765,9 +1765,14 @@ public sealed class TuningWizard : Window
                     v => { _a.Passes = (int)Math.Round(v); _passesTouched = true; }, "", () => "Set the same number as Layers in MakeIt."));
                 p.Children.Add(Why("A relief is cut layer by layer, and unless the head comes down by what each layer removes, the "
                     + "focus drifts off the surface being cut: the spot grows, each layer removes less, and the error builds on itself. "
-                    + "MakeIt steps Z 0.01 mm a layer, so plan layers x 0.01 mm = depth, then choose power and speed so one layer "
-                    + "removes about 10 um. Keep every layer's settings the same, and leave Cleaning Layer off - in 3.0.6 it engraves "
-                    + "the previous layer again with no step in Z. The lit view is cut in your layer count: each terrace is one layer."));
+                    + "The Z step therefore has to equal what one layer really removes - and without an ablation rate for this material "
+                    + "on this laser that number is a guess. The 0.01 mm here is only the descent WeCreat's own relief jobs use: plan "
+                    + "layers x 0.01 mm = depth, then choose power and speed so one layer removes about 10 um, and check the first "
+                    + "coupon. Settings from the study, in the Tune window's JOB section, gives the predicted removal with its grade "
+                    + "where the evidence allows, and says plainly when it is only this default. Keep every layer's settings the same. "
+                    + "Cleaning Layer works from MakeIt 3.0.7 (a light, fast pass that clears the floor); in 3.0.6 it engraved the "
+                    + "previous layer again with no step in Z, so there leave it off. The lit view is cut in your layer count: each "
+                    + "terrace is one layer."));
                 break;
             }
 
@@ -1777,7 +1782,7 @@ public sealed class TuningWizard : Window
                 p.Children.Add(Measured(() => Rows(
                     ("Mode", "Grayscale: every pass covers the whole image, and power follows the grey"),
                     ("Target depth", $"{DepthMm:0.00} mm"),
-                    ("Z step per pass", $"{DepthMm / Math.Max(1, _lbPasses) * 1000:0} um, if {_lbPasses:0} passes reach it"),
+                    ("Z step per pass", $"{DepthMm / Math.Max(1, _lbPasses) * 1000:0} um, if {_lbPasses:0} passes reach it - the target divided by the passes, not a measurement of what a pass removes"),
                     ("Figures quoted at", $"{_a.Passes:N0} passes in the Tune window - a reference only"))));
                 p.Children.Add(Number("Passes you plan to run", 1, 200, 1, "0", () => _lbPasses, v => _lbPasses = v, "",
                     () => "Set the same number in LightBurn, with Z step per pass as above. Measure what one pass removes before trusting it."));

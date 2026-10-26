@@ -21,8 +21,9 @@ public sealed class SettingsAdviceWindow : Window
         Muted = B("#8A929E"), Amber = B("#F0C674"), Green = B("#5CC28A");
 
     private readonly AblationDatabase _db;
-    private readonly ComboBox _material = new(), _laser = new();
+    private readonly ComboBox _material = new(), _laser = new(), _host = new();
     private readonly TextBox _lens = new();
+    private readonly StackPanel _sheet = new() { Spacing = 2 };
     private readonly NumericUpDown _target = new() { Minimum = 0.01m, Maximum = 20, Increment = 0.05m, FormatString = "0.00", Width = 110 };
     private readonly NumericUpDown _passes = new() { Minimum = 1, Maximum = 65535, Increment = 16, FormatString = "0", Width = 110 };
     private readonly TextBlock _verdict = Text("", 13, Bright, FontWeight.SemiBold), _grade = Text("", 12, Ink), _recipe = Text("", 12, Ink),
@@ -50,8 +51,19 @@ public sealed class SettingsAdviceWindow : Window
         _target.Value = (decimal)Math.Clamp(targetDepthMm, 0.01, 20);
         _passes.Value = Math.Max(1, passes);
 
-        _copy = MakeButton("Copy the recipe", "Copy the settings as text, to type into MakeIt.");
+        _copy = MakeButton("Copy the recipe", "Copy the settings sheet as text, with what every line rests on, to type into the program.");
         _close = MakeButton("Close", "");
+
+        // The program the sheet is written for: the wizard's last target, or MakeIt.
+        _host.Items.Add(new ComboBoxItem { Content = RecipeSheet.HostName(HostProgram.MakeIt), Tag = HostProgram.MakeIt });
+        _host.Items.Add(new ComboBoxItem { Content = RecipeSheet.HostName(HostProgram.LightBurnGrayscale), Tag = HostProgram.LightBurnGrayscale });
+        _host.Items.Add(new ComboBoxItem { Content = RecipeSheet.HostName(HostProgram.LightBurnSlice), Tag = HostProgram.LightBurnSlice });
+        _host.SelectedIndex = Preferences.Current.WizardLast?.Target switch
+        {
+            Processing.WizardTarget.LightBurn => 1,
+            Processing.WizardTarget.Slicer => 2,
+            _ => 0,
+        };
 
         var p = new StackPanel { Spacing = 8, Margin = new Thickness(16) };
         p.Children.Add(Head("The job"));
@@ -64,12 +76,18 @@ public sealed class SettingsAdviceWindow : Window
         tr.Children.Add(Text("in passes", 12, Ink)); tr.Children.Add(_passes);
         p.Children.Add(tr);
 
+        p.Children.Add(Row("Settings for", _host, "The program the sheet is written for, in its own words and units. Grayscale and a slicer build depth differently, so the sheet differs."));
+
         p.Children.Add(Head("Advice"));
         p.Children.Add(_verdict);
         p.Children.Add(_grade);
-        _recipe.FontFamily = new FontFamily("Consolas,Menlo,DejaVu Sans Mono,monospace");
-        var box = new Border { Background = Panel, BorderBrush = B("#333944"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(10, 8), Child = _recipe };
+        // The sheet: one line per setting the program asks for, with what it rests on beside
+        // it. A default is coloured as a default; the descent per layer in particular is never
+        // a bare number, because without an ablation rate it is only a guess.
+        var box = new Border { Background = Panel, BorderBrush = B("#333944"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(10, 8), Child = _sheet };
         p.Children.Add(box);
+        p.Children.Add(Text("evidence = from the study's evidence at the grade above   |   yours = what you set   |   fixed = how the program works   |   DEFAULT = not derived from this material or laser, said so   |   UNKNOWN = find it by test", 10.5, Muted));
+        _recipe.IsVisible = false;
         p.Children.Add(_warn);
         p.Children.Add(_notes);
         p.Children.Add(Head("Evidence used"));
@@ -88,7 +106,8 @@ public sealed class SettingsAdviceWindow : Window
         _lens.TextChanged += (_, _) => Refresh();
         _target.ValueChanged += (_, _) => Refresh();
         _passes.ValueChanged += (_, _) => Refresh();
-        _copy.Click += async (_, _) => { if (_advice?.Recipe is not null && Clipboard is { } cb) await cb.SetTextAsync(RecipeText(_advice)); };
+        _host.SelectionChanged += (_, _) => Refresh();
+        _copy.Click += async (_, _) => { if (_advice?.Recipe is not null && Clipboard is { } cb) await cb.SetTextAsync(RecipeSheet.ToText(_advice, Host)); };
         _close.Click += (_, _) => Close();
         Refresh();
     }
@@ -104,6 +123,7 @@ public sealed class SettingsAdviceWindow : Window
         _verdict.Foreground = a.HasRecipe && a.PredictedPerPassUm is not null ? (a.Grade == "A" ? Green : Bright) : Amber;
         _grade.Text = $"Grade of this advice: {a.GradeText}." + (a.RayleighMm is { } z ? $" Estimated Rayleigh range of the lens: {z:0.##} mm." : "");
         _recipe.Text = a.Recipe is null ? "No recipe: nothing in the evidence applies to this material on this kind of source." : RecipeText(a);
+        FillSheet(a);
         _warn.Text = string.Join("\n", a.Warnings.Select(w => "⚠ " + w));
         _warn.IsVisible = a.Warnings.Count > 0;
         _notes.Text = string.Join("\n", a.Notes);
@@ -112,12 +132,49 @@ public sealed class SettingsAdviceWindow : Window
         _copy.IsEnabled = a.Recipe is not null;
     }
 
-    /// <summary>The recipe in MakeIt's words and units, with its provenance on the same lines.</summary>
+    private HostProgram Host => (_host.SelectedItem as ComboBoxItem)?.Tag is HostProgram h ? h : HostProgram.MakeIt;
+
+    /// <summary>
+    /// The sheet on screen: label, value, and the basis as a coloured word, with the note under
+    /// any line that is not simply how the program works. A default or an unknown is amber,
+    /// so the descent per layer cannot pass for a measurement when it is only a default.
+    /// </summary>
+    private void FillSheet(SettingsAdvice a)
+    {
+        _sheet.Children.Clear();
+        var mono = new FontFamily("Consolas,Menlo,DejaVu Sans Mono,monospace");
+        _sheet.Children.Add(new TextBlock { Text = $"{RecipeSheet.HostName(Host)} - {a.MaterialName} on {a.Laser.Name} ({a.Laser.RatedPowerW:0} W, {a.Laser.Lens})", FontSize = 12, Foreground = Bright, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) });
+        foreach (var line in RecipeSheet.Build(a, Host))
+        {
+            IBrush basisBrush = line.Basis switch
+            {
+                SettingBasis.Evidence => a.Grade == "A" ? Green : Ink,
+                SettingBasis.Start or SettingBasis.Default or SettingBasis.Unknown => Amber,
+                _ => Muted,
+            };
+            var g = new Grid { ColumnDefinitions = new ColumnDefinitions("150,*,80") };
+            var lab = new TextBlock { Text = line.Label, FontSize = 12, Foreground = Ink, FontFamily = mono, VerticalAlignment = VerticalAlignment.Top };
+            var val = new TextBlock { Text = line.Value, FontSize = 12, Foreground = line.Basis is SettingBasis.Default or SettingBasis.Unknown ? Amber : Bright, FontFamily = mono, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Top };
+            var bas = new TextBlock { Text = line.BasisWord, FontSize = 11, Foreground = basisBrush, FontWeight = line.Basis is SettingBasis.Default or SettingBasis.Unknown ? FontWeight.SemiBold : FontWeight.Normal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top };
+            Grid.SetColumn(val, 1); Grid.SetColumn(bas, 2);
+            g.Children.Add(lab); g.Children.Add(val); g.Children.Add(bas);
+            ToolTip.SetTip(g, line.Note);
+            _sheet.Children.Add(g);
+            if (line.Basis is SettingBasis.Default or SettingBasis.Unknown || line.Label.StartsWith("Descent") || line.Label.StartsWith("Z "))
+                _sheet.Children.Add(new TextBlock { Text = line.Note, FontSize = 10.5, Foreground = line.Basis is SettingBasis.Evidence ? Muted : Amber, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(150, 0, 0, 4) });
+        }
+    }
+
+    /// <summary>The recipe in MakeIt's words and units, with its provenance on the same lines (the compact form the JSON check and the CLI print).</summary>
     public static string RecipeText(SettingsAdvice a)
     {
         if (a.Recipe is not { } r) return "";
         var l = a.Laser;
-        string z = a.ZAdvanceMm is { } za ? $"{za:0.0000} mm (the predicted removal per pass, so focus follows the floor)" : "not predicted (no depth evidence)";
+        var zad = ZAdvice.For(a);
+        string z = zad.Mm is { } za
+            ? $"{za:0.0000} mm - " + (zad.IsDefault ? "A DEFAULT (no ablation-rate evidence for this material on this source; WeCreat's relief jobs step 0.01 mm). " + zad.Note
+                                                   : $"the predicted removal per pass, so focus follows the floor (grade {zad.Grade})")
+            : "not predicted (no depth evidence)";
         bool spread = a.PredictedPerPassHighUm - a.PredictedPerPassLowUm > 0.05;
         string depth = a.PredictedPerPassUm is { } d
             ? $"{d:0.#} µm per pass{(spread ? $" ({a.PredictedPerPassLowUm:0.#}–{a.PredictedPerPassHighUm:0.#})" : "")}; {a.PredictedTotalMm:0.00} mm in {a.Passes} passes{(spread ? $" ({a.PredictedTotalLowMm:0.00}–{a.PredictedTotalHighMm:0.00})" : " (one reported figure, no spread)")}"

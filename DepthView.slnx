@@ -72,12 +72,15 @@
     <File Path="docs/TUNING-GUIDE.md" />
   </Folder>
   <Folder Name="/docs/images/">
+    <File Path="docs/images/ablation-study.png" />
     <File Path="docs/images/about.png" />
     <File Path="docs/images/analysis-genuine.png" />
     <File Path="docs/images/analysis-imposter.png" />
+    <File Path="docs/images/engraving-settings.png" />
     <File Path="docs/images/finishing.png" />
     <File Path="docs/images/fit-pad-background.png" />
     <File Path="docs/images/fit-pad-untouched.png" />
+    <File Path="docs/images/record-job-result.png" />
     <File Path="docs/images/relief-continuous.png" />
     <File Path="docs/images/relief-preview.png" />
     <File Path="docs/images/relief-terraced.png" />
@@ -143,6 +146,7 @@
   <Folder Name="/tests/">
     <File Path="tests/check_ablation.py" />
     <File Path="tests/check_fit.py" />
+    <File Path="tests/check_jobresult.cs" />
     <File Path="tests/check_json.py" />
     <File Path="tests/check_lbcontrol.ps1" />
     <File Path="tests/check_report.py" />

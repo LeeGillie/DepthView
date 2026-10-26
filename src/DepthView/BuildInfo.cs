@@ -53,7 +53,9 @@ public static class BuildInfo
     /// which is the only check that does not depend on what happens to sit next to the exe.
     /// Useful in a bug report: it separates "ran the release" from "built it myself".
     /// </summary>
+#pragma warning disable IL3000   // the empty Location in a single-file app is exactly what is being tested
     public static bool SingleFile { get; } = Self.Location.Length == 0;
+#pragma warning restore IL3000
 
     /// <summary>How this copy was obtained, in the words a bug report needs.</summary>
     public static string Packaging => SingleFile ? "self-contained single file" : "framework build from source";

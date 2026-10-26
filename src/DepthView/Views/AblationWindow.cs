@@ -38,7 +38,10 @@ public sealed class AblationWindow : Window
     private readonly CouponPreview _preview = new() { MinHeight = 320 };
     private readonly Button _newStudy, _import, _export, _convert, _deleteStudy, _reset, _plan, _cut, _measure, _remove, _deleteCoupon, _jobs, _saveJob, _seeds;
 
-    public AblationWindow() : this(AblationDatabase.Load()) { }
+    public AblationWindow() : this(AblationDatabase.Shared) { }
+
+    /// <summary>The database revision the list was last built from; the list is rebuilt when another window saved since.</summary>
+    private int _shownRevision = -1;
 
     /// <summary>On a given database - the demo one for screenshots and checks.</summary>
     public AblationWindow(AblationDatabase db)
@@ -147,6 +150,9 @@ public sealed class AblationWindow : Window
             if (Program.StartupAblation || _db.Studies.Count > 0 || !_db.ShouldOfferSeeds) return;
             await OfferSeedsAsync(unasked: true);
         };
+        // The engraving-settings window shares this database and can record a job result
+        // while this window is open: coming back to it, the list is rebuilt if anything was saved.
+        Activated += (_, _) => { if (_db.Revision != _shownRevision) FillStudies(Study); };
     }
 
     /// <summary>The dialog this window last opened over itself (the seed offer), for the screenshot path.</summary>
@@ -160,6 +166,7 @@ public sealed class AblationWindow : Window
 
     private void FillStudies(Study? select = null)
     {
+        _shownRevision = _db.Revision;
         _studies.Items.Clear();
         foreach (var s in _db.Studies)
         {
@@ -431,7 +438,7 @@ public sealed class AblationWindow : Window
 
     private void Save()
     {
-        try { _db.Save(); }
+        try { _db.Save(); _shownRevision = _db.Revision; }   // our own save: the list is kept up by the caller
         catch (Exception ex) { _status.Text = $"Could not save the database: {ex.Message}"; }
     }
 

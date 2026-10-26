@@ -2,50 +2,65 @@
      evergreen and should not need touching. gh release create puts this file first and the
      generated commit list after it, so this is what a reader sees at the top of the page. -->
 
-## What's new in 1.13.0 — the ablation study meets the laser
+## What's new in 1.14.0 — engraving settings, for any shape and any material
 
-> **Still a preview, one step further on.** 1.12.0's Ablation study had never touched a laser.
-> In 1.13.0 its cutting side has: on a WeCreat Lumos Ultra (100 W MOPA) it found a verified
-> focus and cut the first two brass study coupons, and everything that went wrong on the way
-> is fixed here. The measuring side still waits for the depth gauge, so no removal figure has
-> come out of it yet - do not plan a material study on it until a release says it measures.
+> **The ablation study is still a preview**, but it now measures: readings are entered by hand
+> (the gauge interface comes later), and a real job's result counts as evidence. Nothing in
+> this release has been measured on a Lumos Ultra yet - the first measured coupons are the
+> next bench session - so the bundled figures are still what other people reported, graded as
+> such, until your own numbers replace them.
 
-**Precision focus - a new guide.** `docs/PRECISION-FOCUS.md` (with photos of real ramps) is
-how to find the true focus height of your laser as a number the jobs use: cut a *focus ramp*
-of numbered bars at different heights, read which run of bars is crisp, and record the middle
-of it. It explains where the starting height really comes from (the `G0Z` in a MakeIt relief
-job - not the focus-assist number), how to read a ramp (on brass the bars at focus are the
-*darkest*), why it may take two or three scrap coins the first time, and why, once found, that
-height holds for that lens and blank thickness. It also compares the method, honestly, with
-focusing by eye or by the machine's own focus. On our machine the ramp put best focus about
-2 mm away from where MakeIt focuses for depth jobs - not yet confirmed by measurement.
+**Engraving settings, on the front page.** A green **Engraving settings** button at the top
+right of the main window gives you settings for a material on your laser - no depth map
+needed. Pick the material, the laser (60 W or 100 W MOPA, or the UV module), the lens, the
+target depth, the number of passes and the program you type into, and you get a complete
+sheet in that program's words and units - MakeIt relief, LightBurn grayscale or a slicer:
+power, speed, line density, frequency, pulse width, layers, descent per layer, cleaning layer.
+Every line is marked with what it rests on: *evidence* at its grade, *yours*, *fixed*, or
+**DEFAULT** in amber when it is not derived from this material or laser at all. The descent
+per layer in particular is never a bare number: without an ablation rate for your material it
+is WeCreat's 0.01 mm default and the sheet says so. **Copy the recipe** puts the sheet on the
+clipboard. The Tune window's JOB section opens the same window with that job's figures. The
+README has a new **How to get engraving settings** section walking through all of it.
 
-**Fixed from the first bench session:**
+**Record what this job did.** Once a job has run and you have measured how deep it went,
+one button in the settings window records the settings it ran with and the depth it reached.
+That becomes grade-A evidence - measured on this bench - in a *Jobs - material on laser*
+study, and the next time you ask for settings for that material the advice rests on your own
+figure ahead of every reported one. Two or three jobs at different speeds give it something
+to interpolate between. This is how the advice is corrected after the settings were used, and
+how a material with no evidence at all gets its first number.
 
-- The focus window accepts the machine's real height, which can be negative; a laser camera
-  reply of all zeros is reported as "no measurement" instead of a height of 0.
-- Stopping an armed focus ramp no longer reports it as cut, and lets you send again.
-- The ramp's confirmation names the bed position it will cut at, as well as the heights -
-  ramps go where the cut window's position says, not where the red pointer is.
-- On a coin blank the test number ("DV 1") stays inside the blank's rim; it used to run off
-  the edge.
-- A patch planned right at the study's energy ceiling is no longer refused for the audit's own
-  counting error; the audit now shows the ceiling, its limit and the reading.
-- The focus window's advice on reading a ramp is corrected.
+**The ablation study measures (by hand).** **Measure...** on an engraved coupon opens one box
+per patch - micrometres from the untouched surface, several readings per box - and saving
+them makes those patches grade-A evidence; the same dialog edits readings later. **Delete
+coupon record** removes a record and its readings for good (a failed coupon is still
+*retired*, not deleted, so its number and record stay). The study list shows every study's
+status in the words the advice uses - reported recipes, depths and grades for a reference
+study; coupons planned, cut and measured for your own; results recorded for a Jobs study -
+and marks imported studies with where they came from. If the settings advice finds the
+bundled reference studies missing from your database (they were only ever offered to an
+empty one), it says so and offers to add them right there.
 
-**Reference studies and settings from the evidence** (new since 1.12.0, still preview). An
-empty ablation database offers studies gathered from published sources - vendor recipes,
-a peer-reviewed stainless study, practitioner brass recipes - showing for each where it comes
-from and how much weight it deserves before anything is added. The Tune window's **Settings
-from the study...** (and `--suggest-settings`) then proposes MakeIt settings for a target depth
-from the best evidence available, with its source and grade on every number and no guessing
-beyond what was tested; for brass, copper and aluminium it says plainly that nothing measured
-exists yet.
+**Every shape, every material.** The workpiece need not be a round coin: a rectangular plate
+or tag (with corner radius and holes), or any outline from an SVG or a mask image, and the
+design is fitted, previewed, finished and reported on that shape. The Blank panel asks for the
+material from a catalogue of sixteen (`--materials` prints it), each carrying what a fibre,
+UV, CO2 or diode source can do to it - *works*, *marginal* or *cannot*, in words under the
+Laser box, in the job report, and in the settings advice, which refuses a pairing the source
+cannot do rather than inventing a recipe. Lenses are a list everywhere one is asked for: the
+Lumos Ultra's own first, third-party f-theta lenses under their own heading, or type your own.
+
+**Also:** a second literature sweep (`docs/research/laser-ablation-sweep-2.md`) found graded
+removal figures for bronze, copper, titanium, mild steel and more stainless, and still none in
+readable text for brass or for UV on any metal - the rows it marks fit to seed are the next
+additions to the bundled set. Cleaning layers are noted as working from MakeIt 3.0.7. The JSON
+interfaces gained the workpiece's shape and material (`docs/INTEGRATION.md`).
 
 ## Updating
 
-**From 1.4.0 to 1.12.0:** the green bar will offer this release — click **Update now**.
-When 1.13.0 starts, it offers these notes.
+**From 1.4.0 to 1.13.0:** the green bar will offer this release — click **Update now**.
+When 1.14.0 starts, it offers these notes.
 
 **From 1.3.0 or earlier:** those versions cannot update themselves. Download this release by
 hand once; from then on, updates come to you.

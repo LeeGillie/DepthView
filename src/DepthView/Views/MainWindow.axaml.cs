@@ -78,7 +78,7 @@ public partial class MainWindow : Window
         TuneButton.Click += (_, _) => OpenTune();
         ClearButton.Click += (_, _) => ClearAll();
         AboutButton.Click += (_, _) => new AboutWindow().ShowDialog(this);
-        AblationButton.Click += (_, _) => new AblationWindow { Icon = Icon }.Show(this);
+        AblationButton.Click += (_, _) => new AblationWindow(Ablation.AblationDatabase.Shared) { Icon = Icon }.Show(this);
         SettingsButton.Click += (_, _) => OpenSettingsAdvice();
         WireUpdates();
 
@@ -733,7 +733,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var db = Ablation.AblationDatabase.Load();
+            var db = Ablation.AblationDatabase.Shared;
             var cm = Materials.MaterialCatalog.Find(Blank.Current.MaterialId);
             var w = new SettingsAdviceWindow(db, cm.AblationName ?? cm.Name, Ablation.LaserKind.Mopa, null, Blank.Current.TargetDepthMm, 256) { Icon = Icon };
             w.Show(this);

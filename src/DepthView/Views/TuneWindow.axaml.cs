@@ -808,7 +808,7 @@ public partial class TuneWindow : Window
     {
         try
         {
-            var db = Ablation.AblationDatabase.Load();
+            var db = Ablation.AblationDatabase.Shared;
             var cm = Materials.MaterialCatalog.Find(Blank.Current.MaterialId);
             string? material = cm.AblationName ?? cm.Name;
             Ablation.LaserKind? kind = LaserBox.SelectedIndex switch { 1 => Ablation.LaserKind.Uv, 2 or 3 => Ablation.LaserKind.Mopa, _ => null };

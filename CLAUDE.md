@@ -968,7 +968,7 @@ the code needs:
 - **Interfaces:** `depthview.tune/1` gained a `workpiece` object; `depthview.params/1`'s
   `portable.workpiece` gained `widthMm`/`heightMm`/`cornerRadiusMm`/`holes[]` under
   `shape: "rectangle"` (unknown shapes read as round with a `problems[]` note). Both are
-  documented in INTEGRATION.md as "unreleased" - change that wording at release.
+  documented in INTEGRATION.md (the "unreleased" markers came off for 1.14.0).
 
 ## What is owed
 

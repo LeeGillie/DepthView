@@ -78,8 +78,22 @@ public sealed class AblationDatabase
         return db;
     }
 
+    /// <summary>
+    /// The person's own database, loaded once and shared by every window that shows or
+    /// changes it (the Ablation study window, the engraving-settings window from the main
+    /// window and from the Tune window), so a job result recorded in one cannot be
+    /// overwritten by a save from another holding an older copy. Screenshot and demo paths
+    /// load their own.
+    /// </summary>
+    public static AblationDatabase Shared => _shared ??= Load();
+    private static AblationDatabase? _shared;
+
+    /// <summary>Counts up on every save, so a window can tell whether the shared database changed behind it.</summary>
+    [JsonIgnore] public int Revision { get; private set; }
+
     public void Save()
     {
+        Revision++;
         SavedUtc = DateTimeOffset.UtcNow;
         var dir = System.IO.Path.GetDirectoryName(Path);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);

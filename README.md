@@ -921,7 +921,7 @@ file**, so the closing line of the status bar is a measurement rather than a cla
 
 Everything here is also available from the command line; see below.
 
-**Plates, tags and any other outline** *(unreleased - in the next build)*. The blank need not
+**Plates, tags and any other outline**. The blank need not
 be round. In the Blank panel, **Shape** switches between a round blank, a rectangular plate or
 tag - a width and height, a corner radius and a list of holes to keep clear (`x,y,d; ...` in mm
 from the centre, y down) - and a **custom outline**: an SVG you drew (a dog tag, a shield, an
@@ -940,7 +940,7 @@ a rim and skips the placement step. From the command line: `--plate 100x60 --cor
 "0,-22,4"`, or `--shape tag.svg` (with `--plate WxH` as the bounding box when the file does not
 state its size).
 
-**Material, and what the laser can do to it** *(unreleased)*. The Blank panel also asks what
+**Material, and what the laser can do to it**. The Blank panel also asks what
 the blank is made of - brass, bronze, copper, stainless, mild steel, aluminium (bare or
 anodised), titanium, silver, gold, wood, leather, acrylic, slate, glass. It changes no pixel:
 it picks the relief look and the finishing chemistry, it is what the settings advisor is asked
@@ -1168,7 +1168,7 @@ recipe may be offered as a starting point, but no depth is predicted, and the on
 named: cut a coupon. Once your own coupons are measured they are grade A and everything else
 is set aside. `DepthView --suggest-settings` does the same headlessly, with `--json`.
 
-**The settings sheet** *(unreleased)*. The answer is written for the program you will type
+**The settings sheet**. The answer is written for the program you will type
 it into - **Settings for** picks WeCreat MakeIt (Relief), LightBurn's Image layer in
 Grayscale mode, or a slicer - as a complete sheet of every setting that program asks for, in
 its own words and units: for MakeIt the craft, the 8-bit map, power, speed, line density,
@@ -1295,7 +1295,7 @@ DepthView --ablation-ui --measure --screenshot m.png     # the ablation window w
 `--suggest-settings` reads your own ablation database (`--db <file>` for another; `--demo-db`
 for the bundled demo with the reference studies) and prints `depthview.settings-advice/1`:
 the recipe, the predicted depth band, the grade, the evidence used, every note and warning,
-and (unreleased) the settings sheet for the program `--for` names (`makeit`, `lightburn`,
+and the settings sheet for the program `--for` names (`makeit`, `lightburn`,
 `slicer`) with the basis of every line, plus `zAdvance` - the descent per layer with its basis
 (`predicted`, `default` or `none`) and grade. `--material` and `--laser` take the preset ids
 the message lists when one is wrong.

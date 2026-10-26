@@ -184,8 +184,10 @@ Next up, roughly in order:
   exact size with a projection of how many the design needs, test numbers (never reused;
   removed = retired) engraved as a QR code plus digits, the coupon job with its own energy
   ceiling audit, cutting from the laser camera's picture, import/export, and the 60/100 W
-  carry-over by watts. The measure phase is a stub until the Mitutoyo 543-790B digital
-  indicator is in hand (gauge on the Genmitsu 3030, 65 mm puck in the spindle clamp). Also:
+  carry-over by watts. The measure phase takes readings by hand (2026-10-26: Measure...
+  dialog, job results from the advice window, delete coupon record); the gauge interface
+  waits for the Mitutoyo 543-790B digital indicator (gauge on the Genmitsu 3030, 65 mm puck
+  in the spindle clamp). Also:
   DepthView moved to net10.0, and the laser code it shares with MOPAChroma Atlas is now the
   LumosUltra.* libraries in the Atlas repo, taken as a git submodule (CLAUDE.md). **Lee tests
   everything before any push or release; the Atlas commits are on its `capture-import`

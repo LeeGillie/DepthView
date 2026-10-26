@@ -35,6 +35,111 @@ this file, and what will it look like when a laser turns it into layers?**
 
 ---
 
+## How to get engraving settings
+
+Many people come here for one thing: *what do I type into MakeIt or LightBurn to engrave
+this material to this depth?* That pathway is the **Engraving settings** button at the top
+right of the main window. It needs no depth map. Everything else in this section is about
+what that answer rests on and how to make it better.
+
+![The engraving-settings window](docs/images/engraving-settings.png)
+
+### Settings for a material
+
+1. Click **Engraving settings**. Pick the material (every material DepthView knows is listed;
+   the ones the ablation study has no evidence for say so), the laser (60 W or 100 W MOPA, or
+   the UV module), the lens (the one the Lumos Ultra ships with is the default; third-party
+   f-theta lenses are listed under their own heading), the target depth and the number of
+   passes, and the program the sheet is for - MakeIt relief, LightBurn grayscale or a slicer.
+2. Read the verdict first. It says what the evidence predicts for that target at that pass
+   count, or that it cannot predict, and gives the **grade** of the evidence: A is measured
+   on this bench (your own coupons or job results), B peer-reviewed, C a vendor's measured
+   figure, D a practitioner's, E a recipe with no measurement. Grades are never blended and
+   nothing is extrapolated past what was tested.
+3. The sheet below it is one line per setting the program asks for, in that program's words
+   and units, each marked with what it rests on: *evidence* at the grade above, *yours* (what
+   you set), *fixed* (how the program works), **DEFAULT** (not derived from this material or
+   laser, and said so in amber) or **UNKNOWN** (find it by test). The descent per layer is the
+   line to watch: without an ablation rate for your material it is only WeCreat's 0.01 mm
+   default, and the sheet says so rather than passing it off as a measurement.
+4. **Copy the recipe** puts the sheet on the clipboard as text, with the basis of every line.
+
+If the verdict says *Uncalibrated here: the bundled reference studies are not in this
+database*, click **Add the reference studies...**: each is shown with its source and grade
+before anything is added, and the advice recomputes. If it says *Uncalibrated* with nothing
+to add, the literature DepthView reviewed has no measured figure for that material on that
+kind of laser; the next section is the fix.
+
+The same window opens from the Tune window's **JOB** section with that job's material, lens,
+target depth and pass count filled in. From the command line, `--suggest-settings --material
+<id> --laser <id> --target-mm <mm> --passes <n> --for makeit|lightburn|slicer [--json]`
+prints the same sheet.
+
+### After the job: record what it did
+
+Settings suggested from someone else's machine are a start, not a calibration. Once a job has
+run, measure how deep it went at a full-depth area of the design - where the depth map was
+black - from the untouched surface, and click **Record what this job did...** in the
+engraving-settings window. The dialog holds the sheet's settings (change any you changed), the
+depth in micrometres (several readings in one box if you took several), how it was measured,
+and what the job was.
+
+![Recording a job result](docs/images/record-job-result.png)
+
+That record goes into a study named *Jobs - material on laser* in the ablation database, as a
+coupon with its own test number and one measured patch, and it counts as **grade A** - measured
+on this bench - so the next time you ask for settings for that material the advice rests on
+your own figure ahead of every reported one. This is how the advice is corrected after the
+settings were used, and how a material with no evidence at all gets its first number. Two or
+three jobs at different speeds give the advisor something to interpolate between; it only
+ever interpolates speed, between tested settings of the same pulse width and frequency.
+
+### The material library
+
+The material list is one catalogue (`--materials` prints it): sixteen materials, each tied to
+the relief preset the Tune window uses for it, the finishing simulator's surface, and the
+ablation study's name for it where there is one. Each material carries what each kind of
+source can do to it - fibre, UV, CO2, diode - as *works*, *marginal* or *cannot*, in words:
+the Tune window shows the verdict under the Laser box, the job report repeats it, and the
+settings advice refuses a *cannot* pairing outright rather than inventing a recipe. Brass on
+a diode or CO2 is refused, as is clear acrylic or glass on a fibre; wood or anodised
+aluminium on a fibre is marginal, with the reason given (`--materials wood mopa` prints it).
+A material that is *not in the ablation study* can still be chosen; it simply has no removal
+evidence until a job result is recorded for it.
+
+### Your studies: the list, their status, imported evidence
+
+**Ablation study** (top right) is where all the evidence lives. The list on the left shows
+every study with a status line in the words the advice uses: a reference study says how
+many reported recipes it holds, how many with a depth, and their grade; your own studies say
+how many coupons are planned, cut or retired and how many measured patches - the grade-A
+evidence - they hold; a *Jobs* study says how many job results are recorded. An imported
+study is marked **IMPORTED** with where it came from: a measured study from the same laser
+model and material, shared by someone else as a `.dvstudy.json` file (**Export...** writes
+one; **Import...** reads it), keeps its own test numbers and its measurements count as grade
+A from another bench, above every bundled reference study and below your own.
+
+![The ablation-study window](docs/images/ablation-study.png)
+
+Selecting a coupon shows its patches drawn to scale. **Measure...** opens the readings for
+an engraved coupon - one box per patch, micrometres from the untouched surface, several
+readings per patch if you took several - and saving them turns those patches into grade-A
+evidence. The same button edits the readings later, including a job result's.
+
+### Deleting a study or evidence
+
+**Delete study** removes the chosen study and every coupon record in it - a reference study
+you do not want, an import that turned out wrong, a study you planned and abandoned. Its
+test numbers are not reused. **Delete coupon record** removes one coupon record for good,
+with its readings: evidence that was wrong, or a job result entered by mistake; the
+confirmation says how many measured patches the advice would lose. To clear the readings of
+one patch without losing the coupon, open **Measure...**, clear its box and save. A coupon
+that failed on the bench and must be cut again is not deleted but **retired** (*Remove
+(retire) coupon...*): the record and its number stay, its settings go back to the pool, and
+the re-cut gets a new number.
+
+---
+
 ## If you use LightBurn
 
 LightBurn 2.1's [3D Sliced Image mode](https://docs.lightburnsoftware.com/2.1/Guides/3DSlicedImage/)
@@ -1183,6 +1288,8 @@ DepthView --suggest-settings --material brass-h62 --for lightburn   # the sheet 
 DepthView --advice-ui --screenshot adv.png               # the settings-advice window on the demo database
 DepthView --advice-ui --material brass --screenshot adv-brass.png   # ... showing the labelled default descent
 DepthView --advice-ui --empty-db --screenshot adv-empty.png  # ... on an empty database: the missing-reference-studies verdict
+DepthView --advice-ui --record --screenshot adv-record.png   # ... with the "Record what this job did" dialog over it
+DepthView --ablation-ui --measure --screenshot m.png     # the ablation window with the readings (measure) dialog
 ```
 
 `--suggest-settings` reads your own ablation database (`--db <file>` for another; `--demo-db`
@@ -1386,6 +1493,8 @@ tests/
   check_json.py           runs the JSON interface the way a host program would and holds
                           it to the same answers
   check_ablation.py       the ablation demo's coupon job: layout, design, audit, G-code shape
+  check_jobresult.cs      job results as evidence: recorded, used by the advice, deleted,
+                          reloaded (`dotnet run tests/check_jobresult.cs`)
   check_fit.py            asserts fitting a design inside a rim gets the geometry right and
                           copies every original pixel unchanged
   fixtures/               the generated images

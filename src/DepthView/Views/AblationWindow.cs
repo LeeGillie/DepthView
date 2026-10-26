@@ -22,8 +22,10 @@ namespace DepthView.Views;
 /// removed (retired) to be cut again, studies are shared as files and carried between the
 /// 60 W and 100 W ratings, and the database can be reset for a test run.
 ///
-/// The measure phase is a stub: its data shape is settled (<see cref="PatchMeasurement"/>)
-/// and the entry window waits for the depth gauge and its interface (TODO §7.7b).
+/// The measure phase is by hand (<see cref="MeasureDialog"/>: readings per patch, saved as
+/// <see cref="PatchMeasurement"/>); the gauge interface (TODO §7.7b) will fill the same boxes.
+/// A coupon record can be deleted outright, as against retired; the list shows each study's
+/// status in the words the settings advice uses.
 /// </summary>
 public sealed class AblationWindow : Window
 {
@@ -34,7 +36,7 @@ public sealed class AblationWindow : Window
     private readonly ListBox _studies = new(), _coupons = new();
     private readonly TextBlock _summary = Text("", 12, Ink), _designText = Text("", 12, Ink), _hover = Text("", 11, Muted), _status = Text("", 11, Muted);
     private readonly CouponPreview _preview = new() { MinHeight = 320 };
-    private readonly Button _newStudy, _import, _export, _convert, _deleteStudy, _reset, _plan, _cut, _measure, _remove, _jobs, _saveJob, _seeds;
+    private readonly Button _newStudy, _import, _export, _convert, _deleteStudy, _reset, _plan, _cut, _measure, _remove, _deleteCoupon, _jobs, _saveJob, _seeds;
 
     public AblationWindow() : this(AblationDatabase.Load()) { }
 
@@ -56,8 +58,9 @@ public sealed class AblationWindow : Window
         _seeds = MakeButton("Reference studies...", "Add the reference studies bundled with DepthView - figures other people reported, with their source and grade on every one. Nothing in them was cut here.");
         _plan = MakeButton("Plan the next coupon", "Fill the next coupon with the next settings in the design and give it its test number.");
         _cut = MakeButton("Cut this coupon...", "Place it on the laser camera's picture, audit the job, send, arm and start.");
-        _measure = MakeButton("Measure...", "Enter the depth readings for this coupon's patches. Waiting for the gauge: not built yet.");
+        _measure = MakeButton("Measure...", "Enter, change or clear the depth readings for this coupon's patches, in micrometres from the untouched surface. What you save here is grade-A evidence - measured on this bench - and the settings advice uses it ahead of every reported figure.");
         _remove = MakeButton("Remove (retire) coupon...", "The coupon failed or must be cut again: its number is retired and its settings go back to the pool. The re-cut gets a new number.");
+        _deleteCoupon = MakeButton("Delete coupon record", "Remove this coupon record and its readings from the study for good - evidence that was wrong, or a job result entered by mistake. Its number is still never reused.");
         _jobs = MakeButton("Open the jobs folder", "Where every job file sent is kept, named by test number.");
         _saveJob = MakeButton("Save job file...", "Write this coupon's audited G-code to a file without a laser (for a look, or to send another way).");
 
@@ -76,11 +79,11 @@ public sealed class AblationWindow : Window
             Background = B("#2A2410"), BorderBrush = B("#E3A640"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(10, 6), Margin = new Thickness(0, 0, 0, 4),
             Child = new TextBlock
             {
-                Text = "Preview: the ablation study is framed in, not yet functional. Nothing here has been run against a laser yet - the first coupons and the measuring step are still to come. Look around, but do not plan a material study on it yet.",
+                Text = "Preview: the ablation study has not yet been run end to end on a laser. Planning, cutting and measuring by hand are built; the gauge interface and the first measured coupons are still to come. A job result recorded from the settings advice is already full evidence.",
                 FontSize = 12, Foreground = B("#F0D28A"), TextWrapping = TextWrapping.Wrap,
             },
         };
-        ToolTip.SetTip(preview, "This notice goes away once the study has cut and measured its first coupons.");
+        ToolTip.SetTip(preview, "This notice goes away once a study has cut and measured its first coupons end to end.");
         top.Children.Add(preview);
         top.Children.Add(Head("Study"));
         top.Children.Add(_summary);
@@ -89,7 +92,7 @@ public sealed class AblationWindow : Window
         DockPanel.SetDock(top, Dock.Top);
         right.Children.Add(top);
         var couponButtons = new WrapPanel { Margin = new Thickness(0, 6, 0, 6) };
-        foreach (var b in new[] { _plan, _cut, _saveJob, _measure, _remove, _jobs }) { b.Margin = new Thickness(0, 0, 6, 6); couponButtons.Children.Add(b); }
+        foreach (var b in new[] { _plan, _cut, _saveJob, _measure, _remove, _deleteCoupon, _jobs }) { b.Margin = new Thickness(0, 0, 6, 6); couponButtons.Children.Add(b); }
         DockPanel.SetDock(couponButtons, Dock.Top);
         right.Children.Add(couponButtons);
         var split = new Grid { ColumnDefinitions = new ColumnDefinitions("300,*") };
@@ -125,14 +128,16 @@ public sealed class AblationWindow : Window
         _plan.Click += (_, _) => PlanCoupon();
         _cut.Click += async (_, _) => await CutAsync();
         _saveJob.Click += async (_, _) => await SaveJobAsync();
-        _measure.Click += async (_, _) => await MessageAsync("Measure", "The measure phase is not built yet. Its record is settled - readings in micrometres relative to the untouched gap beside each patch, the method, notes - and the entry window waits for the depth gauge and its interface, so it is shaped by real numbers rather than guessed.");
+        _measure.Click += async (_, _) => await MeasureAsync();
         _remove.Click += async (_, _) => await RemoveAsync();
+        _deleteCoupon.Click += async (_, _) => await DeleteCouponAsync();
         _jobs.Click += (_, _) => { try { Directory.CreateDirectory(AblationDatabase.JobsFolder); Process.Start(new ProcessStartInfo(AblationDatabase.JobsFolder) { UseShellExecute = true }); } catch (Exception ex) { _status.Text = ex.Message; } };
 
         _seeds.Click += async (_, _) => await OfferSeedsAsync(unasked: false);
 
         FillStudies();
-        _status.Text = $"Database: {_db.Path} - next test number DV{_db.NextTestNumber}.";
+        // The demo path is in the person's temp folder; the screenshot run must not show it.
+        _status.Text = $"Database: {(Program.StartupAblation ? "the demo database (temporary)" : _db.Path)} - next test number DV{_db.NextTestNumber}.";
 
         // An empty database is offered the bundled reference studies once per seed set - with
         // their sources in front of the person before anything is added. Not on the demo
@@ -158,13 +163,34 @@ public sealed class AblationWindow : Window
         _studies.Items.Clear();
         foreach (var s in _db.Studies)
         {
-            string tag = s.Reference ? $"\nREFERENCE - {s.Origin}; nothing here was cut on this machine" : s.Origin == "local" ? "" : $"\nimported: {s.Origin}";
-            var item = new ListBoxItem { Tag = s, Content = new TextBlock { Text = $"{s.Name}\n{s.Material.Summary} - {s.Laser.RatedPowerW:0} W {s.Laser.Kind}{tag}", TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = s.Reference ? Muted : Ink } };
+            string tag = s.Reference ? $"\nREFERENCE - {s.Origin}; nothing here was cut on this machine" : s.Origin == "local" ? "" : $"\nIMPORTED from {s.Origin} - its measurements count as grade A from another bench";
+            var item = new ListBoxItem { Tag = s, Content = new TextBlock { Text = $"{s.Name}\n{s.Material.Summary} - {s.Laser.RatedPowerW:0} W {s.Laser.Kind}{tag}\n{StudyStatus(s)}", TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = s.Reference ? Muted : Ink } };
             _studies.Items.Add(item);
             if (ReferenceEquals(s, select)) _studies.SelectedItem = item;
         }
         if (_studies.SelectedItem is null && _studies.Items.Count > 0) _studies.SelectedIndex = 0;
         ShowStudy();
+    }
+
+    /// <summary>
+    /// One line of status for the list: what the study holds as evidence, in the words the
+    /// settings advice uses. A reference study: how many reported figures and at what grades.
+    /// A local or imported one: coupons by state and measured patches - the grade-A evidence.
+    /// </summary>
+    public static string StudyStatus(Study s)
+    {
+        var patches = s.Coupons.Where(c => !c.Retired).SelectMany(c => c.Patches).ToList();
+        int withDepth = patches.Count(p => p.Measurement is { ReadingsUm.Count: > 0 });
+        if (s.Reference)
+        {
+            var grades = patches.Select(p => p.Provenance?.Grade).Where(g => !string.IsNullOrEmpty(g)).Distinct().OrderBy(g => g).ToList();
+            return $"{patches.Count} reported recipe{(patches.Count == 1 ? "" : "s")}, {withDepth} with a depth" + (grades.Count > 0 ? $" - grade {string.Join("/", grades)}" : "") + (withDepth == 0 ? " - a starting point, predicts nothing" : "");
+        }
+        int planned = s.Coupons.Count(c => !c.Retired && c.EngravedUtc is null), engraved = s.Coupons.Count(c => !c.Retired && c.EngravedUtc is not null), retired = s.Coupons.Count(c => c.Retired);
+        bool jobs = s.Name.StartsWith("Jobs - ", StringComparison.Ordinal) && s.Design.Count == 0;
+        string ev = withDepth == 0 ? "no evidence yet" : $"{withDepth} measured patch{(withDepth == 1 ? "" : "es")} - grade A evidence";
+        if (jobs) return $"{engraved} job result{(engraved == 1 ? "" : "s")} recorded - {ev}";
+        return $"{s.Coupons.Count(c => !c.Retired)} coupon{(s.Coupons.Count(c => !c.Retired) == 1 ? "" : "s")} ({planned} planned, {engraved} cut{(retired > 0 ? $", {retired} retired" : "")}) - {ev}";
     }
 
     private void ShowStudy()
@@ -201,7 +227,9 @@ public sealed class AblationWindow : Window
         {
             string line = c.IsReference
                 ? $"{c.Name}  reference  - {c.Patches.Count} reported recipe{(c.Patches.Count == 1 ? "" : "s")}, {c.Patches.Count(p => p.Measurement is not null)} with a reported depth (not measured here)"
-                : $"DV{c.Number}  {c.Status}  - {c.Patches.Count} patches" +
+                : $"DV{c.Number}  {c.Status}  - {c.Patches.Count} patch{(c.Patches.Count == 1 ? "" : "es")}" +
+                  (c.Patches.Count(p => p.Measurement is { ReadingsUm.Count: > 0 }) is var measured && measured > 0 ? $", {measured} measured" : "") +
+                  (c.Patches.Count == 1 && c.Patches[0].Label == "job" ? $" - job: {c.Notes}" : "") +
                   (c.EngravedUtc is { } e ? $", cut {e.LocalDateTime:yyyy-MM-dd HH:mm}" : "") +
                   (c.Focus is { } f ? $", focus: {f.Summary}" + (c.JobZMm is { } z ? $", job Z {z:0.00}" : "") : "") +
                   (c.Retired ? $" - {c.RetiredReason}" : "");
@@ -220,6 +248,7 @@ public sealed class AblationWindow : Window
         _saveJob.IsEnabled = live;
         _measure.IsEnabled = live && c!.EngravedUtc is not null;
         _remove.IsEnabled = live;
+        _deleteCoupon.IsEnabled = c is not null && Study is { Reference: false };
         _preview.Show(Study, c);
     }
 
@@ -342,6 +371,30 @@ public sealed class AblationWindow : Window
         if (file is null) return;
         await File.WriteAllTextAsync(file.Path.LocalPath, gcode);
         _status.Text = $"Job written to {file.Name}. {audit.Message}";
+    }
+
+    private async Task MeasureAsync()
+    {
+        if (Study is not { } s || Coupon is not { } c) return;
+        var dlg = new MeasureDialog(s, c) { Icon = Icon };
+        await dlg.ShowDialog<bool>(this);
+        if (!dlg.Changed) return;
+        Save();
+        FillStudies(s);
+        int n = c.Patches.Count(p => p.Measurement is { ReadingsUm.Count: > 0 });
+        _status.Text = $"{c.Name}: {n} patch{(n == 1 ? "" : "es")} with readings. The settings advice for {s.Material.Summary} on this kind of laser now rests on them (grade A).";
+    }
+
+    private async Task DeleteCouponAsync()
+    {
+        if (Study is not { } s || Coupon is not { } c) return;
+        int n = c.Patches.Count(p => p.Measurement is { ReadingsUm.Count: > 0 });
+        if (!await ConfirmAsync("Delete coupon record", $"Delete {c.Name} from \"{s.Name}\" for good" + (n > 0 ? $", with its {n} measured patch{(n == 1 ? "" : "es")} - evidence the settings advice is using" : "") +
+                                                        "? Its number is never reused. To re-cut a failed coupon, retire it instead so the record stays.")) return;
+        AblationDatabase.DeleteCoupon(s, c);
+        Save();
+        FillStudies(s);
+        _status.Text = $"{c.Name} deleted.";
     }
 
     private async Task RemoveAsync()

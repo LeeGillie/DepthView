@@ -12,8 +12,10 @@ namespace DepthView.Views;
 /// <summary>
 /// Settings for a job from the ablation study's evidence: material, laser and target depth
 /// in; a MakeIt recipe, the predicted depth as a band with its grade, the Z advance, and
-/// every note and warning out. Opened from the Tune window's JOB section. Shows what the
-/// evidence supports and refuses the rest, exactly as <see cref="SettingsAdvisor"/> does.
+/// every note and warning out. Opened from the front page's "Engraving settings" button (no
+/// depth map needed) and from the Tune window's JOB section with that job's figures. Shows
+/// what the evidence supports and refuses the rest, exactly as <see cref="SettingsAdvisor"/>
+/// does; "Record what this job did..." feeds the measured result back as grade-A evidence.
 /// </summary>
 public sealed class SettingsAdviceWindow : Window
 {
@@ -28,7 +30,7 @@ public sealed class SettingsAdviceWindow : Window
     private readonly NumericUpDown _passes = new() { Minimum = 1, Maximum = 65535, Increment = 16, FormatString = "0", Width = 110 };
     private readonly TextBlock _verdict = Text("", 13, Bright, FontWeight.SemiBold), _grade = Text("", 12, Ink), _recipe = Text("", 12, Ink),
         _notes = Text("", 11, Muted), _warn = Text("", 12, Amber), _used = Text("", 11, Muted);
-    private readonly Button _copy, _close, _addSeeds;
+    private readonly Button _copy, _close, _addSeeds, _record;
     private SettingsAdvice? _advice;
 
     public SettingsAdviceWindow(AblationDatabase db, string? materialName, LaserKind? kind, string? lens, double targetDepthMm, int passes)
@@ -72,6 +74,7 @@ public sealed class SettingsAdviceWindow : Window
 
         _copy = MakeButton("Copy the recipe", "Copy the settings sheet as text, with what every line rests on, to type into the program.");
         _close = MakeButton("Close", "");
+        _record = MakeButton("Record what this job did...", "After the job ran and you measured it: the settings it actually used and the depth it reached, kept as grade-A evidence for this material and laser. The advice is recomputed with it. This is how the advice is corrected after the settings were used - and how a material with no evidence gets its first figure.");
         _addSeeds = MakeButton("Add the reference studies...", "The bundled reference studies - figures other people reported, with their source and grade on every one - are not in this database. See where each comes from, then add them; the advice is recomputed.");
         _addSeeds.IsVisible = false;
 
@@ -116,7 +119,7 @@ public sealed class SettingsAdviceWindow : Window
         p.Children.Add(_used);
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(16, 8) };
-        buttons.Children.Add(_copy); buttons.Children.Add(_close);
+        buttons.Children.Add(_record); buttons.Children.Add(_copy); buttons.Children.Add(_close);
         var grid = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
         grid.Children.Add(new ScrollViewer { Content = p, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Grid.SetRow(buttons, 1); grid.Children.Add(buttons);
@@ -134,6 +137,16 @@ public sealed class SettingsAdviceWindow : Window
         _addSeeds.Click += async (_, _) =>
         {
             if (await SeedsOfferDialog.ShowAsync(this, _db, unasked: false)) Refresh();
+        };
+        _record.Click += async (_, _) =>
+        {
+            if ((_material.SelectedItem as ComboBoxItem)?.Tag is not MaterialSpec m || (_laser.SelectedItem as ComboBoxItem)?.Tag is not LaserSpec l) return;
+            var dlg = new JobResultDialog(_db, m, l, _lens.Text, _advice?.Recipe, (int)(_passes.Value ?? 256)) { Icon = Icon };
+            if (await dlg.ShowDialog<bool>(this) && dlg.Result is { } r)
+            {
+                Refresh();
+                _grade.Text += $" Recorded {r.Coupon.Name} in \"{r.Study.Name}\".";
+            }
         };
         Refresh();
     }

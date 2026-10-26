@@ -782,14 +782,35 @@ that are load-bearing:
 - `--ablation-demo [--json] [--out job.gc]` (temporary database, SIMULATED in the study's
   name) is what `tests/check_ablation.py` and CI run (its `focus` section builds the ramp and
   a coupon job with a made-up Z, so the Z checks run without a laser, and the seeds with
-  their provenance); `--ablation-ui [--new-study | --focus | --cut | --seeds | --reference]
+  their provenance); `--ablation-ui [--new-study | --focus | --cut | --measure | --seeds | --reference]
   --screenshot` opens the window on it, with one of its dialogs over it or a reference study
   selected (`Program.StartupAblationView`), which is how the layouts are looked at.
   The person's own database is `%APPDATA%\DepthView\ablation\ablation.json`, jobs beside it,
   each named by its test number (`focus ramp ...` for ramps).
-- **The measure phase is a stub**: `PatchMeasurement` is the record (readings in µm relative
-  to the gap, method, notes); the Measure button explains that the entry window waits for the
-  gauge. Do not build it from guessed numbers (the "What is owed" rule below).
+- **The measure phase is by hand** (`Views/MeasureDialog`, built 2026-10-26 at Lee's request
+  for "the ability to tweak the evidence after having used the settings"): one box per patch,
+  readings in µm from the untouched surface, several per box, method and notes shared by
+  the readings entered in one go; saving makes the patch `Measured` with a `PatchMeasurement`,
+  clearing a box deletes that patch's readings (back to `Engraved`). The gauge interface
+  (TODO §7.7b) will fill the same boxes. No guessed numbers anywhere (the "What is owed" rule
+  below). Beside it, **job results** (`AblationDatabase.RecordJobResult`, `Views/
+  JobResultDialog`, the advice window's "Record what this job did..." button): the depth a
+  real job reached at its settings, kept as one coupon (own test number, one `Measured`
+  patch labelled "job", `DesignIndex` -1) in a local study "Jobs - <material> on <laser>"
+  created on first use - grade A through `Evidence.Gather` like any coupon patch, so the
+  advice for that material rests on it next time. `AblationDatabase.DeleteCoupon` is the hard
+  delete ("Delete coupon record" button) as against retiring; "Delete study" was already
+  there. `AblationWindow.StudyStatus` is the status line under every study in the list
+  (reference: recipes/depths/grades; local: coupons by state and measured patches; Jobs:
+  results recorded). Caveat: the advice window and the ablation window each load their own
+  `AblationDatabase`; a save from one does not refresh the other until reopened.
+- **The pathway** (Lee, 2026-10-26: "not obvious, buried on a secondary screen"): the main
+  window's green **Engraving settings** button (`MainWindow.OpenSettingsAdvice`, no image
+  needed; material from `Blank.Current`, 100 W MOPA, the as-shipped lens, the blank's target
+  depth, 256 passes) and a line in the drop hint; the Tune window's JOB button is the same
+  window with that job's figures. README "How to get engraving settings" is the how-to
+  (settings, recording a job result, the material library, the study list and its status,
+  imported evidence, deleting a study or evidence) - keep it in step with the windows.
 - **Seeding is priors, never measurements** (`Ablation/Seeds.cs`, built 2026-10-15 at Lee's
   request so users without his bench equipment have a start; his own measured studies come
   later as further seeds). A seed is a `Study` with `Reference = true` (read-only: `PlanCoupon`

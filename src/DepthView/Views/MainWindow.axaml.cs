@@ -47,6 +47,7 @@ public partial class MainWindow : Window
     private AblationWindow? _ablation;
     private Window? _ablationDialog;
     private SettingsAdviceWindow? _advice;
+    private Window? _adviceDialog;
 
     /// <summary>Only set on the --about screenshot path; the About button uses a dialog.</summary>
     private AboutWindow? _about;
@@ -78,6 +79,7 @@ public partial class MainWindow : Window
         ClearButton.Click += (_, _) => ClearAll();
         AboutButton.Click += (_, _) => new AboutWindow().ShowDialog(this);
         AblationButton.Click += (_, _) => new AblationWindow { Icon = Icon }.Show(this);
+        SettingsButton.Click += (_, _) => OpenSettingsAdvice();
         WireUpdates();
 
         PreviewMode.SelectionChanged += (_, _) => UpdatePreview();
@@ -135,6 +137,15 @@ public partial class MainWindow : Window
                 string adviceMaterial = Program.StartupMaterialOnCommandLine ? cm.AblationName ?? cm.Name : "stainless";
                 _advice = new SettingsAdviceWindow(db, adviceMaterial, Ablation.LaserKind.Mopa, "Lumos Ultra red lens (MOPA)", 1.1, 256) { Icon = Icon };
                 _advice.Show(this);
+                // --record opens the job-result dialog over it, filled from the advice shown.
+                if (Program.StartupAdviceRecord)
+                {
+                    var m = Ablation.MaterialSpec.Presets.FirstOrDefault(x => x.Name.StartsWith(adviceMaterial, StringComparison.OrdinalIgnoreCase)) ?? Ablation.MaterialSpec.Presets[0];
+                    var l = Ablation.LaserSpec.Presets[0];
+                    var a = Ablation.SettingsAdvisor.Advise(db, m, l, 1.1, 256, "Lumos Ultra red lens (MOPA)");
+                    _adviceDialog = new JobResultDialog(db, m, l, "Lumos Ultra red lens (MOPA)", a.Recipe, 256) { Icon = Icon };
+                    _ = _adviceDialog.ShowDialog(_advice);
+                }
                 if (Program.ScreenshotPath is not null) ScheduleScreenshot();
                 return;
             }
@@ -148,6 +159,7 @@ public partial class MainWindow : Window
                     "study" => new AblationStudyDialog(demoStudy) { Icon = Icon },
                     "focus" => new AblationFocusWindow(demoStudy, LumosUltra.Client.LumosUltraClient.DefaultUsbBaseAddress, 105, 105, null) { Icon = Icon },
                     "cut" => new AblationSendWindow(demoStudy, demoCoupon, db) { Icon = Icon },
+                    "measure" => new MeasureDialog(demoStudy, demoCoupon) { Icon = Icon },
                     _ => null,
                 };
                 if (_ablationDialog is not null) _ = _ablationDialog.ShowDialog(_ablation);
@@ -223,6 +235,7 @@ public partial class MainWindow : Window
                 Histogram.ClearHover();
                 Window target =
                     Program.StartupAbout && _about is not null ? _about :
+                    Program.StartupAdvice && _adviceDialog is not null ? _adviceDialog :
                     Program.StartupAdvice && _advice is not null ? _advice :
                     Program.StartupAblationView is not null && _ablationDialog is not null ? _ablationDialog :
                     Program.StartupAblation && _ablation is not null ? _ablation :
@@ -707,6 +720,25 @@ public partial class MainWindow : Window
         _relief.Closed += (_, _) => _relief = null;
         _relief.SetLine(_line);
         _relief.Show(this);
+    }
+
+    /// <summary>
+    /// Engraving settings for a material on a laser, straight from the front page: no depth
+    /// map needed. The material is the workpiece's (Tune > Blank), the laser the MOPA, the
+    /// lens the one the Lumos Ultra ships with, the target depth the blank's; all of them are
+    /// changed in the window. The Tune window's JOB section opens the same window with that
+    /// job's figures filled in.
+    /// </summary>
+    private void OpenSettingsAdvice()
+    {
+        try
+        {
+            var db = Ablation.AblationDatabase.Load();
+            var cm = Materials.MaterialCatalog.Find(Blank.Current.MaterialId);
+            var w = new SettingsAdviceWindow(db, cm.AblationName ?? cm.Name, Ablation.LaserKind.Mopa, null, Blank.Current.TargetDepthMm, 256) { Icon = Icon };
+            w.Show(this);
+        }
+        catch (Exception ex) { StatusText.Text = "Could not open the engraving settings: " + ex.Message; }
     }
 
     /// <summary>

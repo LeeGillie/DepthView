@@ -148,6 +148,13 @@ if ($useCoin) {
 # lands on the same line of the roll, which keeps this image stable between runs.
 Capture @('--about', '--delay', '900', '--screenshot', "$img\about.png") 8
 
+# The engraving-settings pathway, on the demo database (the bundled reference studies, so
+# stainless shows a predicted descent) - the advice window, the job-result dialog over it,
+# and the ablation-study window with the studies' status lines.
+Capture @('--advice-ui', '--screenshot', "$img\engraving-settings.png") 8
+Capture @('--advice-ui', '--record', '--screenshot', "$img\record-job-result.png") 8
+Capture @('--ablation-ui', '--screenshot', "$img\ablation-study.png") 8
+
 Write-Host "Rendering relief art..." -ForegroundColor Cyan
 # --exag is doublings around --depth-mm (0 = true scale): 2 draws the relief 4x deep.
 if ($useCoin) {

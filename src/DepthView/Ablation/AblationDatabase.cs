@@ -145,6 +145,50 @@ public sealed class AblationDatabase
         return coupon;
     }
 
+    /// <summary>
+    /// Deletes a coupon record outright - evidence that was wrong, or a job result entered by
+    /// mistake. Unlike retiring, nothing of it remains; its number is still never reused,
+    /// because the counter only goes up. False when the coupon is not in the study.
+    /// </summary>
+    public static bool DeleteCoupon(Study study, Coupon coupon) => study.Coupons.Remove(coupon);
+
+    /// <summary>
+    /// Records the depth a real job reached: the evidence a person who engraves rather than
+    /// cuts coupons can still give the advisor. The result goes into one local study per
+    /// material and laser ("Jobs - Brass H62 on ..."), created on first use, as a coupon with
+    /// its own test number and a single measured patch at the settings the job ran with. It
+    /// counts as grade A - measured on this bench - exactly like a coupon patch, so the depth
+    /// must be the depth at a full-depth area of the job after every layer ran.
+    /// </summary>
+    public (Study Study, Coupon Coupon) RecordJobResult(MaterialSpec material, LaserSpec laser, PatchSettings settings, PatchMeasurement measurement, string jobName, string notes)
+    {
+        string name = $"Jobs - {(string.IsNullOrEmpty(material.Alloy) ? material.Name : material.Summary)} on {laser.Name}";
+        var study = Studies.FirstOrDefault(s => !s.Reference && s.Origin == "local" && s.Name == name
+                                               && s.Material.Name == material.Name && s.Material.Alloy == material.Alloy && s.Laser.Id == laser.Id);
+        if (study is null)
+        {
+            study = new Study
+            {
+                Name = name, Material = material, Laser = laser, Coupon = CouponSpec.Coin40,
+                Notes = "Results of real jobs, one coupon record per job: the depth each reached at the settings it ran with. Entered by hand after measuring the piece; no design, nothing planned or cut from here.",
+            };
+            Studies.Add(study);
+        }
+        var coupon = new Coupon
+        {
+            Number = NextTestNumber++, EngravedUtc = DateTimeOffset.UtcNow,
+            Notes = string.IsNullOrWhiteSpace(jobName) ? "job" : jobName.Trim(),
+        };
+        coupon.Patches.Add(new Patch
+        {
+            Index = 0, Row = 0, Column = 0, Label = "job", DesignIndex = -1, Settings = settings,
+            Reason = "A real job, not a test patch: depth measured at a full-depth area after every layer ran." + (notes.Length > 0 ? " " + notes : ""),
+            Status = PatchStatus.Measured, Measurement = measurement,
+        });
+        study.Coupons.Add(coupon);
+        return (study, coupon);
+    }
+
     /// <summary>Retires a coupon: its number is never used again and its settings go back to the pool.</summary>
     public bool RemoveCoupon(int number, string reason)
     {

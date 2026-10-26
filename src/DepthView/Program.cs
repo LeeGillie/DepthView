@@ -78,6 +78,8 @@ internal static partial class Program
     public static bool StartupAdvice;
     /// <summary>--empty-db with --advice-ui: the window over an empty database (in a temp file), to show the state before the reference studies are added.</summary>
     public static bool StartupAdviceEmptyDb;
+    /// <summary>--record with --advice-ui: the "Record what this job did" dialog over the advice window, for the screenshot.</summary>
+    public static bool StartupAdviceRecord;
 
     /// <summary>Open the About box straight away. Exists so its screenshot is reproducible too.</summary>
     public static bool StartupAbout;
@@ -424,17 +426,18 @@ internal static partial class Program
                                 first coupon planned, its job built and audited against the
                                 study's energy ceiling. --out keeps the job; --json prints the
                                 figures (layout, settings, audit) for checks. Nothing is sent.
-          DepthView --ablation-ui [--new-study | --focus | --cut | --seeds | --reference] [--screenshot <png>]
+          DepthView --ablation-ui [--new-study | --focus | --cut | --measure | --seeds | --reference] [--screenshot <png>]
                                 open the Ablation study window on the demo database; with
-                                --new-study, --focus, --cut or --seeds also the new-study
-                                dialog, the focus window, the cut (send) window or the offer
-                                of the bundled reference studies over it, which the
-                                screenshot then shows; --reference selects a reference study
+                                --new-study, --focus, --cut, --measure or --seeds also the
+                                new-study dialog, the focus window, the cut (send) window,
+                                the readings (measure) dialog or the offer of the bundled
+                                reference studies over it, which the screenshot then shows;
+                                --reference selects a reference study
           DepthView --suggest-settings [--material <id>] [--laser <id>] [--target-mm <mm>] [--passes <n>]
                                 [--lens <text>] [--for makeit|lightburn|slicer]
                                 [--db <file> | --demo-db] [--json]
                                 settings for a job from the ablation study's evidence (the
-                                Tune window's "Settings from the study" button): the complete
+                                main window's "Engraving settings" button): the complete
                                 sheet for the program --for names, every line with what it
                                 rests on, the predicted depth as a band with its grade, and
                                 every note and warning. The descent per layer is the predicted
@@ -443,8 +446,11 @@ internal static partial class Program
                                 extrapolated beyond what was tested; without depth evidence
                                 for the material it says "uncalibrated". --json prints
                                 depthview.settings-advice/1.
-          DepthView --advice-ui [--material <id>] [--screenshot <png>]
-                                open the settings-advice window on the demo database
+          DepthView --advice-ui [--material <id>] [--empty-db] [--record] [--screenshot <png>]
+                                open the engraving-settings window on the demo database
+                                (--empty-db: on an empty one, showing the missing-reference-
+                                studies verdict; --record: with the "Record what this job
+                                did" dialog over it)
 
         Exit codes: 0 all clean, 1 at least one file flagged (an imposter, or a picture that is mostly
         colour rather than a depth map), 2 a file failed to load.
@@ -673,9 +679,10 @@ internal static partial class Program
         StartupAbout = args.Any(a => a is "--about");
         StartupWhatsNew = args.Any(a => a is "--whats-new-ui");
         StartupAblation = args.Any(a => a is "--ablation-ui");
-        StartupAblationView = !StartupAblation ? null : args.Any(a => a is "--new-study") ? "study" : args.Any(a => a is "--focus") ? "focus" : args.Any(a => a is "--cut") ? "cut" : args.Any(a => a is "--seeds") ? "seeds" : args.Any(a => a is "--reference") ? "reference" : null;
+        StartupAblationView = !StartupAblation ? null : args.Any(a => a is "--new-study") ? "study" : args.Any(a => a is "--focus") ? "focus" : args.Any(a => a is "--cut") ? "cut" : args.Any(a => a is "--seeds") ? "seeds" : args.Any(a => a is "--reference") ? "reference" : args.Any(a => a is "--measure") ? "measure" : null;
         StartupAdvice = args.Any(a => a is "--advice-ui");
         StartupAdviceEmptyDb = args.Any(a => a is "--empty-db");
+        StartupAdviceRecord = args.Any(a => a is "--record");
         StartupLicence = args.Any(a => a is "--licence" or "--license");
         if (StartupLicence) StartupAbout = true;
 

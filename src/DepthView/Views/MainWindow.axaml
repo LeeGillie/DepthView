@@ -82,9 +82,12 @@
               </MenuFlyout>
             </Button.Flyout>
           </Button>
+          <Button x:Name="SettingsButton" Content="Engraving settings" Padding="10,5" FontSize="11"
+                  VerticalAlignment="Center" Background="#1F3A2E" BorderBrush="#2F6B45" Foreground="#E8F5EC"
+                  ToolTip.Tip="Settings for a material on your laser, for MakeIt or LightBurn: power, speed, line density, frequency, pulse width, layers and the descent per layer, each marked with what it rests on - your own measurements, a reported figure with its grade, or a default that says so. No depth map needed. After the job, record the depth it reached and the advice learns from it." />
           <Button x:Name="AblationButton" Content="Ablation study" Padding="10,5" FontSize="11"
                   VerticalAlignment="Center"
-                  ToolTip.Tip="Measure how much metal your laser removes: plan test coupons by material and settings, cut them on the Lumos Ultra, and record the depths. The data the depth simulator will be fitted to." />
+                  ToolTip.Tip="The evidence behind the engraving settings: your studies (test coupons planned, cut and measured), job results you recorded, studies imported from other benches, and the bundled reference studies - each with its status and grade. Delete a study or a coupon record here." />
           <Button x:Name="AboutButton" Content="About" Padding="10,5" FontSize="11"
                   VerticalAlignment="Center"
                   ToolTip.Tip="Version number, the platforms DepthView runs on, everyone who made it, the licence terms, and the update settings." />
@@ -160,6 +163,8 @@
                            FontSize="10" Foreground="#49515C" HorizontalAlignment="Center" />
                 <TextBlock Text=".wws - .lbrn / .lbrn2 projects     .gc - .gcode - .nc jobs (what the machine is sent)"
                            FontSize="10" Foreground="#49515C" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+                <TextBlock Text="Just want settings for a material?  Engraving settings, top right - no depth map needed."
+                           FontSize="11" Foreground="#6FA98A" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="0,10,0,0" />
               </StackPanel>
             </Grid>
           </Border>

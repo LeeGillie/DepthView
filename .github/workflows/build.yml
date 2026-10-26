@@ -95,6 +95,12 @@ jobs:
         shell: bash
         run: python tests/check_ablation.py "${{ steps.exe.outputs.path }}"
 
+      # Job results as evidence: recorded, interpolated by the advice, deleted, reloaded. A
+      # .NET 10 file-based app against the project, so it runs on one platform only.
+      - name: Job results as evidence
+        if: runner.os == 'Linux'
+        run: dotnet run tests/check_jobresult.cs
+
       - name: Render a relief headlessly
         shell: bash
         run: |
